@@ -1,4 +1,4 @@
-[English](README.en.md) · **中文**
+[English](README.md) · **中文**
 
 # NVIDIA DGX Spark GB10 测试套件
 
@@ -73,7 +73,7 @@ HTML 是可独立分享的单文件，图表与计算脚本内嵌；下载后用
 
 ## 4. 下载与安装
 
-仓库目前为私有项目，需要 GitHub 仓库访问权限。可在 **Code → Download ZIP** 下载源码，解压后进入项目根目录；需要保留版本记录时使用 Git：
+可在公开仓库的 **Code → Download ZIP** 下载源码，解压后进入项目根目录；需要保留版本记录时使用 Git：
 
 ```bash
 git clone https://github.com/InfronAI/NVIDIA-DGX-Spark-GB10-TestingSuits.git

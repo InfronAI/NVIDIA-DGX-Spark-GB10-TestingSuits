@@ -14,3 +14,7 @@
 ## GitHub 自动检查
 
 [工作流模板](../deploy/github-actions.validate.yml)包含离线测试、数据完整性检查和执行预览。本次上传凭证不含 `workflow` 权限，因此模板尚未在 GitHub Actions 中启用。仓库维护者可使用具有工作流写入权限的账号，将它保存为 `.github/workflows/validate.yml`；它不调用模型服务，也不运行 GPU 负载。发布前本地检查回执见 [publication-validation.json](../provenance/publication-validation.json)。
+
+## 发布前脱敏检查
+
+运行`python scripts/verify_repository.py`检查裸域名、URL、非示例内网地址、个人目录、SSH用户名和内嵌SVG。网络地址采用`example.invalid`、文档专用IP或环境变量；用户名采用`benchmark`等占位符。外部参考域名需明确列入允许清单；真实凭证和部署信息不得写入测试样例。

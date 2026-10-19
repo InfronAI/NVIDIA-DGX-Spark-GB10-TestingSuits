@@ -14,3 +14,7 @@ Compute speed ratios only when model revision, precision, lengths, concurrency, 
 ## GitHub automation
 
 The [workflow template](../deploy/github-actions.validate.yml) runs offline tests, evidence checks and dry-runs. It is not enabled in GitHub Actions because the publishing credential lacks the `workflow` scope. A repository maintainer with workflow-write permission can save it as `.github/workflows/validate.yml`. It does not call model endpoints or execute GPU workloads. See the [local publication validation receipt](../provenance/publication-validation.json).
+
+## Publication privacy checks
+
+Run `python scripts/verify_repository.py` to check bare domains, URLs, non-example private addresses, personal paths, SSH usernames and embedded SVG. Use `example.invalid`, documentation addresses or environment variables for endpoints, and placeholders such as `benchmark` for users. Documentary domains require explicit review in the allowlist. Never put real credentials or deployment identities in test fixtures.

@@ -25,4 +25,4 @@ sparkbench serve --config configs/serving.example.json --workloads configs/smoke
 sparkbench hardware --mode base
 ```
 
-To execute, add `--execute` and select a new `--output` directory. See [reproduction](reproduction.en.md). The repository is currently private; reading/cloning requires repository access.
+To execute, add `--execute` and select a new `--output` directory. See [reproduction](reproduction.en.md). The repository is public; offline reading and cloning require no API credentials.

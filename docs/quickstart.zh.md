@@ -25,4 +25,4 @@ sparkbench serve --config configs/serving.example.json --workloads configs/smoke
 sparkbench hardware --mode base
 ```
 
-真实执行在同一命令上显式添加`--execute`，并使用新的`--output`目录。配置见[复现指南](reproduction.zh.md)。仓库现为私有，阅读和克隆需要仓库访问权限。
+真实执行在同一命令上显式添加`--execute`，并使用新的`--output`目录。配置见[复现指南](reproduction.zh.md)。仓库已公开；离线阅读和克隆不需要API凭证。

@@ -1,4 +1,4 @@
-**English** · [中文](README.md)
+**English** · [中文](README.zh.md)
 
 # NVIDIA DGX Spark GB10 Testing Suite
 
@@ -73,7 +73,7 @@ Each HTML report is a standalone file with embedded figures and calculation scri
 
 ## 4. Download and install
 
-The repository is currently private and requires repository access. Use **Code → Download ZIP**, extract it and enter the project root, or clone with Git to retain revision history:
+Use **Code → Download ZIP**, extract it and enter the project root, or clone this public repository with Git to retain revision history:
 
 ```bash
 git clone https://github.com/InfronAI/NVIDIA-DGX-Spark-GB10-TestingSuits.git

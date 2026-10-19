@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from sparkbench.registry import validate
 from sparkbench.analysis import summarize
+from sparkbench.publication import check_text
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -37,8 +38,8 @@ def main():
         if path.suffix=='.py':ast.parse(path.read_text())
         if path.suffix in ['.md','.json','.jsonl','.py','.txt','.html','.csv','.cu']:
             text=path.read_text()
-            for pattern in [r'\bsk-[A-Za-z0-9_-]{24,}\b',r'\bgh[pousr]_[A-Za-z0-9_]{25,}\b',r'-----BEGIN (?:RSA |OPENSSH )?PRIVATE KEY-----',r'fusionxparkgb10-[a-z0-9]+',r'/Users/'+'apple/']:
-                if re.search(pattern,text):secrets.append(str(path.relative_to(ROOT)))
+            for issue in check_text(text):
+                secrets.append(str(path.relative_to(ROOT))+':'+issue['category']+':'+str(issue['line']))
         if path.suffix=='.md':
             if '.zh.' in path.name and not path.with_name(path.name.replace('.zh.','.en.')).exists():missing.append(str(path)+':missing English pair')
             for href in re.findall(r'\[[^\]\n]*\]\(([^)\n]+)\)',text):
