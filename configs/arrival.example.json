@@ -1,0 +1,13 @@
+{
+  "model": "qwen/qwen3.8-flash-next-abliterated",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "protocol": "openai",
+  "concurrency": 8,
+  "max_requests": 60,
+  "max_tokens": 128,
+  "arrival_rate": 0.1,
+  "request_timeout_s": 120,
+  "duration_limit_s": 900,
+  "cf_retries": 0,
+  "extra_body": {}
+}

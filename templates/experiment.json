@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "YYYY-MM-DD-engine-precision-topology",
+  "model_id": "replace-me",
+  "status": "planned",
+  "evidence_complete": false,
+  "dates": [],
+  "purpose": "State the measured deployment question",
+  "hardware_profile": "hardware/dgx-spark-gb10-pair.json",
+  "engine": {},
+  "components": [],
+  "coverage_gaps": [],
+  "historical_results_pooled": false
+}

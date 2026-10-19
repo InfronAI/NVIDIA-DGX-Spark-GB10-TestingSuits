@@ -1,0 +1,48 @@
+"""Authenticated public SparkDash telemetry. No SSH and no invented raw metrics."""
+import asyncio,concurrent.futures,json,os,time
+import httpx
+from common import ROOT,append,dump,utc
+IDS=['dg-spark-e7a3','dg-spark-e7fd']
+def enabled():return (ROOT/'protocol/public_monitor_policy.json').exists()
+_client=None
+def sample(token):
+    global _client
+    if _client is None:_client=httpx.Client(trust_env=True,timeout=httpx.Timeout(15,connect=20),headers={'Authorization':'Bearer '+token,'User-Agent':'Infron-Performance-Research/3.0','Accept':'application/json','Connection':'keep-alive'})
+    def get(node):
+        r=_client.get('https://monitor.example.invalid/api/sparks/'+node+'/metrics');r.raise_for_status();return r.json()
+    with concurrent.futures.ThreadPoolExecutor(2) as pool:return list(pool.map(get,IDS))
+def check(nodes):
+    assert len(nodes)==2,'missing node'
+    for node,n in zip(IDS,nodes):
+        assert n.get('id')==node and n.get('online'),'dashboard node offline'
+        old=json.loads((ROOT/f'evidence/monitor_{node}.json').read_text())['data']
+        m=n['metrics'];a=m['gpu']['kernelErrors'];b=old['metrics']['gpu']['kernelErrors']
+        for key in ['xid','oomKills']:
+            assert a.get(key) is not None and a[key]<=b[key],'new dashboard '+key
+        current={p['pid'] for p in m['gpu']['processes']};expected={p['pid'] for p in old['metrics']['gpu']['processes']}
+        assert expected<=current,'inference process PID changed'
+        assert m['unifiedMemory']['available']>=2048,'available RAM below 2 GiB'
+    llm=next((x for x in nodes[0]['metrics']['llm'] if x.get('port')==8000),{})
+    assert llm.get('available') and llm.get('backend')=='sglang','inference dashboard unavailable'
+    assert llm.get('contextLength')==262144,'observed context changed'
+    return llm
+async def main():
+    token=os.environ['QWEN_PERF_MONITOR_TOKEN'];errors=0;count=0
+    status={'pid':os.getpid(),'status':'starting','telemetry_mode':'public_dashboard','raw_available':False,'started_utc':utc()}
+    from cache_counters import monitor as monitor_cache
+    counter_task=asyncio.create_task(monitor_cache())
+    while not (ROOT/'STOP').exists() and not (ROOT/'runs/ALL_DONE').exists():
+        start=time.time()
+        try:
+            nodes=await asyncio.to_thread(sample,token);check(nodes);errors=0
+            status['dashboard_ok_epoch']=time.time()
+            append(ROOT/'monitor/sparkdash.jsonl',{'utc':utc(),'received_epoch':time.time(),'request_duration_s':time.time()-start,'telemetry_mode':'public_dashboard','nodes':nodes})
+        except Exception as e:
+            errors+=1;append(ROOT/'monitor/errors.jsonl',{'utc':utc(),'telemetry_mode':'public_dashboard','error':str(e)[:300],'consecutive':errors})
+            if isinstance(e,AssertionError) or errors>=3:
+                (ROOT/'STOP').write_text('public monitor health: '+str(e)[:200] if isinstance(e,AssertionError) else 'three consecutive monitoring failures')
+        count+=1;status.update(status='stopped' if (ROOT/'STOP').exists() else 'running',updated_utc=utc(),observations=count,dashboard_errors=errors)
+        dump(ROOT/'monitor/status.json',status)
+        await asyncio.sleep(max(.2,3-(time.time()-start)))
+    counter_task.cancel();await asyncio.gather(counter_task,return_exceptions=True)
+    status.update(status='stopped',ended_utc=utc());dump(ROOT/'monitor/status.json',status)

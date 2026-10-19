@@ -1,0 +1,38 @@
+import json,tempfile,unittest
+from pathlib import Path
+from unittest.mock import patch
+from common import ROOT,dump,read_rows
+from business_runner import pending,validate
+from business_plan import full_ids,common_prefix
+
+class AmendmentTests(unittest.TestCase):
+    def test_frozen_input_length_prefix_and_concurrency(self):
+        m=validate();measure=[];warm=[]
+        for b in m['blocks']:
+            cs=read_rows(ROOT/'plans/business'/b['file'])
+            if b['kind']=='business' and not cs[0]['warmup']:self.assertGreaterEqual(len(cs),b['concurrency'])
+            for c in cs:
+                n=len(full_ids(c['messages']));self.assertEqual(n,c['local_prompt_tokens']);self.assertLessEqual(abs(n-c['target_input_tokens']),max(1,.01*c['target_input_tokens']))
+                (warm if c['warmup'] else measure).append(c)
+            if b['kind']=='cache_ratio':
+                self.assertEqual(b['concurrency'],1);self.assertTrue(cs[0]['warmup']);self.assertFalse(cs[1]['warmup'])
+                lcp=common_prefix(full_ids(cs[0]['messages']),full_ids(cs[1]['messages']))
+                self.assertEqual(lcp,cs[1]['matched_prefix_tokens']);self.assertLess(abs(lcp/cs[1]['local_prompt_tokens']-cs[1]['target_prefix_percent']/100),.015)
+        self.assertEqual(len(measure),264);self.assertEqual(len(warm),88)
+    def test_resume_only_unsent_and_verified_no_replay(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);cases=[{'id':x} for x in ['done','reviewed','new']]
+            for i,state in [('done','received'),('reviewed','transport_error')]:dump(root/'runs/requests'/i/'result.json',{'state':state})
+            ledger={'entries':{'done':{},'reviewed':{}}}
+            with patch('business_runner.verified_case',side_effect=lambda root,i:i=='reviewed'):
+                self.assertEqual(pending(cases,ledger,root),[cases[-1]])
+    def test_unknown_send_never_replayed(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaisesRegex(AssertionError,'Unknown business send'):pending([{'id':'unknown'}],{'entries':{'unknown':{}}},Path(d))
+    def test_changed_frozen_payload_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);p=root/'plans/business';p.mkdir(parents=True)
+            dump(p/'manifest.json',{'planned_calls':352,'blocks':[{'file':'case.jsonl','sha256':'wrong'}]});(p/'case.jsonl').write_text('{}\n')
+            with self.assertRaisesRegex(AssertionError,'hash mismatch'):validate(root)
+
+if __name__=='__main__':unittest.main()

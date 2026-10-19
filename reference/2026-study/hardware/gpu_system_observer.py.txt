@@ -1,0 +1,98 @@
+"""Remote background telemetry and watchdog; never starts GPU work itself."""
+import argparse
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import time
+
+from gpu_system_guard import memory, owned_process, sample_guard, utc, write_json
+
+
+def number(s):
+    try:
+        return float(s.strip())
+    except ValueError:
+        return None
+
+
+def sample():
+    fields = ['utilization.gpu', 'utilization.memory', 'temperature.gpu', 'power.draw',
+              'clocks.current.sm', 'clocks.current.memory']
+    p = subprocess.run(['nvidia-smi', '--query-gpu=' + ','.join(fields),
+                        '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=6)
+    vals = p.stdout.strip().split(',') if p.returncode == 0 else []
+    names = ['utilization_percent', 'memory_utilization_percent', 'temperature_c',
+             'sensor_power_w', 'sm_clock_mhz', 'memory_clock_mhz']
+    event_names = ['sw_thermal_slowdown','hw_thermal_slowdown','hw_slowdown','sw_power_cap']
+    try:
+        event = subprocess.run(['nvidia-smi','--query-gpu='+','.join('clocks_event_reasons.'+x for x in event_names),'--format=csv,noheader,nounits'],capture_output=True,text=True,timeout=3)
+        reasons = dict(zip(event_names,[x.strip() for x in event.stdout.strip().split(',')])) if event.returncode == 0 else {}
+        event_status = 'available' if len(reasons)==len(event_names) else 'unavailable'
+    except (OSError,subprocess.TimeoutExpired):
+        reasons = {}; event_status = 'unavailable'
+    return {'utc': utc(), 'epoch': time.time(), 'clock_event_reasons': reasons, 'clock_event_reason_status': event_status, 'gpu': dict(zip(names, map(number, vals))),
+            'nvidia_smi_returncode': p.returncode, 'meminfo': memory(),
+            'cpu_stat': Path('/proc/stat').read_text().splitlines()[0],
+            'psi': {k: Path('/proc/pressure/' + k).read_text() for k in ['cpu', 'memory', 'io']}}
+
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument('--root', required=True); ap.add_argument('--deadline', type=float, required=True)
+    a = ap.parse_args(); root = Path(a.root)
+    write_json(root / 'observer.json', {'pid': os.getpid(), 'started_utc': utc(), 'state': 'monitoring', 'interval_s': 1})
+    while time.time() < a.deadline and not (root / 'STOP_OBSERVER').exists():
+        start = time.monotonic()
+        try:
+            d = sample(); write_json(root / 'telemetry_latest.json', d)
+            with (root / 'telemetry.jsonl').open('a') as f:
+                f.write(json.dumps(d) + '\n')
+            for p in root.glob('child_*.json'):
+                child = json.loads(p.read_text())
+                if child.get('state') != 'running':
+                    continue
+                if not owned_process(root, child):
+                    continue
+                try:
+                    sample_guard(root)
+                    if time.time() >= child['hard_deadline_epoch']:
+                        raise RuntimeError('child wall-clock deadline')
+                except Exception as exc:
+                    try:
+                        os.killpg(child['pid'], signal.SIGTERM)
+                        time.sleep(.2)
+                        os.killpg(child['pid'], signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    child.update(state='guard_stopped', ended_utc=utc(), reason=str(exc))
+                    write_json(p, child)
+        except Exception as exc:
+            write_json(root / 'observer_error.json', {'utc': utc(), 'type': type(exc).__name__, 'message': str(exc)[:300]})
+            for p in root.glob('child_*.json'):
+                child = json.loads(p.read_text())
+                if child.get('state') == 'running' and owned_process(root, child):
+                    try:
+                        os.killpg(child['pid'], signal.SIGTERM)
+                        time.sleep(.2)
+                        if owned_process(root, child): os.killpg(child['pid'], signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    child.update(state='guard_stopped', ended_utc=utc(), reason='observer collection failed')
+                    write_json(p, child)
+        time.sleep(max(.1, 1 - (time.monotonic() - start)))
+    # Hard expiry does not leave a GPU child running.
+    for p in root.glob('child_*.json'):
+        d = json.loads(p.read_text())
+        if d.get('state') == 'running' and owned_process(root, d):
+            try:
+                os.killpg(d['pid'], signal.SIGTERM)
+                time.sleep(.2)
+                if owned_process(root, d): os.killpg(d['pid'], signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    write_json(root / 'observer.json', {'pid': os.getpid(), 'ended_utc': utc(), 'state': 'ended'})
+
+
+if __name__ == '__main__':
+    main()

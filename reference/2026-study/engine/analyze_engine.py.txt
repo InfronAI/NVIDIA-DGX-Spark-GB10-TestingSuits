@@ -1,0 +1,191 @@
+"""Offline same-clock timing and interval-union GPU trace analysis."""
+import collections
+import csv
+import gzip
+import json
+import math
+from pathlib import Path
+import statistics
+
+ROOT=Path(__file__).resolve().parent
+OUT=ROOT/'analysis'
+
+
+def merge(intervals):
+    out=[]
+    for a,b in sorted(intervals):
+        if b<a:raise ValueError('Negative interval')
+        if out and a<=out[-1][1]:out[-1][1]=max(b,out[-1][1])
+        else:out.append([a,b])
+    return out
+
+
+def length(intervals):return sum(b-a for a,b in merge(intervals))
+
+
+def overlap(a,b):return length(a)+length(b)-length(a+b)
+
+
+def timing(meta):
+    # Scheduler duration and API-process duration each cancel their own epoch offset.
+    pf=meta['prefill_finished_time']-meta['forward_entry_time']
+    dec=meta['e2e_latency']-meta['first_token_latency']
+    assert pf>0 and dec>=-1e-5
+    if meta.get('num_retractions',0):raise ValueError('Retracted request needs separate timing model')
+    rate=(meta['completion_tokens']-1)/dec if meta['completion_tokens']>1 and dec>0 else None
+    if rate is not None:
+        assert math.isclose(rate,meta['decode_throughput'],rel_tol=1e-5)
+    return {'prefill_s':pf,'queue_s':meta['queue_time'],'engine_ttft_s':meta['first_token_latency'],
+        'decode_s':dec,'decode_token_s':rate,'engine_e2e_s':meta['e2e_latency'],
+        'uncached_input_tokens':meta['prompt_tokens']-meta.get('cached_tokens',0),
+        'cached_tokens':meta.get('cached_tokens'),
+        'other_before_first_token_s':meta['first_token_latency']-pf-meta['queue_time'],
+        'mtp_accept_length':meta.get('spec_accept_length'),
+        'mtp_verify_count':meta.get('spec_verify_ct')}
+
+
+def trace_summary(path):
+    events=json.loads(gzip.decompress(path.read_bytes()))['traceEvents']
+    activity=[e for e in events if e.get('ph')=='X' and e.get('cat') in ['kernel','gpu_memcpy','gpu_memset'] and e.get('dur',0)>0]
+    if not activity:raise ValueError('Trace has no GPU activity')
+    devices={e.get('pid') for e in activity}
+    if len(devices)!=1:raise ValueError('Multiple GPUs in one trace: analyze per device')
+    spans=[(e['ts'],e['ts']+e['dur']) for e in activity]
+    comm=[(e['ts'],e['ts']+e['dur']) for e in activity if e.get('cat')=='kernel' and 'nccl' in e.get('name','').lower()]
+    other=[(e['ts'],e['ts']+e['dur']) for e in activity if not (e.get('cat')=='kernel' and 'nccl' in e.get('name','').lower())]
+    busy=length(spans);c=length(comm);o=length(other);both=max(0,overlap(comm,other))
+    span=max(b for a,b in spans)-min(a for a,b in spans)
+    annotations=[e for e in events if e.get('cat')=='gpu_user_annotation' and e.get('ph')=='X' and e.get('dur',0)>0]
+    semantic={}
+    for name,test in [('target_prefill',lambda n:n.startswith('step[EXTEND')),('draft',lambda n:n=='draft'),('verify',lambda n:n.startswith('step[VERIFY')),('draft_extend',lambda n:n=='draft_extend')]:
+        rows=[(e['ts'],e['ts']+e['dur']) for e in annotations if test(e.get('name',''))]
+        # CUDA Graph replay emits one semantic range on many virtual streams.
+        # Match the CPU scope's External id, then union its GPU ranges; never count
+        # graph-stream annotations as independent model forward passes.
+        scopes=[e for e in events if e.get('cat')=='user_annotation' and test(e.get('name','')) and e.get('ph')=='X']
+        steps=[]
+        for scope in scopes:
+            external=scope.get('args',{}).get('External id')
+            if external is None:continue
+            device=[(e['ts'],e['ts']+e['dur']) for e in annotations if e.get('args',{}).get('External id')==external and test(e.get('name',''))]
+            if not device:continue
+            steps.append({'external_id':external,'gpu_annotation_count':len(device),'gpu_range_union_ms':length(device)/1000,
+                'gpu_range_span_ms':(max(b for a,b in device)-min(a for a,b in device))/1000,
+                'host_scope_ms':scope.get('dur',0)/1000})
+        semantic[name]={'annotation_count':len(rows),'union_ms':length(rows)/1000,'matched_steps':steps,
+            'mean_step_gpu_range_ms':statistics.mean(s['gpu_range_span_ms'] for s in steps) if steps else None}
+    return {'node':path.parent.parent.name,'file':str(path),'stage':'prefill' if '-EXTEND' in path.name else 'decode',
+        'gpu_span_ms':span/1000,'gpu_busy_union_ms':busy/1000,'nccl_only_ms':(c-both)/1000,
+        'other_activity_only_ms':(o-both)/1000,'overlap_ms':both/1000,'idle_gap_ms':max(0,span-busy)/1000,
+        'kernel_events':sum(e.get('cat')=='kernel' for e in activity),'semantic_annotations':semantic,
+        'classification':'NCCL-named kernels versus other GPU activity; custom communication may be in other',
+        'scope':'profiled diagnostic sample, not unprofiled throughput or a bottleneck attribution'}
+
+
+def med(xs):return statistics.median([x for x in xs if x is not None]) if any(x is not None for x in xs) else None
+
+
+def csv_write(path,rows):
+    if not rows:return
+    with path.open('w') as f:
+        writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+
+
+def analyze():
+    OUT.mkdir(exist_ok=True)
+    blocks=[];requests=[];invalid=[]
+    for p in sorted((ROOT/'raw/node0/blocks').glob('*/block.json')):
+        b=json.loads(p.read_text());rs=[]
+        for index,r in enumerate(b['results']):
+            try:
+                x=timing(r['meta'])
+                x.update(rid=r['rid'],stage=b['stage'],input=b['input'],output=b['output'],concurrency=b['concurrency'],repeat=b['repeat'],pair_role='repeat' if b['stage']=='cache_pair' and index else 'initial',source=str(p))
+                requests.append(x);rs.append(x)
+            except Exception as exc:invalid.append({'rid':r['rid'],'reason':str(exc)})
+        if len(rs)!=len(b['results']):continue
+        metas=[r['meta'] for r in b['results']]
+        pf_span=max(m['prefill_finished_time'] for m in metas)-min(m['forward_entry_time'] for m in metas)
+        # Tokenizer-process window. Does not mix scheduler timestamps into this interval.
+        first=min(m['request_received_ts']+m['first_token_latency'] for m in metas)
+        last=max(m['request_finished_ts'] for m in metas)
+        blocks.append({'id':b['id'],'stage':b['stage'],'input':b['input'],'output':b['output'],
+            'concurrency':b['concurrency'],'repeat':b['repeat'],'requests':len(rs),
+            'prefill_span_s':pf_span,'prefill_uncached_token_s':sum(x['uncached_input_tokens'] for x in rs)/pf_span,
+            'prefill_median_s':med([x['prefill_s'] for x in rs]),'queue_median_s':med([x['queue_s'] for x in rs]),
+            'decode_request_median_token_s':med([x['decode_token_s'] for x in rs]),
+            'decode_window_token_s':sum(m['completion_tokens']-1 for m in metas)/(last-first) if b['stage']=='decode' and last>first else None,
+            'engine_ttft_median_s':med([x['engine_ttft_s'] for x in rs]),
+            'cached_tokens':sum(x['cached_tokens'] or 0 for x in rs),
+            'mtp_accept_length_median':med([x['mtp_accept_length'] for x in rs])})
+    groups=[]
+    by=collections.defaultdict(list)
+    for b in blocks:
+        if b['stage']!='cache_pair':by[(b['stage'],b['input'],b['output'],b['concurrency'])].append(b)
+    for (stage,inp,out,c),rows in sorted(by.items()):
+        g={'stage':stage,'input':inp,'output':out,'concurrency':c,'blocks':len(rows),'requests':sum(x['requests'] for x in rows)}
+        for k in ['prefill_uncached_token_s','prefill_median_s','queue_median_s','decode_request_median_token_s','decode_window_token_s','engine_ttft_median_s','mtp_accept_length_median']:
+            vals=[x[k] for x in rows if x[k] is not None]
+            g[k]=med(vals);g[k+'_min']=min(vals) if vals else None;g[k+'_max']=max(vals) if vals else None
+        g['cached_tokens']=sum(x['cached_tokens'] for x in rows);groups.append(g)
+    traces=[trace_summary(p) for p in sorted((ROOT/'raw').glob('node*/traces/*.gz'))]
+    cache_pairs=[]
+    for inp in [8192,32768]:
+        pairs=[]
+        for repeat in [1,2,3]:
+            xs=[x for x in requests if x['stage']=='cache_pair' and x['input']==inp and x['repeat']==repeat]
+            by_role={x['pair_role']:x for x in xs}
+            if set(by_role)!={'initial','repeat'}:continue
+            a,b=by_role['initial'],by_role['repeat']
+            pairs.append({'repeat':repeat,'initial_prefill_s':a['prefill_s'],'repeat_prefill_s':b['prefill_s'],
+                'initial_cached_tokens':a['cached_tokens'],'repeat_cached_tokens':b['cached_tokens'],
+                'prefill_duration_ratio':a['prefill_s']/b['prefill_s']})
+        if pairs:cache_pairs.append({'input':inp,'pairs':pairs,'n':len(pairs),
+            'repeat_cached_fraction':sum(x['repeat_cached_tokens'] for x in pairs)/(inp*len(pairs)),
+            'initial_prefill_median_s':med([x['initial_prefill_s'] for x in pairs]),
+            'repeat_prefill_median_s':med([x['repeat_prefill_s'] for x in pairs]),
+            'paired_duration_ratio_median':med([x['prefill_duration_ratio'] for x in pairs])})
+    state_path=ROOT/'raw/node0/status.json'
+    state=json.loads(state_path.read_text()) if state_path.exists() else {'state':'pilot_only'}
+    data={'state':state,'valid_requests':len(requests),'valid_blocks':len(blocks),'groups':groups,'invalid':invalid,'traces':traces,'cache_pairs':cache_pairs,
+          'limitations':['three blocks per condition at most; observed ranges are not confidence intervals','native token-ID synthetic load differs from public chat workload','MTP on; acceptance depends on workload; no off-control', 'scheduler prefill is host-observed stage duration, not pure kernel time','decode window can include staggered prefill admission at concurrency > 1','trace observations are profiled and exclude cross-node timestamp subtraction']}
+    (OUT/'summary.json').write_text(json.dumps(data,ensure_ascii=False,indent=2))
+    csv_write(OUT/'requests.csv',requests);csv_write(OUT/'blocks.csv',blocks);csv_write(OUT/'groups.csv',groups)
+    figures(data)
+    import sys
+    sys.path.insert(0,str(ROOT.parent))
+    from engine_split_report import figures as report_figures
+    report_figures(data)
+    print(json.dumps({'valid_requests':len(requests),'valid_blocks':len(blocks),'traces':len(traces),'invalid':len(invalid)}))
+    return data
+
+
+def figures(data):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({'font.family':'DejaVu Sans','font.size':10,'axes.spines.top':False,'axes.spines.right':False,'axes.edgecolor':'#C9D4E5','text.color':'#142541','axes.labelcolor':'#142541','svg.fonttype':'none'})
+    colors=['#004AB9','#0040FF','#6495ED','#A3C5FF']
+    fig,axes=plt.subplots(1,2,figsize=(11,4.2))
+    for ax,stage,value,title in [(axes[0],'prefill','prefill_uncached_token_s','Prefill: uncached input / scheduler window'),(axes[1],'decode','decode_request_median_token_s','Decode: per-request engine output rate')]:
+        for i,c in enumerate([1,2,4,8]):
+            rows=sorted([g for g in data['groups'] if g['stage']==stage and g['concurrency']==c],key=lambda x:x['input'])
+            if not rows:continue
+            xs=[g['input'] for g in rows];ys=[g[value] for g in rows]
+            ax.plot(xs,ys,'o-',color=colors[i],label=f'C={c}')
+            ax.fill_between(xs,[g[value+'_min'] for g in rows],[g[value+'_max'] for g in rows],color=colors[i],alpha=.12)
+        ax.set_xscale('log',base=2);ax.set_xlabel('Input tokens');ax.set_ylabel('tokens/s');ax.set_title(title,fontsize=10);ax.grid(alpha=.15)
+        if ax.lines:ax.legend()
+    fig.tight_layout();fig.savefig(OUT/'engine_rates.svg');fig.savefig(OUT/'engine_rates.png',dpi=150);plt.close(fig)
+    traces=data['traces']
+    if traces:
+        fig,axes=plt.subplots(1,2,figsize=(11,4.2))
+        for ax,stage in zip(axes,['prefill','decode']):
+            rows=[t for t in traces if t['stage']==stage];left=[0.0]*len(rows)
+            for key,label,col in [('other_activity_only_ms','Other GPU activity','#004AB9'),('nccl_only_ms','NCCL only','#6495ED'),('overlap_ms','Overlap','#A3C5FF'),('idle_gap_ms','No captured activity','#DBE3F0')]:
+                vals=[t[key] for t in rows];ax.barh([t['node'] for t in rows],vals,left=left,color=col,label=label)
+                left=[a+b for a,b in zip(left,vals)]
+            ax.set_title(stage.capitalize()+' trace (8K input, C=1)');ax.set_xlabel('GPU activity span, ms');ax.legend(fontsize=8,loc='lower right')
+        fig.tight_layout();fig.savefig(OUT/'gpu_stage_activity.svg');fig.savefig(OUT/'gpu_stage_activity.png',dpi=150);plt.close(fig)
+
+
+if __name__=='__main__':analyze()

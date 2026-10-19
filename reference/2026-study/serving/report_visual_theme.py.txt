@@ -1,0 +1,161 @@
+"""One offline scientific-figure theme, derived from the Infron design tokens.
+
+Only presentation properties are modified: no data, norms, limits or statistics.
+"""
+from pathlib import Path
+import re
+
+from common import ROOT
+
+DESIGN = ROOT.parents[1] / 'docs/design/infron-design-system'
+TOKENS = dict(re.findall(r'--inf-([\w-]+):\s*(#[0-9A-Fa-f]{6})\s*;',
+                         (DESIGN / 'tokens/colors.css').read_text()))
+BLUE = TOKENS['blue-700']
+SECOND = TOKENS['blue-400']
+INK = TOKENS['neutral-800']
+MUTED = TOKENS['neutral-700']
+REFERENCE = TOKENS['neutral-450']
+PALETTE = [BLUE, SECOND, TOKENS['blue-900'], TOKENS['neutral-450']]
+ALIASES = {
+    '#70a6ff': SECOND, '#6495ed': SECOND, '#1f77b4': BLUE,
+    '#a3c5ff': TOKENS['blue-300'], '#d3e3ff': TOKENS['blue-150'],
+    '#263040': INK, '#172b4d': INK, '#142541': INK,
+    '#1e324c': TOKENS['blue-900'], '#51627a': MUTED,
+    '#a1b0c4': REFERENCE, '#b4c5e0': TOKENS['neutral-200'],
+    '#b5c5da': TOKENS['neutral-200'], '#c9d4e5': TOKENS['neutral-200'],
+    '#cccccc': TOKENS['neutral-200'], '#dbe3f0': TOKENS['neutral-150'],
+    '#e8ecf2': TOKENS['neutral-100'], '#edf1f7': TOKENS['neutral-100'],
+    '#f1f6ff': TOKENS['blue-50'],
+}
+_FONTS = None
+
+
+def configure():
+    global _FONTS
+    import matplotlib as mpl
+    from matplotlib.font_manager import fontManager, FontProperties
+    from fontTools.ttLib import TTFont
+    if _FONTS is None:
+        cache = ROOT / 'reports/theme-fonts'
+        cache.mkdir(exist_ok=True)
+        names = []
+        for weight in ['Regular', 'Semibold']:
+            source = DESIGN / f'assets/fonts/general-sans/GeneralSans-{weight}.woff2'
+            target = cache / f'GeneralSans-{weight}.ttf'
+            if not target.exists():
+                font = TTFont(source); font.flavor = None; font.save(target)
+            fontManager.addfont(str(target))
+            names.append(FontProperties(fname=str(target)).get_name())
+        cjk = ROOT.parent / 'qwen38_abliterated_eval_20261014_mtp/assets/cjk.ttf'
+        fontManager.addfont(str(cjk))
+        _FONTS = [names[0], FontProperties(fname=str(cjk)).get_name(), 'DejaVu Sans']
+    mpl.rcParams.update({
+        'font.family': _FONTS, 'font.size': 9,
+        'axes.titlesize': 10.5, 'axes.titleweight': 600, 'axes.titlepad': 12,
+        'axes.labelsize': 9, 'axes.labelpad': 7,
+        'axes.labelcolor': INK, 'axes.edgecolor': TOKENS['neutral-200'],
+        'axes.linewidth': .8, 'axes.spines.top': False, 'axes.spines.right': False,
+        'axes.grid': True, 'axes.axisbelow': True,
+        'axes.prop_cycle': mpl.cycler(color=PALETTE),
+        'grid.color': TOKENS['neutral-150'], 'grid.alpha': .8, 'grid.linewidth': .6,
+        'text.color': INK, 'xtick.color': MUTED, 'ytick.color': MUTED,
+        'xtick.labelsize': 8, 'ytick.labelsize': 8,
+        'lines.linewidth': 1.5, 'lines.markersize': 4.5,
+        'legend.fontsize': 8, 'legend.frameon': True, 'legend.framealpha': .97,
+        'legend.facecolor': 'white', 'legend.edgecolor': TOKENS['neutral-200'],
+        'legend.borderpad': .7, 'legend.labelspacing': .5,
+        'figure.facecolor': 'white', 'axes.facecolor': 'white',
+        'svg.fonttype': 'path', 'svg.hashsalt': 'infron-performance-report-v1',
+        'savefig.facecolor': 'white',
+    })
+
+
+def _mapped(color):
+    from matplotlib.colors import to_hex, to_rgba
+    try:
+        rgba = to_rgba(color)
+        mapped = ALIASES.get(to_hex(rgba).lower())
+        return to_rgba(mapped, rgba[3]) if mapped else color
+    except (ValueError, TypeError):
+        return color
+
+
+def polish(fig, name):
+    """Normalize typography and colors while leaving every plotted value intact."""
+    from matplotlib.text import Text
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    from matplotlib.collections import Collection
+    from matplotlib.colors import LinearSegmentedColormap
+    configure()
+    ramp = LinearSegmentedColormap.from_list('infron_sequential',
+        [TOKENS['blue-50'], TOKENS['blue-300'], TOKENS['blue-700'], TOKENS['blue-900']])
+    ramp.set_bad(TOKENS['neutral-100'])
+    for artist in fig.findobj():
+        if isinstance(artist, Text):
+            artist.set_fontfamily(_FONTS)
+            artist.set_color(_mapped(artist.get_color()))
+            artist.set_fontsize(max(7.5, min(artist.get_fontsize(), 11)))
+            for patch in [getattr(artist, 'arrow_patch', None), artist.get_bbox_patch()]:
+                if patch is not None:
+                    patch.set_facecolor(_mapped(patch.get_facecolor()))
+                    patch.set_edgecolor(_mapped(patch.get_edgecolor()))
+        elif isinstance(artist, Line2D):
+            artist.set_color(_mapped(artist.get_color()))
+            artist.set_markeredgecolor(_mapped(artist.get_markeredgecolor()))
+            artist.set_markerfacecolor(_mapped(artist.get_markerfacecolor()))
+        elif isinstance(artist, Patch):
+            artist.set_facecolor(_mapped(artist.get_facecolor()))
+            artist.set_edgecolor(_mapped(artist.get_edgecolor()))
+        elif isinstance(artist, Collection) and artist.get_array() is None:
+            for getter, setter in [(artist.get_facecolors, artist.set_facecolors),
+                                   (artist.get_edgecolors, artist.set_edgecolors)]:
+                colors = getter()
+                if len(colors): setter([_mapped(c) for c in colors])
+    for ax in fig.axes:
+        if ax.get_label() == '<colorbar>': continue
+        for title in [ax.title, ax._left_title, ax._right_title]:
+            title.set_fontsize(10.5); title.set_fontweight(600); title.set_color(INK)
+        for label in [ax.xaxis.label, ax.yaxis.label]:
+            label.set_fontsize(9); label.set_fontweight(400); label.set_color(INK)
+        for label in ax.get_xticklabels() + ax.get_yticklabels():
+            label.set_fontsize(8); label.set_color(MUTED)
+        # Node identity is consistent in line plots; mode-specific dashes survive.
+        for line in ax.lines:
+            label = str(line.get_label())
+            if re.fullmatch(r'(?:节点\s*|Node\s*)0', label, re.I):
+                line.set_color(BLUE); line.set_marker('o')
+                line.set_markevery(max(1, len(line.get_xdata()) // 24))
+            if re.fullmatch(r'(?:节点\s*|Node\s*)1', label, re.I):
+                line.set_color(SECOND); line.set_marker('s')
+                line.set_markevery(max(1, len(line.get_xdata()) // 24))
+        # Sequential scales preserve their existing norm and actual endpoints.
+        for im in ax.images:
+            if im.get_cmap().name == 'Blues': im.set_cmap(ramp)
+            if name == 'investment_sales':
+                im.set_cmap(LinearSegmentedColormap.from_list('infron_returns',
+                    [TOKENS['functional-danger-text'], 'white', TOKENS['functional-success-text']]))
+        legend = ax.get_legend()
+        if legend:
+            legend.get_frame().set_facecolor('white')
+            legend.get_frame().set_edgecolor(TOKENS['neutral-200'])
+            for text in legend.get_texts():
+                text.set_fontsize(7.5); text.set_color(MUTED)
+            for handle, label in zip(legend.legend_handles, legend.get_texts()):
+                if isinstance(handle, Line2D):
+                    if re.fullmatch(r'(?:节点\s*|Node\s*)0', label.get_text(), re.I):
+                        handle.set_color(BLUE); handle.set_marker('o')
+                    elif re.fullmatch(r'(?:节点\s*|Node\s*)1', label.get_text(), re.I):
+                        handle.set_color(SECOND); handle.set_marker('s')
+    fig.set_facecolor('white')
+
+
+def save(fig, name, lang, *, layout=True):
+    import matplotlib.pyplot as plt
+    polish(fig, name)
+    if layout and not fig.get_constrained_layout():
+        fig.tight_layout(pad=1.2, w_pad=2.0, h_pad=2.0)
+    for suffix, kwargs in [('svg', {}), ('png', {'dpi': 160})]:
+        fig.savefig(ROOT / 'reports' / f'{name}.{lang}.{suffix}',
+                    bbox_inches='tight', pad_inches=.13, **kwargs)
+    plt.close(fig)

@@ -1,0 +1,56 @@
+"""Read-only SparkDash counters. Missing/stale/reset windows never become zero hits."""
+import asyncio,json,os,time,math
+from pathlib import Path
+import httpx
+from common import ROOT,append,utc
+from metrics import prometheus,selected
+LABELS=dict(unit='dg-spark-e7a3',port='8000',backend='sglang',model='qwen38-flash')
+NAMES=dict(prompt='prompt_tokens_total',cached='cached_prompt_tokens_total',output='generated_tokens_total',running='requests_running',waiting='requests_waiting',kv='kv_cache_usage_ratio',up='up')
+
+def parse(text,epoch):
+ data=prometheus(text);out=dict(epoch=epoch,utc=utc(),identity=LABELS,valid=True,reasons=[])
+ def one(name,labels):
+  values=list(selected(data,name,**labels).values());return values[0] if len(values)==1 else None
+ out['collector_epoch']=one('sparkdash_collector_last_success_timestamp_seconds',dict(unit=LABELS['unit'],collector='llm'))
+ for key,suffix in NAMES.items():out[key]=one('sparkdash_llm_'+suffix,LABELS)
+ if out['collector_epoch'] is None or not -2<=epoch-out['collector_epoch']<=10:out['reasons'].append('missing_or_stale_collector')
+ if any(out[k] is None or out[k]<0 for k in ['prompt','cached','output','running','waiting']) or out['up']!=1:out['reasons'].append('missing_or_invalid_counter')
+ out['valid']=not out['reasons'];return out
+
+def fetch():
+ token=os.environ.get('QWEN_PERF_MONITOR_TOKEN') or Path('/tmp/gp-qwen38-perf-monitor.token').read_text().strip()
+ with httpx.Client(timeout=6,headers={'Authorization':'Bearer '+token,'User-Agent':'Infron-Performance-Research/3.0','Accept':'text/plain','Connection':'keep-alive'}) as c:
+  r=c.get('https://monitor.example.invalid/metrics');r.raise_for_status();return parse(r.text,time.time())
+
+def window(before,after,expected_prompt=None,expected_output=None):
+ reasons=[];dp=dc=do=None
+ if not before.get('valid') or not after.get('valid'):reasons.append('invalid_boundary')
+ if before.get('identity')!=after.get('identity'):reasons.append('series_changed')
+ if not reasons:
+  dp=after['prompt']-before['prompt'];dc=after['cached']-before['cached'];do=after['output']-before['output']
+  if min(dp,dc,do)<0:reasons.append('counter_reset')
+  if dc>dp:reasons.append('cached_exceeds_prompt')
+  if after['collector_epoch']<=before['collector_epoch']:reasons.append('collector_not_advanced')
+  for observed,expected,label in [(dp,expected_prompt,'input'),(do,expected_output,'output')]:
+   if expected is not None and abs(observed-expected)>max(8,expected*.001):reasons.append(label+'_receipt_mismatch')
+ return dict(valid=not reasons,reasons=reasons,prompt_delta=dp,cached_delta=dc,output_delta=do,token_fraction=dc/dp if not reasons and dp else None,scope='head-endpoint counter delta; not a per-request hit fraction')
+
+async def boundary(runner,after_epoch=0):
+ """Two distinct fresh quiescent polls with identical counters; max 25 seconds."""
+ end=time.time()+25;previous=None;last={'valid':False,'reasons':['boundary_unavailable']}
+ while time.time()<end and not runner.stopping():
+  try:last=await asyncio.to_thread(fetch)
+  except Exception as e:last={'epoch':time.time(),'valid':False,'reasons':['fetch_'+type(e).__name__]}
+  if last.get('valid') and last['collector_epoch']>=after_epoch and last['running']==0 and last['waiting']==0:
+   if previous and last['collector_epoch']>previous['collector_epoch'] and all(last[k]==previous[k] for k in ['prompt','cached','output']):return last
+   previous=last
+  else:previous=None
+  await asyncio.sleep(1)
+ return {**last,'valid':False,'reasons':last.get('reasons',[])+['quiescent_boundary_unverified']}
+
+async def monitor():
+ path=ROOT/'monitor/cache_counters.jsonl'
+ while not (ROOT/'STOP').exists() and not (ROOT/'runs/ALL_DONE').exists():
+  try:s=await asyncio.to_thread(fetch)
+  except Exception as e:s={'utc':utc(),'epoch':time.time(),'valid':False,'reasons':['fetch_'+type(e).__name__]}
+  append(path,s);await asyncio.sleep(5)

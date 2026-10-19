@@ -1,0 +1,138 @@
+"""Prepare the archived report for single-file, offline sharing. No network calls."""
+import hashlib
+import json
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from bs4 import BeautifulSoup, Comment
+
+ROOT = Path(__file__).resolve().parent
+REPORTS = ROOT / 'reports'
+EVIDENCE = ROOT / 'evidence/shareable_html_20261017'
+WORKSPACE = ROOT.parents[1]
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def prepare(lang):
+    source = REPORTS / f'report.{lang}.html'
+    target = REPORTS / f'infron-dgx-spark-inference-report.{lang}.html'
+    original = source.read_bytes()
+    soup = BeautifulSoup(original, 'html.parser')
+    before = BeautifulSoup(original, 'html.parser')
+    zh = lang == 'zh'
+    choose = lambda z, e: z if zh else e
+    header = soup.select_one('.topbar')
+    header['id'] = 'report-top'
+    nav = soup.select_one('.toplinks')
+    nav.clear()
+    button = soup.new_tag('button', attrs={'class': 'pill', 'type': 'button', 'id': 'share-print'})
+    button.string = choose('打印 / 保存 PDF', 'Print / Save PDF')
+    nav.append(button)
+
+    detached = []
+    for link in soup.find_all('a', href=True):
+        href = link['href']
+        if href.startswith('#'):
+            continue
+        if urlsplit(href).scheme in ('https', 'http', 'mailto'):
+            link['rel'] = ['noopener', 'noreferrer']
+            continue
+        detached.append(href)
+        link.name = 'span'
+        del link['href']
+        link.attrs.pop('target', None)
+        link.attrs.pop('download', None)
+        link['class'] = list(link.get('class', [])) + ['archive-reference']
+        link['title'] = choose('归档索引；原始文件未嵌入本报告', 'Archive reference; the original file is not embedded')
+
+    def portable_text(text):
+        for prefix in (str(WORKSPACE) + '/', str(WORKSPACE).replace('GrowthPulse', 'growthPulse') + '/'):
+            text = text.replace(prefix, '')
+        text = text.replace('附录C：测试代码与数据磁盘路径', '附录C：测试代码与数据归档索引')
+        text = text.replace('绝对磁盘路径', '归档路径')
+        text = text.replace('Appendix C: test code and data disk paths', 'Appendix C: test code and data archive index')
+        text = text.replace('Absolute disk path', 'Archive path')
+        return text
+
+    for text in list(soup.find_all(string=True)):
+        if isinstance(text, Comment) or text.parent.name in ('script', 'style'):
+            continue
+        replacement = portable_text(str(text))
+        if replacement != str(text):
+            text.replace_with(replacement)
+
+    appendix = soup.find(id='section-15')
+    intro = appendix.find_next_sibling('p')
+    intro.clear()
+    intro.string = choose(
+        '本附录保留测试代码、数据与证据的归档索引。export/ 开头的路径相对于原评测工作区；其他路径保留实验环境中的原始位置。原始文件和其他报告附件未嵌入本 HTML，可向报告提供者获取。图表、字体和交互计算均已内嵌，可离线阅读。',
+        'This appendix indexes the archived code, data and evidence. Paths beginning with export/ are relative to the original evaluation workspace; other paths retain their original experimental locations. Raw files and companion reports are not embedded; request them from the report owner. Figures, fonts and interactive calculations are embedded for offline reading.')
+
+    style = soup.new_tag('style', id='share-style')
+    style.string = '''
+.topbar button.pill{font:inherit;font-size:13px;cursor:pointer;background:#FFFFFF;color:#0040FF;border:1px solid #D8E2F0}
+.topbar button.pill:hover{background:#EEF4FF}
+.topbar button.pill:focus-visible{outline:2px solid #0040FF;outline-offset:3px}
+.archive-reference{color:inherit;overflow-wrap:anywhere}
+@media print{#share-print{display:none!important}}
+'''
+    soup.head.append(style)
+    description = soup.new_tag('meta', attrs={
+        'name': 'description',
+        'content': choose('Infron 双 DGX Spark 推理性能评估：完整图表、统计方法、实验覆盖与结论，支持单文件离线阅读。',
+                          'Infron dual DGX Spark inference performance evaluation with embedded figures, methods, coverage and conclusions for offline reading.')})
+    soup.head.append(description)
+    script = soup.new_tag('script', id='share-actions')
+    script.string = "document.getElementById('share-print').addEventListener('click',()=>window.print());"
+    soup.body.append(script)
+
+    output = str(soup).encode('utf-8')
+    check = BeautifulSoup(output, 'html.parser')
+    source_images = [x.get('src') for x in before.find_all('img')]
+    assert [x.get('src') for x in check.find_all('img')] == source_images
+    assert all(x.startswith('data:') for x in source_images)
+    assert len(check.find_all('table')) == len(before.find_all('table'))
+    assert len(check.find_all('figure')) == len(before.find_all('figure'))
+    assert [x.get_text() for x in check.find_all('script')][:-1] == [x.get_text() for x in before.find_all('script')]
+    assert not check.select('script[src],iframe,object,embed,base,form')
+    assert all(x.get('href', '').startswith('data:') for x in check.find_all('link'))
+    css_urls = [u.strip(' \"\'') for s in check.find_all('style') for u in re.findall(r'url\(([^)]+)\)', s.get_text())]
+    assert all(u.startswith(('data:', '#')) for u in css_urls)
+    assert all(x['href'].startswith(('#', 'https://', 'http://', 'mailto:')) for x in check.find_all('a', href=True))
+    ids = {x['id'] for x in check.find_all(id=True)}
+    assert all(x['href'][1:] in ids for x in check.select('a[href^="#"]'))
+    # All technical prose, measurements and tables are preserved, apart from the
+    # explicitly documented appendix introduction and portable path labels.
+    before_main = BeautifulSoup(str(before.select_one('main')), 'html.parser')
+    after_main = BeautifulSoup(str(check.select_one('main')), 'html.parser')
+    for document in (before_main, after_main):
+        document.find(id='section-15').find_next_sibling('p').decompose()
+    normalize = lambda d: re.sub(r'\s+', ' ', portable_text(d.get_text(' ', strip=True))).strip()
+    assert normalize(before_main) == normalize(after_main), 'Report content changed outside sharing adaptations'
+    assert not re.search(r'sk-[A-Za-z0-9_-]{24,}|Bearer\s+[A-Za-z0-9_.-]{32,}', check.get_text(' ', strip=True)), 'Unexpected credential-like content'
+    assert source.read_bytes() == original, 'Canonical source must remain unchanged'
+    target.write_bytes(output)
+    return {'language': lang, 'source': str(source), 'source_sha256': sha(original),
+            'output': str(target), 'sha256': sha(output), 'bytes': len(output),
+            'images': len(source_images), 'figures': len(check.find_all('figure')),
+            'tables': len(check.find_all('table')), 'embedded_font_urls': len(css_urls),
+            'detached_local_links': len(detached), 'local_reference_targets': detached,
+            'scientific_content_preserved': True, 'resources_embedded': True}
+
+
+def main():
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    reports = [prepare(lang) for lang in ('zh', 'en')]
+    manifest = {'generated_utc': datetime.now(timezone.utc).isoformat(), 'mode': 'offline_single_file',
+                'reports': reports, 'network_calls': False, 'published_or_sent': False}
+    (EVIDENCE / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    print(json.dumps([{k: r[k] for k in ('language', 'output', 'bytes', 'images', 'tables', 'detached_local_links')} for r in reports], ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()

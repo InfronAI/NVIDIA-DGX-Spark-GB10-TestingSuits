@@ -1,0 +1,76 @@
+"""Offline two-rank collective summaries; ranks are one joint trial, not two samples."""
+import collections
+import csv
+import json
+import statistics
+from common import ROOT, dump, utc
+
+def build():
+    pairs=collections.defaultdict(dict)
+    sources=[];transport=[]
+    for phase in ['communication','interrupted_communication']:
+        for rank in [0,1]:
+            folder=ROOT/f'runs/gpu_system/raw/{phase}/node{rank}'
+            path=folder/'measurements.jsonl'
+            if not path.exists():continue
+            sources.append(str(path))
+            for line in path.read_text().splitlines():
+                r=json.loads(line)
+                if r.get('kind')!='communication' or r.get('state')!='measured' or not r.get('validation',{}).get('passed'):continue
+                key=(r['operation'],r['message_bytes'],r['round']);pairs[key][rank]=r
+            for p in folder.glob('nccl.*.log'):
+                for line in p.read_text(errors='replace').splitlines():
+                    if 'Using network' in line or 'NET/IB : Using' in line:
+                        transport.append({'rank':rank,'source':str(p),'line':line[:800]})
+    trials=[]
+    for (op,size,repeat),ranks in sorted(pairs.items()):
+        if set(ranks)!={0,1}:continue
+        a,b=ranks[0],ranks[1];assert a['iterations']==b['iterations']
+        us=max(a['mean_device_interval_us'],b['mean_device_interval_us'])
+        trials.append({'operation':op,'message_bytes':size,'round':repeat,'mean_device_interval_us':us,'algorithm_gb_s':size/us/1000,'bus_gb_s':size/us/1000*a['bus_factor']})
+    groups=collections.defaultdict(list)
+    for row in trials:groups[(row['operation'],row['message_bytes'])].append(row)
+    summary=[]
+    for (op,size),rows in sorted(groups.items()):
+        summary.append({'operation':op,'message_bytes':size,'paired_repeats':len(rows),'latency_median_us':statistics.median(x['mean_device_interval_us'] for x in rows),'algorithm_gb_s_median':statistics.median(x['algorithm_gb_s'] for x in rows),'algorithm_gb_s_min':min(x['algorithm_gb_s'] for x in rows),'algorithm_gb_s_max':max(x['algorithm_gb_s'] for x in rows)})
+    data={'utc':utc(),'paired_trials':len(trials),'rows':summary,'sources':sources,'transport_log_evidence':transport,'statistics':'One matched pair of rank records is one trial. Use slower-rank device interval; never sum rank bandwidth. Range is observed min/max, not confidence interval.'}
+    dump(ROOT/'reports/collective_analysis.json',data)
+    if trials:
+        with (ROOT/'reports/collective-paired-trials.csv').open('w') as f:
+            w=csv.DictWriter(f,fieldnames=list(trials[0]));w.writeheader();w.writerows(trials)
+    from plots import plt,save
+    for lang in ['zh','en']:
+        fig,ax=plt.subplots(figsize=(9,4))
+        if not summary:ax.text(.5,.5,'暂无成对归档记录' if lang=='zh' else 'No archived paired trials',ha='center',transform=ax.transAxes)
+        else:
+            for op,color in [('all_reduce','#004AB9'),('all_gather','#70A6FF'),('reduce_scatter','#1E324C')]:
+                rows=sorted([x for x in summary if x['operation']==op],key=lambda x:x['message_bytes'])
+                if not rows:continue
+                xs=[x['message_bytes'] for x in rows];ys=[x['algorithm_gb_s_median'] for x in rows]
+                ax.plot(xs,ys,'.-',label=op,color=color)
+                ax.fill_between(xs,[x['algorithm_gb_s_min'] for x in rows],[x['algorithm_gb_s_max'] for x in rows],color=color,alpha=.12)
+            ax.set_xscale('log',base=2);ax.legend()
+        ax.set_xlabel('消息大小（字节）' if lang=='zh' else 'Message bytes');ax.set_ylabel('算法带宽（GB/s）' if lang=='zh' else 'Algorithm bandwidth (GB/s)')
+        save(fig,'collective_measured',lang)
+    return data
+
+def report(lang):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    p=ROOT/'reports/collective_analysis.json'
+    if not p.exists():return ''
+    d=json.loads(p.read_text())
+    if not d['paired_trials']:return ''
+    out='\n\n### '+T('双节点集合通信实测','Measured two-node collectives')
+    out+='\n\n'+T(f"已归档{d['paired_trials']}组成对且通过数值校验的记录。两rank共同构成一次测量，采用较慢rank的设备计时；带宽不跨rank相加。各消息条件的重复数单列，阴影为观测最小／最大值，不是置信区间。",f"Archived {d['paired_trials']} paired, numerically validated trials. Both ranks form one trial, using the slower rank's device timing; bandwidth is never summed across ranks. Repeats are condition-specific; shading shows observed min/max, not confidence intervals.")
+    out+='\n\n<!--COLLECTIVE_MEASURED-->\n\n'+T('集合通信曲线｜实际可执行消息范围受驻留模型和内存保护限制；不能推导模型双机加速倍数。','Collective curves | Resident models and memory guards constrain feasible message sizes; these results do not establish two-node model speedup.')
+    selected=[]
+    for op in ['all_reduce','all_gather','reduce_scatter']:
+        rows=[x for x in d['rows'] if x['operation']==op]
+        for size in sorted({x['message_bytes'] for x in rows if x['message_bytes'] in [8,1024,1048576,16777216]} | ({max(x['message_bytes'] for x in rows)} if rows else set())):
+            x=next(x for x in rows if x['message_bytes']==size);selected.append([op,f'{size:,}',x['paired_repeats'],f"{x['latency_median_us']:.2f}",f"{x['algorithm_gb_s_median']:.3f}"])
+    out+=table([T('操作','Operation'),T('消息字节','Message bytes'),T('成对重复','Paired repeats'),T('时延中位数 μs','Median latency μs'),T('算法带宽中位数 GB/s','Median algorithm GB/s')],selected)
+    out+='\n\n'+T('[成对原始统计](collective-paired-trials.csv) · [汇总、传输日志与来源路径](collective_analysis.json)。未执行计算／通信重叠对照，未完成计划轮次的条件不补算。','[Paired trial statistics](collective-paired-trials.csv) · [Summary, transport logs and source paths](collective_analysis.json). Compute/communication overlap was not tested; missing planned repeats are not imputed.')
+    return out
+
+if __name__=='__main__':build()

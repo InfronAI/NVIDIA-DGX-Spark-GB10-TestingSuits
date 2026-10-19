@@ -1,0 +1,226 @@
+"""Finite fixed-output arm with per-request receipts, thermal backoff and exact aborts.
+
+The SSE text field is cumulative. A reversible prefix/suffix representation avoids
+quadratic disk usage; metadata and receipt timestamps are retained for each event.
+"""
+import asyncio
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+import httpx
+from engine_probe import BASE, headers, idle, inputs, save, utc
+
+ROOT=Path(__file__).resolve().parent
+
+
+def delta(previous, text):
+    if text.startswith(previous):return len(previous),text[len(previous):]
+    n=0
+    for a,b in zip(previous,text):
+        if a!=b:break
+        n+=1
+    return n,text[n:]
+
+
+def temperatures():
+    command=['nvidia-smi','--query-gpu=temperature.gpu','--format=csv,noheader,nounits']
+    result=[]
+    for rank in [0,1]:
+        cmd=command if rank==0 else ['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','benchmark@192.0.2.11',*command]
+        p=subprocess.run(cmd,capture_output=True,text=True,timeout=8)
+        if p.returncode:raise RuntimeError('temperature unavailable: node '+str(rank))
+        result.append(float(p.stdout.strip()))
+    return result
+
+
+class Guard:
+    def __init__(self,config):
+        self.config=config;self.latest=None;self.sample_epoch=0;self.reason=None
+    def check(self):
+        if (ROOT/'STOP').exists():raise RuntimeError('user stop')
+        if time.time()>=self.config['deadline_epoch']:raise RuntimeError('fixed completion deadline')
+        if self.latest is None or time.time()-self.sample_epoch>15:raise RuntimeError('stale temperature telemetry')
+        if max(self.latest)>=85:raise RuntimeError('thermal backoff')
+    async def sample(self):
+        while True:
+            try:
+                self.latest=await asyncio.to_thread(temperatures);self.sample_epoch=time.time()
+                row={'utc':utc(),'epoch':self.sample_epoch,'temperatures_c':self.latest}
+            except Exception as exc:
+                self.latest=None;row={'utc':utc(),'epoch':time.time(),'error':str(exc)[:300]}
+            with (ROOT/'native_telemetry.jsonl').open('a') as f:f.write(json.dumps(row)+'\n')
+            await asyncio.sleep(3)
+    async def cool(self):
+        start=time.monotonic();stable=None
+        while True:
+            if (ROOT/'STOP').exists() or time.time()>=self.config['deadline_epoch']:raise RuntimeError('stop during cooling')
+            if time.monotonic()-start>600:raise RuntimeError('cooling exceeded 600 seconds')
+            good=self.latest and time.time()-self.sample_epoch<15 and max(self.latest)<75
+            stable=(stable or time.monotonic()) if good else None
+            if stable and time.monotonic()-stable>=30:return
+            await asyncio.sleep(2)
+
+
+async def drain(client):
+    for _ in range(30):
+        ok,metrics=await idle(client)
+        if ok:return metrics
+        await asyncio.sleep(1)
+    raise RuntimeError('engine did not drain')
+
+
+async def generate(client,guard,case,ids,attempt):
+    folder=ROOT/'native'/case['id']/f'attempt_{attempt}'
+    folder.mkdir(parents=True,exist_ok=False)
+    rid='gc17_'+case['id']+'_a'+str(attempt)
+    payload={'rid':rid,'input_ids':ids,'stream':True,
+             'sampling_params':{'temperature':0,'max_new_tokens':case['output'],
+                                'ignore_eos':True,'stream_interval':128}}
+    save(folder/'request.json',payload)
+    result={'rid':rid,'case':case,'attempt':attempt,'state':'started','started_utc':utc(),
+            'start_epoch':time.time(),'stream_interval':128}
+    save(folder/'status.json',result)
+    start=time.perf_counter();last_text='';final=None;done=False
+    async def read():
+        nonlocal last_text,final,done
+        with (folder/'events.jsonl').open('w') as f:
+            async with client.stream('POST',BASE+'/generate',json=payload,timeout=httpx.Timeout(None,connect=10,write=10,pool=10)) as response:
+                result['http_status']=response.status_code
+                if response.status_code!=200:
+                    result['error_body']=(await response.aread()).decode(errors='replace')[:4000]
+                    response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith('data:'):continue
+                    guard.check();body=line[5:].strip();elapsed=time.perf_counter()-start
+                    if body=='[DONE]':done=True;f.write(json.dumps({'elapsed_s':elapsed,'done':True})+'\n');continue
+                    obj=json.loads(body)
+                    if obj.get('error'):raise RuntimeError('engine stream error: '+str(obj['error'])[:500])
+                    text=obj.pop('text','');prefix,suffix=delta(last_text,text);last_text=text
+                    f.write(json.dumps({'elapsed_s':elapsed,'text_prefix_chars':prefix,'text_suffix':suffix,'data':obj},ensure_ascii=False)+'\n');f.flush()
+                    if 'meta_info' in obj:
+                        final=obj;count=obj['meta_info'].get('completion_tokens',0)
+                        result.setdefault('first_fragment_s',elapsed)
+                        result.update(observed_output=count,latest_elapsed_s=elapsed,updated_utc=utc())
+                        save(folder/'status.json',result)
+    task=asyncio.create_task(read())
+    try:
+        # Separate guard polling also catches a stalled stream.
+        while not task.done():
+            guard.check()
+            if time.perf_counter()-start>max(300,case['output']/12+case['input']/200):
+                raise TimeoutError('per-request time ceiling')
+            await asyncio.wait([task],timeout=1)
+        await task
+        if not final:raise RuntimeError('missing terminal native metadata')
+        meta=final['meta_info'];save(folder/'response_meta.json',final)
+        (folder/'output.txt').write_text(last_text)
+        result.update(meta=meta,done=done,output_sha256=hashlib.sha256(last_text.encode()).hexdigest())
+        if meta.get('id')!=rid or meta.get('prompt_tokens')!=len(ids):raise RuntimeError('request identity/input count mismatch')
+        if meta.get('completion_tokens')!=case['output'] or not meta.get('finish_reason') or not done:
+            raise RuntimeError('output/terminal validation failed')
+        result['state']='complete'
+    except BaseException as exc:
+        task.cancel();await asyncio.gather(task,return_exceptions=True)
+        result.update(state='failed',error=type(exc).__name__+': '+str(exc)[:700])
+        try:
+            response=await client.post(BASE+'/abort_request',json={'rid':rid,'abort_all':False},timeout=10)
+            result['abort_status']=response.status_code
+            await drain(client);result['drained']=True
+        except BaseException as abort_error:result['abort_error']=type(abort_error).__name__
+    finally:
+        result.update(ended_utc=utc(),elapsed_s=time.perf_counter()-start)
+        save(folder/'status.json',result)
+    return result
+
+
+async def main():
+    from transformers import AutoTokenizer
+    config=json.loads((ROOT/'manifest.json').read_text())
+    lock=(ROOT/'native.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    state_path=ROOT/'native_status.json'
+    previous=None
+    if state_path.exists():
+        if '--resume-stream-gap' not in sys.argv:raise RuntimeError('execution already registered; inspect receipts before any resume')
+        previous=json.loads(state_path.read_text())
+        if previous['state']!='stopped' or previous.get('error')!='RuntimeError: bounded retries exhausted':
+            raise RuntimeError('resume requires a known exhausted stream-read failure')
+        failed=json.loads((ROOT/'native'/previous['current_case']/'result.json').read_text())
+        if not (failed.get('error')=='ReadTimeout: ' and failed.get('drained') and failed.get('abort_status')==200):
+            raise RuntimeError('resume outcome is not confirmed aborted and drained')
+        save(ROOT/'native_stream_gap_resume.json',{'utc':utc(),'previous_status':previous,
+             'reason':'Installed scheduler modulo stream gate can suppress intermediate fragments under multi-token steps; remove socket read timeout while retaining independent request deadline and thermal polling',
+             'client_read_timeout_s':None,'request_deadline_guard_retained':True,'completed_requests_replayed':False})
+        save(ROOT/'native_status.before_stream_gap_resume.json',previous)
+    state={'state':'preflight','pid':os.getpid(),'started_utc':utc(),'completed':0,'terminal':0,
+           'planned':len(config['native_requests']),'deadline_epoch':config['deadline_epoch']}
+    if previous:state['resumed_from_pid']=previous['pid']
+    save(state_path,state);guard=Guard(config);watch=asyncio.create_task(guard.sample())
+    try:
+        async with httpx.AsyncClient(headers=headers(),trust_env=False,
+                                     timeout=httpx.Timeout(120,connect=10),limits=httpx.Limits(max_connections=4)) as client:
+            await drain(client)
+            model=(await client.get(BASE+'/get_model_info')).json()
+            info=(await client.get(BASE+'/server_info')).json()
+            expected=json.loads((ROOT/'preflight.json').read_text())['configuration']
+            actual={k:info.get(k) for k in expected}
+            save(ROOT/'native_configuration.json',actual)
+            if actual!=expected:raise RuntimeError('engine configuration changed from fresh preflight')
+            tokenizer=AutoTokenizer.from_pretrained(model['tokenizer_path'],local_files_only=True)
+            await guard.cool()
+            for index,case in enumerate(config['native_requests']):
+                prior_path=ROOT/'native'/case['id']/'result.json'
+                if previous and prior_path.exists():
+                    prior=json.loads(prior_path.read_text())
+                    if prior['state']=='complete' or prior.get('classification')=='explicit_rejection':
+                        state['completed']+=int(prior['state']=='complete');state['terminal']+=1
+                        save(state_path,state);continue
+                state.update(state='running',current_case=case['id'],updated_utc=utc());save(state_path,state)
+                if case['input']+case['output']>config['max_context']:raise RuntimeError('invalid planned context')
+                if time.time()+case['output']/12+case['input']/200+300>config['deadline_epoch']:
+                    state.update(state='deadline_admission_stop');break
+                ids=inputs(tokenizer,case['input'],202610170000+index)
+                result=None
+                directories=list((ROOT/'native'/case['id']).glob('attempt_*'))
+                offset=max([int(p.name.split('_')[-1]) for p in directories] or [0])
+                for retry in range(1,config['native_max_attempts_per_case']+1):
+                    attempt=offset+retry
+                    state.update(state='running',attempt=attempt,current_case=case['id'],updated_utc=utc());save(state_path,state)
+                    try:guard.check()
+                    except RuntimeError:
+                        state['state']='cooling';save(state_path,state);await guard.cool()
+                    before=await drain(client)
+                    case_dir=ROOT/'native'/case['id'];case_dir.mkdir(parents=True,exist_ok=True)
+                    (case_dir/f'metrics_before_a{attempt}.txt').write_text(before)
+                    result=await generate(client,guard,case,ids,attempt)
+                    (case_dir/f'metrics_after_a{attempt}.txt').write_text(await drain(client))
+                    if result['state']=='complete':state['completed']+=1;break
+                    # A valid deterministic capacity rejection is evidence, not a transient retry.
+                    if result.get('http_status')==400:
+                        result['classification']='explicit_rejection';break
+                    if not (result.get('drained') and result.get('abort_status')==200):
+                        raise RuntimeError('unknown request termination; no automatic replay')
+                    if (ROOT/'STOP').exists():raise RuntimeError('user stop')
+                    if 'mismatch' in result.get('error','') or 'validation failed' in result.get('error',''):
+                        raise RuntimeError('measurement validation failure')
+                    state.update(state='retry_backoff',retry_case=case['id'],attempt=attempt);save(state_path,state)
+                    await guard.cool();await asyncio.sleep([15,30,60][retry-1])
+                save(ROOT/'native'/case['id']/'result.json',result)
+                state['terminal']+=1;state.update(state='running',updated_utc=utc());save(state_path,state)
+                if result['state']!='complete' and result.get('classification')!='explicit_rejection':
+                    raise RuntimeError('bounded retries exhausted')
+            else:state['state']='complete' if state['completed']==state['planned'] else 'complete_with_rejections'
+            state['final_idle']=bool(await drain(client))
+    except BaseException as exc:
+        state.update(state='stopped',error=type(exc).__name__+': '+str(exc)[:800])
+    finally:
+        watch.cancel();await asyncio.gather(watch,return_exceptions=True)
+        state['ended_utc']=utc();save(state_path,state)
+
+
+if __name__=='__main__':asyncio.run(main())

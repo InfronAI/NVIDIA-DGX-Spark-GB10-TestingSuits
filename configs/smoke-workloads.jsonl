@@ -1,0 +1,6 @@
+{"id": "smoke-1", "messages": [{"role": "user", "content": "用三句话解释预填充和解码的区别。"}]}
+{"id": "smoke-2", "messages": [{"role": "user", "content": "Return a JSON object with keys status and explanation."}]}
+{"id": "smoke-3", "messages": [{"role": "user", "content": "Summarize why memory bandwidth matters for autoregressive inference."}]}
+{"id": "smoke-4", "messages": [{"role": "user", "content": "计算 125 × 48，并简要说明步骤。"}]}
+{"id": "smoke-5", "messages": [{"role": "user", "content": "Write a Python function that reverses a string."}]}
+{"id": "smoke-6", "messages": [{"role": "user", "content": "为技术支持工单写一个简短确认回复。"}]}

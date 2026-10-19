@@ -1,0 +1,75 @@
+"""Bounded amendment using the same ledger, locks, budgets and monitor as core."""
+import asyncio,fcntl,json,os,traceback
+from common import ROOT,digest,dump,append,read_rows,utc
+from runner import Runner,client
+from driver import heartbeat,billing_watch,capacity_reason
+from collector import raw_sample
+from cf_retry import is_cf_error
+from terminal_review import verified_case
+
+def validate(root=ROOT):
+    folder=root/'plans/business';m=json.loads((folder/'manifest.json').read_text());seen=set();total=0
+    assert m['planned_calls']==352
+    for b in m['blocks']:
+        p=folder/b['file'];assert digest(p)==b['sha256'],'Business plan hash mismatch'
+        cases=read_rows(p);assert len(cases)==b['count'] and 1<=b['concurrency']<=8
+        for c in cases:
+            assert c['phase']=='P6' and c['id'] not in seen and c['block']==b['id']
+            assert c['local_prompt_tokens']+c['max_tokens']<262144
+            seen.add(c['id']);total+=1
+    assert total==352
+    return m
+
+def pending(cases,ledger,root=ROOT):
+    result=[]
+    for c in cases:
+        entry=ledger['entries'].get(c['id'])
+        if entry is None:result.append(c);continue
+        p=root/'runs/requests'/c['id']/'result.json'
+        assert p.exists(),'Unknown business send requires receipt review'
+        r=json.loads(p.read_text())
+        if is_cf_error(r):
+            logical=root/'runs/logical_outcomes'/f"{c['id']}.json"
+            outcome=json.loads(logical.read_text()) if logical.exists() else {}
+            if outcome.get('state')!='received':result.append(c)
+        else:assert r['state']=='received' or verified_case(root,c['id']),'Unreviewed business request cannot be resumed'
+    return result
+
+async def run():
+    m=validate();runner=Runner();assert not runner.stopping(),runner.stopping()
+    done=asyncio.Event();tasks=[asyncio.create_task(heartbeat(runner,done)),asyncio.create_task(billing_watch(runner,done))]
+    try:
+        async with client() as api:
+            for b in m['blocks']:
+                if runner.stopping():break
+                cases=read_rows(ROOT/'plans/business'/b['file']);todo=pending(cases,runner.ledger)
+                if not todo:continue
+                path=ROOT/'runs/blocks'/f"{b['id']}.json";old=json.loads(path.read_text()) if path.exists() else None
+                dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'pid':os.getpid(),'state':'running','stage':'business','block':b,'sent':len(runner.ledger['entries'])})
+                before=await asyncio.to_thread(raw_sample,True)
+                why=capacity_reason(todo,dict(b,kind='general'),before)
+                if why:
+                    dump(path,{'id':b['id'],'state':'skipped','reason':why,'planned':len(cases),'sent':0,'completed':0,'utc':utc()});continue
+                stamp=str(__import__('time').time_ns());dump(ROOT/'runs/boundaries'/f"{b['id']}_{stamp}.before.json",before)
+                if old:dump(ROOT/'runs/interrupted_blocks'/f"{b['id']}_{stamp}.json",old)
+                await runner.closed(api,todo,b['concurrency'],b['id'])
+                if old:
+                    new=json.loads(path.read_text());new.update(planned=len(cases),sent=old['sent']+new['sent'],completed=old['completed']+new['completed'],request_ids=old['request_ids']+new['request_ids'],start_epoch=old['start_epoch'],started_utc=old['started_utc'],segment_count=old.get('segment_count',1)+1,interrupted=True,interruption_note='Only unsent business cases continued; interrupted stream outcomes require exact receipt verification; original observations preserved.')
+                    dump(path,new)
+                after=await asyncio.to_thread(raw_sample,False);dump(ROOT/'runs/boundaries'/f"{b['id']}_{stamp}.after.json",after)
+            if not runner.stopping() and (ROOT/'plans/cache_diagnostics/manifest.json').exists():
+                from cache_runner import run as run_cache
+                await run_cache(runner,api)
+    except BaseException as e:
+        (ROOT/'STOP').write_text('supervisor exception: '+type(e).__name__+': '+str(e));dump(ROOT/'runs/business_exception.json',{'utc':utc(),'traceback':traceback.format_exc()});raise
+    finally:
+        done.set();await asyncio.gather(*tasks,return_exceptions=True)
+        dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'pid':os.getpid(),'state':'stopped' if runner.stopping() else 'business_complete','stage':'business','sent':len(runner.ledger['entries']),'stop':runner.stopping()})
+
+def main():
+    locks=[]
+    for p in [ROOT/'runs/runner.lock',ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/runs/runner.lock']:
+        f=p.open('a');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
+    asyncio.run(run())
+
+if __name__=='__main__':main()

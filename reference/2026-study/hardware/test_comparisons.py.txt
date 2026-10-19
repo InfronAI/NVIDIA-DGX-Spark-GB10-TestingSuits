@@ -1,0 +1,20 @@
+import sys,unittest
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from hardware_extension_figures import comparisons
+class ComparisonTests(unittest.TestCase):
+ def row(self,**kw):return dict(state='measured',validation={'passed':True},node_index=0,round=1,**kw)
+ def test_contention_requires_same_node_and_round(self):
+  base=self.row(kind='cpu_contention',workers=0,effective_gb_s=100)
+  x=self.row(kind='cpu_contention',workers=4,cpu_mode='memory',effective_gb_s=70)
+  out=comparisons([base,x]);self.assertEqual(out['contention'][0]['retention'],.7)
+  x['round']=2;self.assertFalse(comparisons([base,x])['contention'])
+ def test_streams_require_equal_work_and_both_arms(self):
+  a=self.row(kind='streams',streams=4,mode='serial',flops_per_call=100,mean_device_interval_us=20)
+  b=self.row(kind='streams',streams=4,mode='parallel',flops_per_call=100,mean_device_interval_us=10)
+  self.assertEqual(comparisons([a,b])['streams'][0]['serial_over_parallel'],2)
+  b['flops_per_call']=200;self.assertFalse(comparisons([a,b])['streams'])
+ def test_failed_samples_not_used(self):
+  a=self.row(kind='managed_access',gpu_first_repeat_ms=[2,1],cpu_first_repeat_ms=[3,2]);a['validation']['passed']=False
+  self.assertFalse(comparisons([a])['managed'])
+if __name__=='__main__':unittest.main()

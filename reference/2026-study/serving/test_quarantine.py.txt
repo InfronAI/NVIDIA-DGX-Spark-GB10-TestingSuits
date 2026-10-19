@@ -1,0 +1,45 @@
+"""Offline tests: quarantine cannot turn an ambiguous response into a success."""
+import copy
+import json
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+from common import ROOT, dump
+from quarantine import CASE, verified_quarantine
+
+
+class QuarantineTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.proof_path = self.root/'evidence/continuation_20261016/quarantine.json'
+        original = ROOT/'evidence/continuation_20261016/quarantine.json'
+        self.proof = json.loads(original.read_text())
+        for name in ['request.json','result.json','started.json']:
+            dest = self.root/'runs/requests'/CASE/name
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(ROOT/'runs/requests'/CASE/name,dest)
+        for item in self.proof['drain_evidence']:
+            dest = self.root/item['path'];dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copy2(ROOT/item['path'],dest)
+        self.entry = json.loads((ROOT/'runs/ledger.json').read_text())['entries'][CASE]
+        dump(self.root/'runs/ledger.json',{'entries':{CASE:self.entry}})
+        dump(self.proof_path,self.proof)
+
+    def tearDown(self):self.tmp.cleanup()
+    def test_valid_quarantine_is_narrow(self):
+        self.assertTrue(verified_quarantine(self.root,CASE))
+        self.assertFalse(verified_quarantine(self.root,'other_case'))
+    def test_cannot_label_success(self):
+        self.proof['count_as_success']=True;dump(self.proof_path,self.proof)
+        with self.assertRaises(AssertionError):verified_quarantine(self.root,CASE)
+    def test_cannot_release_reservation(self):
+        self.entry['reserved_usd']=0;dump(self.root/'runs/ledger.json',{'entries':{CASE:self.entry}})
+        with self.assertRaises(AssertionError):verified_quarantine(self.root,CASE)
+    def test_changed_evidence_rejected(self):
+        (self.root/'runs/requests'/CASE/'result.json').write_text('{}')
+        with self.assertRaises(AssertionError):verified_quarantine(self.root,CASE)
+
+
+if __name__=='__main__':unittest.main()

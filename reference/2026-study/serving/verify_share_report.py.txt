@@ -1,0 +1,133 @@
+"""Open relocated single-file reports in an isolated, offline headless browser."""
+import base64
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import time
+import urllib.request
+
+import websocket
+
+ROOT = Path(__file__).resolve().parent
+EVIDENCE = ROOT / 'evidence/shareable_html_20261017'
+
+
+def main():
+    manifest = json.loads((EVIDENCE / 'manifest.json').read_text())
+    with tempfile.TemporaryDirectory(prefix='infron-share-offline-') as temp:
+        isolated = Path(temp)
+        for report in manifest['reports']:
+            shutil.copyfile(report['output'], isolated / (report['language'] + '.html'))
+        with (EVIDENCE / 'browser.log').open('w') as log:
+            process = subprocess.Popen([
+                '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+                '--headless', '--disable-gpu', '--no-first-run', '--disable-background-networking',
+                '--disable-sync', '--disable-extensions', '--remote-debugging-port=0',
+                '--remote-allow-origins=http://localhost',
+                '--user-data-dir=' + str(isolated / 'browser'), 'about:blank'],
+                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            ws = None
+            try:
+                port_file = isolated / 'browser/DevToolsActivePort'
+                for _ in range(80):
+                    if port_file.exists():
+                        break
+                    time.sleep(.2)
+                port = int(port_file.read_text().splitlines()[0])
+                request = urllib.request.Request(f'http://127.0.0.1:{port}/json', headers={
+                    'User-Agent': 'InfronOfflineReportQA/1.0', 'Accept': 'application/json', 'Connection': 'close'})
+                with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=5) as response:
+                    tab = next(x for x in json.load(response) if x['type'] == 'page')
+                ws = websocket.create_connection(tab['webSocketDebuggerUrl'], origin='http://localhost',
+                    http_no_proxy=['127.0.0.1', 'localhost'], timeout=30)
+                serial = 0
+                errors = []
+                external = []
+
+                def call(method, params=None):
+                    nonlocal serial
+                    serial += 1
+                    ws.send(json.dumps({'id': serial, 'method': method, 'params': params or {}}))
+                    while True:
+                        message = json.loads(ws.recv())
+                        if message.get('method') == 'Runtime.exceptionThrown':
+                            errors.append(message['params']['exceptionDetails'].get('text', 'JavaScript exception'))
+                        if message.get('method') == 'Network.requestWillBeSent':
+                            url = message['params']['request']['url']
+                            if url.startswith(('http://', 'https://')):
+                                external.append(url)
+                        if message.get('id') == serial:
+                            assert 'error' not in message, message.get('error')
+                            return message.get('result', {})
+
+                def js(expression):
+                    result = call('Runtime.evaluate', {'expression': expression, 'returnByValue': True, 'awaitPromise': True})
+                    assert 'exceptionDetails' not in result, 'JavaScript validation failed'
+                    return result['result'].get('value')
+
+                call('Page.enable')
+                call('Runtime.enable')
+                call('Network.enable')
+                call('Network.setBlockedURLs', {'urls': ['http://*', 'https://*']})
+                call('Network.emulateNetworkConditions', {'offline': True, 'latency': 0, 'downloadThroughput': 0, 'uploadThroughput': 0})
+                checks = []
+                for report in manifest['reports']:
+                    lang = report['language']
+                    call('Emulation.setDeviceMetricsOverride', {'width': 1440, 'height': 1000, 'deviceScaleFactor': 1, 'mobile': False})
+                    call('Page.navigate', {'url': (isolated / (lang + '.html')).as_uri()})
+                    for _ in range(100):
+                        if js("document.readyState==='complete' && document.fonts.status==='loaded' && !!document.querySelector('#cost-output')"):
+                            break
+                        time.sleep(.2)
+                    js("document.documentElement.style.scrollBehavior='auto';window.dispatchEvent(new Event('resize'))")
+                    result = js("""({images:document.images.length,brokenImages:[...document.images].filter(i=>!i.complete||i.naturalWidth===0).length,
+                      fontsLoaded:document.fonts.status==='loaded',documentWidth:document.documentElement.scrollWidth,viewport:innerWidth,
+                      tables:document.querySelectorAll('table').length,
+                      interactiveChart:!!echarts.getInstanceByDom(document.querySelector('#capacity-chart')),
+                      chartGrids:echarts.getInstanceByDom(document.querySelector('#capacity-chart')).getOption().grid.length,
+                      costOutput:document.querySelector('#cost-output').textContent.length,
+                      localLinks:[...document.querySelectorAll('a[href]')].filter(a=>!a.getAttribute('href').startsWith('#')&&!/^(https?:|mailto:)/.test(a.getAttribute('href'))).length})""")
+                    assert result['images'] == report['images'] and result['tables'] == report['tables']
+                    assert result['brokenImages'] == result['localLinks'] == 0 and result['fontsLoaded']
+                    assert result['documentWidth'] <= result['viewport'] + 1
+                    assert result['interactiveChart'] and result['chartGrids'] == 2 and result['costOutput'] > 0
+                    assert js("(()=>{const e=document.querySelector('#cost-capital'),out=document.querySelector('#cost-output'),old=out.textContent;e.value='12000';e.dispatchEvent(new Event('input',{bubbles:true}));const ok=out.textContent!==old;e.value='10000';e.dispatchEvent(new Event('input',{bubbles:true}));return ok})()")
+                    assert js("(()=>{window.__printCalled=false;window.print=()=>{window.__printCalled=true};document.querySelector('#share-print').click();return window.__printCalled})()")
+                    for label, anchor in [('opening', 'report-top'), ('coverage', 'section-05')]:
+                        if lang == 'zh':
+                            js(f"document.getElementById('{anchor}').scrollIntoView({{behavior:'instant',block:'start'}})")
+                            image = call('Page.captureScreenshot', {'format': 'png', 'captureBeyondViewport': False})
+                            (EVIDENCE / f'preview-{label}.png').write_bytes(base64.b64decode(image['data']))
+                    call('Emulation.setDeviceMetricsOverride', {'width': 430, 'height': 932, 'deviceScaleFactor': 1, 'mobile': True})
+                    js("window.dispatchEvent(new Event('resize'))")
+                    assert js('document.documentElement.scrollWidth<=innerWidth+1')
+                    call('Emulation.setEmulatedMedia', {'media': 'print'})
+                    assert js("getComputedStyle(document.querySelector('#share-print')).display==='none' && getComputedStyle(document.querySelector('#figure-capacity .static-chart')).display!=='none'")
+                    call('Emulation.setEmulatedMedia', {'media': ''})
+                    checks.append({'language': lang, **result, 'cost_calculator_works': True, 'print_button_works': True,
+                                   'mobile_no_page_overflow': True, 'print_fallback_visible': True})
+                assert not errors and not external, {'javascript_errors': errors, 'external_requests': external}
+                for report in manifest['reports']:
+                    assert hashlib.sha256(Path(report['source']).read_bytes()).hexdigest() == report['source_sha256']
+                    assert hashlib.sha256(Path(report['output']).read_bytes()).hexdigest() == report['sha256']
+                receipt = {'passed': True, 'scope': 'Relocated local file only; isolated headless browser; network offline',
+                           'checks': checks, 'javascript_errors': errors, 'external_requests': external,
+                           'canonical_reports_unchanged': True}
+                (EVIDENCE / 'validation.json').write_text(json.dumps(receipt, ensure_ascii=False, indent=2))
+                print(json.dumps(receipt, ensure_ascii=False))
+            finally:
+                if ws:
+                    ws.close()
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+
+
+if __name__ == '__main__':
+    main()

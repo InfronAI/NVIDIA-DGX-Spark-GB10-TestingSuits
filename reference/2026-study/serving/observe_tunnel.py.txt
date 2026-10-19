@@ -1,0 +1,48 @@
+"""Five bounded read-only health observations. No model calls or service changes."""
+import concurrent.futures
+import json
+import subprocess
+import time
+from pathlib import Path
+import httpx
+from collector import HOST, SOCKET
+from common import ROOT, dump, utc
+
+HEADERS={'User-Agent':'Infron-Performance-Research/3.0','Accept':'application/json,text/plain','Connection':'close'}
+
+def get(url,token=None):
+    headers=HEADERS|({'Authorization':'Bearer '+token} if token else {})
+    start=time.monotonic()
+    try:
+        with httpx.Client(headers=headers,timeout=6,trust_env=False) as c:
+            r=c.get(url)
+        return {'utc':utc(),'url':url,'status':r.status_code,'seconds':time.monotonic()-start,'cf_ray':r.headers.get('cf-ray'),'body_prefix':r.text[:160]}
+    except Exception as e:
+        return {'utc':utc(),'url':url,'error':str(e),'seconds':time.monotonic()-start}
+
+def connector():
+    code="""import urllib.request,json,datetime
+req=urllib.request.Request('http://127.0.0.1:20241/metrics',headers={'User-Agent':'Infron-Performance-Research/3.0','Accept':'text/plain','Connection':'close'})
+opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+with opener.open(req,timeout=4) as r:text=r.read(150000).decode()
+print(json.dumps({'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'connections':[l for l in text.splitlines() if l.startswith('cloudflared_tunnel_ha_connections ')]}))
+"""
+    r=subprocess.run(['ssh','-S',SOCKET,'-o','BatchMode=yes',HOST,'python3 -'],input=code,capture_output=True,text=True,timeout=8)
+    return json.loads(r.stdout) if r.returncode==0 else {'error':r.stderr[:200]}
+
+def main():
+    token=Path('/tmp/gp-qwen38-perf-monitor.token').read_text().strip()
+    path=ROOT/'evidence/tunnel_observation.json'
+    if path.exists():raise RuntimeError('Observation already exists; preserve it')
+    rows=[]
+    for i in range(5):
+        start=time.monotonic()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            public=[pool.submit(get,'https://llm.example.invalid/health'),pool.submit(get,'https://monitor.example.invalid/api/auth/status',token)]
+            future=pool.submit(connector)
+            row={'utc':utc(),'public':[f.result() for f in public],'connector':future.result()}
+        rows.append(row);dump(path,{'observations':rows,'completed':i==4})
+        print(json.dumps(row),flush=True)
+        if i<4:time.sleep(max(0,30-(time.monotonic()-start)))
+
+if __name__=='__main__':main()

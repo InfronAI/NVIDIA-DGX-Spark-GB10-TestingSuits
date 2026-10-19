@@ -1,0 +1,25 @@
+import json,tempfile,types,unittest
+from pathlib import Path
+from unittest.mock import patch
+import gpu_system_bench as b
+
+class Resume(unittest.TestCase):
+    def run_case(self,missing):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);cases=b.cases();rows=[dict(c,round=r,state='skipped_memory_guard') for r in range(1,11) for c in cases]
+            if missing:rows.pop()
+            (root/'measurements.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
+            called=[];fake=types.SimpleNamespace(manual_seed=lambda s:called.append(s),cuda=types.SimpleNamespace(empty_cache=lambda:None))
+            with patch.object(b,'warmup',return_value={}),patch.object(b,'sample_guard'),patch.object(b,'construct',return_value=(None,None,{'state':'skipped_memory_guard'})):
+                result=b.run_single(fake,root)
+            after=[json.loads(x) for x in (root/'measurements.jsonl').read_text().splitlines()]
+            self.assertEqual(len(after),1070);self.assertEqual(result['skipped'],1070);self.assertEqual(len(called),int(missing))
+            self.assertEqual(len({(r['condition_id'],r['round']) for r in after}),1070)
+    def test_completed_records_never_replay(self):self.run_case(False)
+    def test_only_unfinished_key_runs(self):self.run_case(True)
+    def test_numerical_failure_does_not_auto_resume(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);(root/'measurements.jsonl').write_text(json.dumps(dict(b.cases()[0],round=1,state='condition_failed',error='numerical validation failed'))+'\n')
+            with patch.object(b,'warmup',return_value={}):
+                with self.assertRaisesRegex(RuntimeError,'requires review'):b.run_single(None,root)
+if __name__=='__main__':unittest.main()

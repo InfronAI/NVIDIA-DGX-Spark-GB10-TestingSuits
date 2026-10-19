@@ -1,0 +1,25 @@
+"""Re-render archived evidence using the shared theme; never recompute measurements."""
+import importlib.util
+import json
+from common import ROOT
+
+
+def main():
+    import plots
+    plots.main(reuse_analysis=True)
+    from engine_split_report import figures
+    figures(json.loads((ROOT/'engine_split_20261016/analysis/summary.json').read_text()))
+    active = ROOT/'hardware_unloaded_confirmed_20261016'
+    spec=importlib.util.spec_from_file_location('archived_hardware_charts',active/'analyze.py')
+    m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+    data=json.loads((active/'analysis/summary.json').read_text())
+    telemetry={rank:m.read_lines(p.parent/'telemetry.jsonl') for rank,p in m.latest_archives().items()}
+    m.draw(data,telemetry)
+    from hardware_extension_figures import draw,draw_operators
+    for lang in ['zh','en']:draw(data,lang);draw_operators(data,lang)
+    from hardware_h200_report import draw as comparison
+    comparison(data)
+    print('All archived report figures refreshed with a shared visual theme')
+
+
+if __name__=='__main__':main()

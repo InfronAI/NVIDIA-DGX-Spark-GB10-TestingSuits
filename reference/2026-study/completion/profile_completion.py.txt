@@ -1,0 +1,169 @@
+"""Finite paired profiling and native cache diagnostics, after the length arm."""
+import asyncio
+import argparse
+import fcntl
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+import httpx
+from engine_probe import BASE,generate,headers,inputs,save,utc
+from native_completion import Guard,drain
+
+ROOT=Path(__file__).resolve().parent
+
+
+def automatic_profile_receipt(pair_id, attempt):
+    """Validate completed stage traces on both ranks instead of stopping twice."""
+    sys.path.insert(0,str(ROOT.parent/'hardware_unloaded_confirmed_20261016'))
+    from remote_coordinator import both_script
+    folder=ROOT/'traces'/pair_id/f'attempt_{attempt}'
+    query='''import json,gzip,hashlib
+from pathlib import Path
+folder=Path(FOLDER)
+rows=[]
+for stage in ['EXTEND','DECODE']:
+ p=folder/(PREFIX+'-TP-__RANK__-'+stage+'.trace.json.gz')
+ data=p.read_bytes();events=json.loads(gzip.decompress(data))['traceEvents']
+ kernels=sum(x.get('cat')=='kernel' for x in events)
+ assert kernels>0, 'No GPU kernel events for '+stage
+ rows.append({'stage':stage,'path':str(p),'sha256':hashlib.sha256(data).hexdigest(),'kernel_events':kernels})
+print(json.dumps(rows))
+'''.replace('FOLDER',repr(str(folder))).replace('PREFIX',repr('completion-'+pair_id))
+    nodes=both_script(query)
+    assert set(nodes)=={'0','1'} and all(len(rows)==2 for rows in nodes.values())
+    return {'state':'verified_auto_stop','utc':utc(),'nodes':nodes,
+            'stop_profile_sent':False,'reason':'num_steps and profile_by_stage close and export both stages automatically'}
+
+
+async def guarded(tasks,guard):
+    try:
+        while any(not task.done() for task in tasks):
+            guard.check();await asyncio.wait([task for task in tasks if not task.done()],timeout=1)
+        return await asyncio.gather(*tasks)
+    finally:
+        for task in tasks:
+            if not task.done():task.cancel()
+        await asyncio.gather(*tasks,return_exceptions=True)
+
+
+async def run(resume_autostop=False):
+    config=json.loads((ROOT/'manifest.json').read_text())
+    lock=(ROOT/'profile.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    state_path=ROOT/'profile_status.json'
+    prior=None
+    if state_path.exists():
+        prior=json.loads(state_path.read_text())
+        if not resume_autostop:raise RuntimeError('profile arm already registered')
+        assert prior['state']=='stopped' and prior.get('error')=='ReadError: '
+        assert prior['current']=='i1024_c1_r1_profiled'
+        assert prior['completed_pairs']==prior['completed_cache_pairs']==0
+        assert not Path('/proc/'+str(prior['pid'])).exists()
+        receipt=automatic_profile_receipt('i1024_c1_r1',1)
+        stop=json.loads((ROOT/'profiles/i1024_c1_r1/profiled/attempt_1/profile_stop.json').read_text())
+        assert stop['status']==500
+        old=ROOT/'profile_status.before_autostop_recovery.json';assert not old.exists()
+        save(old,prior)
+        save(ROOT/'profiles/i1024_c1_r1/profiled/attempt_1/closure_failure.json',
+             {'state':'interrupted_after_completed_request','prior_status':prior,'validated_traces':receipt,
+              'selection':'Retained as an interrupted pair; rerun both arms in new attempt directories'})
+    state={'state':'awaiting_native','pid':os.getpid(),'completed_pairs':0,'completed_cache_pairs':0,'started_utc':utc()}
+    if prior:state.update(resumed_from_pid=prior['pid'],repair='verified automatic profile completion')
+    save(state_path,state)
+    watch=None
+    try:
+        while True:
+            if time.time()>=config['deadline_epoch'] or (ROOT/'STOP').exists():raise RuntimeError('stop before profile arm')
+            prior=json.loads((ROOT/'native_status.json').read_text())
+            if prior['state'] in ['complete','complete_with_rejections']:break
+            if prior['state'] in ['stopped','deadline_admission_stop']:raise RuntimeError('native arm requires review')
+            await asyncio.sleep(10)
+        from transformers import AutoTokenizer
+        guard=Guard(config);watch=asyncio.create_task(guard.sample())
+        async with httpx.AsyncClient(headers=headers(),trust_env=False,timeout=httpx.Timeout(240,connect=10),limits=httpx.Limits(max_connections=10,max_keepalive_connections=0)) as client:
+            await drain(client);await guard.cool()
+            model=(await client.get(BASE+'/get_model_info')).json()
+            tokenizer=AutoTokenizer.from_pretrained(model['tokenizer_path'],local_files_only=True)
+            for shape_index,(length,c) in enumerate([(1024,1),(32768,1),(8192,4)]):
+                for rep in range(1,4):
+                    pair_id=f'i{length}_c{c}_r{rep}'
+                    ids=[inputs(tokenizer,length,202610175000+shape_index*100+rep*10+i) for i in range(c)]
+                    arms=['unprofiled','profiled'] if rep%2 else ['profiled','unprofiled']
+                    for arm in arms:
+                        first_attempt=2 if resume_autostop and pair_id=='i1024_c1_r1' else 1
+                        for attempt in range(first_attempt,4):
+                            state.update(state='running',current=pair_id+'_'+arm,attempt=attempt,utc=utc());save(state_path,state)
+                            folder=ROOT/'profiles'/pair_id/arm/f'attempt_{attempt}';folder.mkdir(parents=True,exist_ok=False)
+                            await drain(client)
+                            try:guard.check()
+                            except RuntimeError:await guard.cool()
+                            flushed=await client.post(BASE+'/flush_cache');flushed.raise_for_status()
+                            save(folder/'cache_flush.json',{'utc':utc(),'status':flushed.status_code,'body':flushed.text})
+                            before=await drain(client);(folder/'metrics_before.txt').write_text(before)
+                            profiled=False;tasks=[]
+                            result={'input':length,'output':256,'concurrency':c,'repeat':rep,'arm':arm,'order':arms,'attempt':attempt}
+                            try:
+                                if arm=='profiled':
+                                    settings={'output_dir':str(ROOT/'traces'/pair_id/f'attempt_{attempt}'),'num_steps':4,
+                                              'activities':['CPU','GPU'],'profile_by_stage':True,'with_stack':False,
+                                              'record_shapes':False,'profile_id':pair_id,'profile_prefix':'completion',
+                                              'merge_profiles':False,'detailed_annotations':True}
+                                    response=await client.post(BASE+'/start_profile',json=settings)
+                                    save(folder/'profile_start.json',{'config':settings,'status':response.status_code,'body':response.text})
+                                    response.raise_for_status();profiled=True
+                                start=time.perf_counter()
+                                tasks=[asyncio.create_task(generate(client,f'gc17p_{pair_id}_{arm}_a{attempt}_{i}',tokens,256,folder/f'request_{i}')) for i,tokens in enumerate(ids)]
+                                responses=await guarded(tasks,guard)
+                                result.update(state='complete',elapsed_s=time.perf_counter()-start,requests=responses)
+                            except BaseException as exc:
+                                result.update(state='failed',error=type(exc).__name__+': '+str(exc)[:600])
+                            finally:
+                                try:
+                                    if profiled and result['state']=='complete':
+                                        receipt=await asyncio.to_thread(automatic_profile_receipt,pair_id,attempt)
+                                        save(folder/'profile_auto_stop.json',receipt)
+                                        result['profile_auto_stop_verified']=True
+                                    elif profiled:
+                                        response=await client.post(BASE+'/stop_profile')
+                                        save(folder/'profile_stop.json',{'status':response.status_code,'body':response.text})
+                                        response.raise_for_status()
+                                    (folder/'metrics_after.txt').write_text(await drain(client))
+                                except BaseException as exc:
+                                    result.update(state='failed',cleanup_error=type(exc).__name__+': '+str(exc)[:600])
+                                    raise
+                                finally:
+                                    save(folder/'result.json',result)
+                            if result['state']=='complete':break
+                            if 'mismatch' in result.get('error','') or (ROOT/'STOP').exists():raise RuntimeError(result['error'])
+                            await guard.cool();await asyncio.sleep(15*attempt)
+                        else:raise RuntimeError('profile block retries exhausted')
+                    state['completed_pairs']+=1;save(state_path,state)
+            for rep in range(1,4):
+                state.update(state='running_cache',current=f'cache_65536_r{rep}',utc=utc());save(state_path,state)
+                folder=ROOT/'cache'/f'i65536_r{rep}';folder.mkdir(parents=True,exist_ok=False)
+                await drain(client)
+                try:guard.check()
+                except RuntimeError:await guard.cool()
+                response=await client.post(BASE+'/flush_cache');response.raise_for_status()
+                ids=inputs(tokenizer,65536,202610176000+rep)
+                results=[]
+                for role in ['first','repeat']:
+                    (folder/f'metrics_before_{role}.txt').write_text(await drain(client))
+                    task=asyncio.create_task(generate(client,f'gc17c_65536_r{rep}_{role}',ids,1,folder/role))
+                    results.extend(await guarded([task],guard))
+                    (folder/f'metrics_after_{role}.txt').write_text(await drain(client))
+                save(folder/'result.json',{'state':'complete','input':65536,'repeat':rep,'requests':results})
+                state['completed_cache_pairs']+=1;save(state_path,state)
+            state.update(state='complete',final_idle=bool(await drain(client)))
+    except BaseException as exc:
+        state.update(state='stopped',error=type(exc).__name__+': '+str(exc)[:800])
+    finally:
+        if watch:watch.cancel();await asyncio.gather(watch,return_exceptions=True)
+        state['ended_utc']=utc();save(state_path,state)
+
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser();parser.add_argument('--resume-autostop',action='store_true')
+    asyncio.run(run(parser.parse_args().resume_autostop))

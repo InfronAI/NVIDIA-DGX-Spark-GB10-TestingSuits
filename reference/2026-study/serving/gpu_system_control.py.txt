@@ -1,0 +1,182 @@
+"""Continue the authorized server batch after the existing API study drains.
+
+The existing serving executors and their inputs remain unchanged. This process
+holds their two exclusive runner locks during hardware work and renews a short
+lease on both nodes. The server watchdog stops owned GPU children on lease loss.
+"""
+import base64
+import fcntl
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+from common import ROOT
+from gpu_system_guard import utc, write_json
+
+OUT = ROOT / 'runs/gpu_system'
+HOST = 'benchmark@spark-node0'
+SOCKET = '/tmp/gp-qwen38-hardware.sock'
+
+
+class TransportError(RuntimeError):
+    pass
+
+
+def event(kind, **fields):
+    with (OUT/'events.jsonl').open('a') as f:
+        f.write(json.dumps({'utc': utc(), 'event': kind, **fields})+'\n')
+
+
+def ssh_master():
+    check = subprocess.run(['ssh', '-S', SOCKET, '-O', 'check', HOST], capture_output=True, timeout=10)
+    if check.returncode == 0: return
+    import pexpect
+    password = os.environ.get('QWEN_GPU_SSH_PASSWORD')
+    if not password: raise RuntimeError('SSH master unavailable; no private in-memory credential')
+    argv = ['-M', '-S', SOCKET, '-o', 'ControlPersist=1800', '-o', 'ProxyCommand=none',
+            '-o', 'ProxyJump=none', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=8',
+            '-o', 'ConnectionAttempts=1', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3', '-N', '-f', HOST]
+    p = pexpect.spawn('/usr/bin/ssh', argv, encoding='utf-8', timeout=25)
+    outcome = p.expect(['(?i)password:', pexpect.EOF, pexpect.TIMEOUT])
+    if outcome == 0:
+        p.sendline(password); outcome = p.expect([pexpect.EOF, '(?i)permission denied', pexpect.TIMEOUT])
+        if outcome != 0: p.close(force=True); raise RuntimeError('SSH authentication incomplete')
+    elif outcome != 1:
+        p.close(force=True); raise TransportError('SSH transport unavailable')
+    p.close()
+    if p.exitstatus != 0: raise TransportError('SSH master failed')
+
+
+def both(config, op, **fields):
+    ssh_master(); root = config['remote_root']
+    payloads = [{**fields, 'root': root, 'rank': rank, 'op': op} for rank in [0, 1]]
+    script = '''import subprocess,json,concurrent.futures,shlex
+payloads=PAYLOADS
+root=ROOT
+def run(q):
+ command=['python3',root+'/gpu_system_remote.py']
+ if q['rank']==1:command=['ssh','-o','BatchMode=yes','-o','ConnectTimeout=6','benchmark@192.0.2.11',shlex.join(command)]
+ p=subprocess.run(command,input=json.dumps(q),capture_output=True,text=True,timeout=90)
+ return {'rank':q['rank'],'returncode':p.returncode,'stderr':p.stderr[-2000:],'data':json.loads(p.stdout) if p.returncode==0 else None}
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+ print(json.dumps(list(pool.map(run,payloads))))
+'''.replace('PAYLOADS', repr(payloads)).replace('ROOT', repr(root))
+    env = {k: v for k, v in os.environ.items() if k != 'QWEN_GPU_SSH_PASSWORD'}
+    p = subprocess.run(['ssh', '-S', SOCKET, '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', HOST, 'python3 -'],
+                       input=script, text=True, capture_output=True, timeout=115, env=env)
+    if p.returncode: raise TransportError('SSH operation failed: ' + p.stderr[:200])
+    responses = json.loads(p.stdout)
+    for r in responses:
+        if r['returncode'] == 255: raise TransportError('peer SSH transport unavailable')
+        if r['returncode']: raise RuntimeError('node'+str(r['rank'])+' operation failed: '+r['stderr'][-700:])
+    return {str(r['rank']): r['data'] for r in responses}
+
+
+def serving_state():
+    p = ROOT/'runs/lifecycle.json'; d = json.loads(p.read_text())
+    ledger = json.loads((ROOT/'runs/ledger.json').read_text())
+    unknown = sum(x['state'] == 'started' for x in ledger['entries'].values())
+    ready = d.get('state') == 'complete' and (ROOT/'runs/ALL_DONE').exists() and unknown == 0
+    return {'ready': ready, 'state': d.get('state'), 'stage': d.get('stage'), 'unknown_sends': unknown,
+            'runner_pid': d.get('runner_pid'), 'record_utc': d.get('utc')}
+
+
+def snapshot(config, phase):
+    responses = both(config, 'snapshot'); receipt = {}
+    for rank, response in responses.items():
+        files = json.loads(gzip.decompress(base64.b64decode(response['gzip_base64'])))
+        dest = OUT/'raw'/phase/('node'+rank); dest.mkdir(parents=True, exist_ok=True)
+        for name, entry in files.items():
+            assert Path(name).name == name
+            data = base64.b64decode(entry['data']); assert hashlib.sha256(data).hexdigest() == entry['sha256']
+            (dest/name).write_bytes(data)
+        receipt[rank] = {'snapshot_utc': response['snapshot_utc'], 'files': len(files), 'directory': str(dest)}
+    write_json(OUT/('snapshot_'+phase+'.json'), receipt)
+    return receipt
+
+
+def main():
+    lock = (OUT/'controller.lock').open('a'); fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+    config = json.loads((OUT/'launch.json').read_text()); locks = []
+    state = {'pid': os.getpid(), 'job_id': config['job_id'], 'state': 'waiting_for_serving', 'phase': 'preflight',
+             'remote_root': config['remote_root'], 'gpu_workload_started': False, 'completed_phases': []}
+    event('controller_started', pid=os.getpid())
+    try:
+        while time.time() < config['deadline_epoch']:
+            serving = serving_state(); state.update(utc=utc(), serving=serving)
+            write_json(OUT/'status.json', state)
+            if (OUT/'STOP').exists(): raise RuntimeError('local hardware stop requested')
+            try:
+                nodes = both(config, 'status'); state['nodes'] = nodes
+                write_json(OUT/'status.json', state)
+            except Exception as exc:
+                event('transport_retry', error=str(exc)[:500]); time.sleep(30); continue
+            if serving['ready']:
+                for p in [ROOT/'runs/runner.lock', ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/runs/runner.lock']:
+                    f = p.open('a'); fcntl.flock(f, fcntl.LOCK_EX|fcntl.LOCK_NB); locks.append(f)
+                if not serving_state()['ready']: raise RuntimeError('serving state changed during lock acquisition')
+                if nodes['0']['engine']['idle']: break
+                for f in locks: f.close()
+                locks = []
+            time.sleep(15)
+        else:
+            state.update(state='deadline_before_gpu_start', utc=utc()); write_json(OUT/'status.json', state); return
+        state.update(state='running', gpu_workload_started=True, started_gpu_utc=utc())
+        event('exclusive_window_opened', serving=serving, locks='both existing runner locks held')
+        def renew():
+            current = serving_state()
+            if not current['ready']: raise RuntimeError('serving is no longer complete')
+            lease = {'allow_gpu': True, 'expires_epoch': time.time()+90, 'deadline_epoch': config['deadline_epoch'],
+                     'serving_state': 'complete', 'unknown_sends': 0, 'controller_pid': os.getpid(), 'utc': utc()}
+            both(config, 'lease', lease=lease)
+        phase_plan = config.get('continuation_phases', ['single', 'communication', 'soak'])
+        assert phase_plan and len(set(phase_plan)) == len(phase_plan) and all(p in ['single','communication','soak'] for p in phase_plan)
+        state['phase_plan'] = phase_plan
+        for phase in phase_plan:
+            if time.time() >= config['deadline_epoch']: raise RuntimeError('original deadline reached')
+            renew(); state.update(phase=phase, utc=utc()); write_json(OUT/'status.json', state)
+            starts = both(config, 'start', phase=phase, deadline_epoch=config['deadline_epoch'])
+            event('stage_started', phase=phase, nodes=starts)
+            while True:
+                if time.time() >= config['deadline_epoch']: raise RuntimeError('original deadline reached')
+                if (OUT/'STOP').exists(): raise RuntimeError('local hardware stop requested')
+                try:
+                    nodes = both(config, 'status')
+                    if not nodes['0']['engine']['idle']: raise RuntimeError('inference activity during hardware window')
+                    state.update(nodes=nodes, utc=utc()); write_json(OUT/'status.json', state)
+                    children = [nodes[str(i)]['children'].get(phase) for i in [0, 1]]
+                    if any(c and not c['alive'] and c['state'] != 'complete' for c in children):
+                        raise RuntimeError('hardware stage stopped without a complete receipt: '+phase)
+                    if all(c and not c['alive'] and c['state'] == 'complete' for c in children): break
+                    renew()
+                except (subprocess.TimeoutExpired, OSError, TransportError) as exc:
+                    event('transport_retry', phase=phase, error=type(exc).__name__)
+                time.sleep(15)
+            snapshot(config, phase); state['completed_phases'].append(phase)
+            event('stage_completed', phase=phase)
+        state.update(state='batch_complete', utc=utc(), completed_utc=utc())
+        event('batch_complete')
+    except BaseException as exc:
+        state.update(state='stopped', utc=utc(), error=str(exc)[:1000]); event('controller_stopped', error=str(exc)[:1000])
+        try:
+            both(config, 'stop', reason=str(exc)[:500])
+            for _ in range(10):
+                nodes = both(config, 'status')
+                if all(not c['alive'] for n in nodes.values() for c in n['children'].values()):
+                    state['interrupted_snapshot'] = snapshot(config, 'interrupted_'+state['phase'])
+                    break
+                time.sleep(2)
+        except Exception as stop_error:
+            event('remote_stop_unreachable', detail=type(stop_error).__name__, protection='90-second lease expiry and server watchdog')
+    finally:
+        write_json(OUT/'status.json', state)
+        for f in locks: f.close()
+
+
+if __name__ == '__main__':
+    main()

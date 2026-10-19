@@ -1,0 +1,22 @@
+"""Bounded local-only finalizer: wait for the current controller, analyze saved traces, render."""
+import json
+import time
+from common import ROOT,dump,utc
+from hardware_partial import prepare
+from hardware_collective_analysis import build
+from supervise import render
+
+def main():
+    config=json.loads((ROOT/'runs/gpu_system/launch.json').read_text())
+    pid=json.loads((ROOT/'runs/gpu_system/controller_launch.json').read_text())['pid']
+    until=config['deadline_epoch']+600
+    while time.time()<until:
+        state=json.loads((ROOT/'runs/gpu_system/status.json').read_text())
+        if state.get('pid')==pid and state.get('state') in ['stopped','batch_complete','deadline_before_gpu_start']:
+            prepare();summary=build();receipt=render()
+            dump(ROOT/'runs/gpu_system/finalization.json',{'utc':utc(),'state':'rendered','controller_pid':pid,'paired_collective_trials':summary['paired_trials'],'report':receipt})
+            return
+        time.sleep(15)
+    dump(ROOT/'runs/gpu_system/finalization.json',{'utc':utc(),'state':'waiting_for_archive_timeout','controller_pid':pid})
+
+if __name__=='__main__':main()

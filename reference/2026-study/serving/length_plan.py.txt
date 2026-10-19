@@ -1,0 +1,66 @@
+"""Offline, preregistered input/output coverage under the existing phase allocation."""
+import json,random
+from common import ROOT,dump,digest,utc
+from business_plan import SHAPES,fit,material,full_ids,common_prefix,TOK,count
+TIERS=[1024*2**k for k in range(9)];CONTEXT=262144;MARGIN=1024
+
+def feasible(i,o):return 'over_context' if i+o>CONTEXT else 'boundary_only' if i+o>CONTEXT-MARGIN else 'eligible'
+
+def main():
+ dest=ROOT/'plans/length_expansion';assert not (dest/'manifest.json').exists(),'Frozen plan exists';dest.mkdir(exist_ok=True)
+ corpus=''.join(material(f'length-corpus-{k}','records') for k in range(6));blocks=[];index={}
+ def messages(n,tag,task,kind='records'):return fit(n,tag,kind,task,body=material(tag,'code') if kind=='code' else corpus)[0]
+ def case(ident,block,n,o,mode='fixed',**extra):
+  task=extra.pop('task','Generate a long sequence of varied operational records. Each record must have a unique sequential ID, a distinct date, a region, an amount, an issue and a detailed resolution. Vary content and wording. Continue with new records until the output limit. Do not summarize or end early.')
+  warmup=extra.pop('warmup',False)
+  ms=messages(n,ident,task,extra.get('shape','records'))
+  return dict(id=ident,phase='P8',cell=block,block=block,messages=ms,local_prompt_tokens=count(ms),target_input_tokens=n,max_tokens=o,effort='none',timeout_s=300,concurrency=1,warmup=warmup,suite='length_expansion',mode=mode,ignore_eos=mode=='fixed',**extra)
+ def emit(name,cs,c=1,**meta):
+  for x in cs:x.update(concurrency=c);index[x['id']]={k:v for k,v in x.items() if k!='messages'}
+  f=dest/(name+'.jsonl');f.write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in cs));blocks.append(dict(id=name,file=f.name,count=len(cs),sha256=digest(f),concurrency=c,**meta))
+ for mode in ['natural','fixed']:
+  b='length_calibration_'+mode;x=case(b,b,1024,1024,mode,task='Reply only with the single word OK.');emit(b,[x],family='calibration')
+ # One-factor axes, then balanced diagonals; small cells get independent repeats.
+ cells=[(i,1024,'input_axis') for i in TIERS[:-1]]+[(1024,o,'output_axis') for o in TIERS[1:-1]]+[(i,i,'balanced') for i in TIERS[1:-2]]
+ assert len(cells)==21
+ for i,o,family in cells:
+  b=f'length_{family}_i{i}_o{o}';n=3 if o<=8192 else 1
+  emit(b,[case(b+f'_r{r}',b,i,o) for r in range(n)],family=family,output_gate=o>1024)
+ for i,o in [(260096,1024),(1024,260096)]:
+  b=f'length_near_limit_i{i}_o{o}';emit(b,[case(b+'_r0',b,i,o)],family='near_limit',output_gate=o>1024)
+ # Long-prefix overlap diagnostics; retain exact token-prefix fraction and identical caps.
+ for n in [65536,131072]:
+  for ratio in [0,50,100]:
+   for rep in range(3):
+    b=f'length_cache_i{n}_p{ratio}_r{rep}';a=case(b+'_seed',b,n,1024,cache_role='seed',warmup=True);z=dict(a,id=b+'_probe',warmup=False,cache_role='probe')
+    if ratio==0:z['messages']=messages(n,b+'-independent','Generate varied operational records until the output limit.')
+    if ratio==50:
+     text=a['messages'][0]['content'];enc=TOK.encode(text,add_special_tokens=False);cut=enc.offsets[int(n*.5)-10][0]
+     z['messages']=fit(n,b+'-half','records','Generate varied operational records until the output limit.',head=text[:cut]+' Different continuation '+b+'\n',body=corpus)[0]
+    z['local_prompt_tokens']=count(z['messages']);z['actual_prefix_fraction']=common_prefix(full_ids(a['messages']),full_ids(z['messages']))/z['local_prompt_tokens'];z['target_prefix_percent']=ratio
+    assert abs(z['actual_prefix_fraction']-ratio/100)<.04
+    emit(b,[a,z],family='long_cache')
+ points=dict(triage=(4096,1024),rewrite=(4096,4096),draft=(1024,8192),summary=(32768,1024),analysis=(32768,8192),extract=(8192,1024),code=(16384,4096),dialogue=(16384,2048))
+ for shape,_,_,zh,en,task in SHAPES:
+  i,o=points[shape];b=f'length_business_{shape}_i{i}_o{o}'
+  task=('Process the records as a batch of independent cases. '+task)
+  emit(b,[case(b+f'_r{r}',b,i,o,'natural',shape=shape,task=task,warmup=r==0) for r in range(4)],family='business')
+ # More than a single concurrent wave, three independent blocks per selected cell.
+ for i,o in [(1024,4096),(32768,1024)]:
+  for c in [1,4]:
+   base=f'length_repeated_i{i}_o{o}_c{c}';b=base+'_warm'
+   emit(b,[case(b+f'_{r}',base,i,o,warmup=True) for r in range(c)],c,family='steady_warm')
+   for rep in range(3):
+    b=base+f'_r{rep}';cs=[case(b+f'_{r}',base,i,o) for r in range(max(8,5*c))]
+    for x in cs:x['block']=b
+    emit(b,cs,c,family='repeated_blocks')
+ # Warm block/cell keys must be explicit and valid.
+ for b in blocks:
+  f=dest/b['file'];cs=[json.loads(x) for x in f.read_text().splitlines()]
+  for x in cs:x['block']=b['id'];index[x['id']]['block']=b['id']
+  f.write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in cs));b['sha256']=digest(f)
+ assert len(index)==299,len(index)
+ matrix=[dict(input_tokens=i,output_cap=o,status=feasible(i,o),selected=any(i==a and o==b for a,b,_ in cells)) for i in TIERS for o in TIERS]
+ dump(dest/'request_index.json',index);dump(dest/'manifest.json',dict(utc=utc(),seed=202610151730,planned_calls=299,phase='P8',tiers=TIERS,context=CONTEXT,safety_margin=MARGIN,matrix=matrix,blocks=blocks,near_limit_tokens=260096,mode='Natural business EOS separate from validated ignore_eos synthetic pressure',budget='299 calls reallocated from 3000 soak slots; soak <=2701 calls and <=3600 s; unchanged global8171 attempts, USD500 and original deadline.',business_points=points,generator_sha256=digest(__file__)))
+ print({'planned_calls':len(index),'blocks':len(blocks),'cells':len(matrix)})
+if __name__=='__main__':main()

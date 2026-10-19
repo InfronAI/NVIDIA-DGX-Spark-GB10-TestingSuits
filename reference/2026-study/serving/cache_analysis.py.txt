@@ -1,0 +1,83 @@
+"""Offline cache evidence, paired latency and counter-window diagnostics."""
+import csv,json,statistics,datetime,collections,re
+from common import ROOT,dump,read_rows
+from cache_counters import window
+
+def num(x):
+ try:return float(x) if x not in [None,''] else None
+ except (ValueError,TypeError):return None
+
+def observed_cache(r):
+ c=num(r.get('cached_tokens'));n=num(r.get('prompt_tokens'))
+ return r.get('usage_source')=='original upstream SSE usage' and c is not None and n is not None and n>0 and 0<=c<=n
+
+def build():
+ a=json.loads((ROOT/'reports/analysis.json').read_text());cut=datetime.datetime.fromisoformat(a['generated_utc']).timestamp()
+ rows=list(csv.DictReader((ROOT/'reports/requests.csv').open()));ok=[r for r in rows if r['state']=='received'];index=json.loads((ROOT/'plans/cache_diagnostics/request_index.json').read_text());byid={r.get('retry_of') or r['id']:r for r in rows if r['state']=='received'}
+ coverage=[]
+ for phase in ['P0','P1','P2','P3','P4','P5','P6','P7','P8']:
+  rs=[r for r in ok if r['phase']==phase];known=[r for r in rs if observed_cache(r)]
+  coverage.append(dict(phase=phase,complete=len(rs),known=len(known),missing=len(rs)-len(known),gateway_only=sum(r.get('usage_source')!='original upstream SSE usage' and num(r.get('cached_tokens')) is not None for r in rs),positive=sum(num(r['cached_tokens'])>0 for r in known),fraction=sum(num(r['cached_tokens']) for r in known)/sum(num(r['prompt_tokens']) for r in known) if known else None))
+ windows=[]
+ for path in sorted((ROOT/'runs/cache_windows').glob('*.json')):
+  w=json.loads(path.read_text())
+  if w.get('after',{}).get('epoch',cut+1)>cut:continue
+  protocol_reasons=[]
+  if w.get('target_offset_s') is not None and abs(w['actual_offset_s']-w['target_offset_s'])>30:protocol_reasons.append('periodic_schedule_drift_over_30s')
+  for c in index.values():
+   if c['block']!=w['block']:continue
+   seed=byid.get(c.get('seed_id',''))
+   if seed and int(seed.get('retry_index') or 0):protocol_reasons.append('seed_retry_changes_cache_exposure');break
+  if protocol_reasons:w['window'].update(valid=False,token_fraction=None,reasons=w['window']['reasons']+protocol_reasons)
+  windows.append(w)
+ details=[]
+ for ident,c in index.items():
+  r=byid.get(ident)
+  if not r:continue
+  seed=byid.get(c.get('seed_id',''));t=num(r['first_visible_s']);bt=num(seed['first_visible_s']) if seed else None
+  details.append(dict(id=ident,family=c['family'],group=c['group'],role=c['cache_role'],block=c['block'],shape=c.get('shape'),concurrency=c['concurrency'],input_target=c['target_input_tokens'],target_prefix_percent=c.get('target_prefix_percent'),actual_prefix_fraction=c.get('actual_prefix_fraction'),target_delay_s=c.get('target_delay_s'),epoch=c.get('epoch'),ttft_s=t,seed_ttft_s=bt,paired_wait_reduction_s=bt-t if bt is not None and t is not None else None,relative_wait_reduction=(bt-t)/bt if bt is not None and bt>0 and t is not None else None,cached_tokens=num(r.get('cached_tokens')),prompt_tokens=num(r.get('prompt_tokens')),output_tokens=num(r.get('completion_tokens')),retry_index=int(r.get('retry_index') or 0),seed_retry_index=int(seed.get('retry_index') or 0) if seed else 0))
+ groups=[]
+ grouped=collections.defaultdict(list)
+ for r in details:
+  key=(r['family'],r['shape'],r['concurrency'],r['input_target'],r['role'],r['target_delay_s'],r['epoch']);grouped[key].append(r)
+ for key,rs in grouped.items():
+  d=dict(zip(['family','shape','concurrency','input_target','role','target_delay_s','epoch'],key));ts=[r['ttft_s'] for r in rs if r['ttft_s'] is not None];diff=[r['paired_wait_reduction_s'] for r in rs if r['paired_wait_reduction_s'] is not None and not r['retry_index'] and not r['seed_retry_index']]
+  ws=[w for w in windows if w['block'] in {r['block'] for r in rs} and w.get('window',{}).get('valid')];den=sum(w['window']['prompt_delta'] for w in ws)
+  d.update(n=len(rs),ttft_median_s=statistics.median(ts) if ts else None,paired_n=len(diff),paired_reduction_median_s=statistics.median(diff) if diff else None,valid_counter_windows=len(ws),counter_fraction=sum(w['window']['cached_delta'] for w in ws)/den if den else None);groups.append(d)
+ samples=[];path=ROOT/'monitor/cache_counters.jsonl'
+ if path.exists():
+  for line in path.open():
+   try:r=json.loads(line)
+   except ValueError:continue
+   if r.get('epoch',cut+1)<=cut:samples.append(r)
+ bins=[];anchor=prev=None;segment=[]
+ for s in samples:
+  if not s.get('valid') or (prev and (s['epoch']-prev['epoch']>15 or any(s[k]<prev[k] for k in ['prompt','cached','output']))):anchor=prev=None;segment=[];continue
+  if anchor is None:anchor=s
+  prev=s;segment.append(s)
+  if s['collector_epoch']-anchor['collector_epoch']<60:continue
+  w=window(anchor,s);start=anchor['collector_epoch'];end=s['collector_epoch'];rs=[r for r in ok if start<=float(r['start_epoch'])<end];ts=[num(r['first_visible_s']) for r in rs if num(r['first_visible_s']) is not None]
+  bins.append(dict(start_epoch=start,end_epoch=end,duration_s=end-start,**w,request_starts=len(rs),phases=sorted({r['phase'] for r in rs}),ttft_median_s=statistics.median(ts) if ts else None,kv_peak=max((x['kv'] for x in segment if x.get('kv') is not None),default=None)))
+  anchor=s;segment=[s]
+ reuse={}
+ for ident,r in byid.items():
+  m=re.fullmatch(r'(P5_g\d+_h(\d+))_s([012])',ident)
+  if m:reuse.setdefault((m[1],int(m[2])),{})[int(m[3])]=r
+ pairs=[]
+ for (group,history),rs in reuse.items():
+  if 0 not in rs or 1 not in rs or any(int(rs[k].get('retry_index') or 0) for k in [0,1]):continue
+  first=num(rs[0]['first_visible_s']);repeat=num(rs[1]['first_visible_s'])
+  if first is None or repeat is None:continue
+  pairs.append(dict(group=group,history_tokens=history,input_tokens=num(rs[0]['prompt_tokens']),first_ttft_s=first,repeat_ttft_s=repeat,reduction_s=first-repeat))
+ reuse_summary=[]
+ for h in sorted({x['history_tokens'] for x in pairs}):
+  rs=[x for x in pairs if x['history_tokens']==h];reuse_summary.append(dict(history_tokens=h,n=len(rs),input_median=statistics.median([x['input_tokens'] for x in rs if x['input_tokens'] is not None]),first_median_s=statistics.median([x['first_ttft_s'] for x in rs]),repeat_median_s=statistics.median([x['repeat_ttft_s'] for x in rs]),reduction_median_s=statistics.median([x['reduction_s'] for x in rs]),faster=sum(x['reduction_s']>0 for x in rs)))
+ result=dict(reuse_pairs=pairs,reuse_summary=reuse_summary,generated_utc=a['generated_utc'],coverage=coverage,complete_total=len(ok),cache_fields=sum(x['known'] for x in coverage),supplement_planned=160,supplement_completed=len(details),family_completed={f:sum(r['family']==f for r in details) for f in ['business','retention','competition','periodic']},windows=windows,details=details,groups=groups,telemetry_samples=len(samples),fresh_samples=sum(bool(s.get('valid')) for s in samples),time_bins=bins)
+ dump(ROOT/'reports/cache_analysis.json',result)
+ for name,rs in [('cache_conditions',groups),('cache_requests',details),('cache_time_windows',bins),('cache_field_coverage',coverage),('cache_reuse_pairs',pairs)]:
+  p=ROOT/'reports'/f'{name}.csv'
+  with p.open('w',newline='') as f:
+   if rs:
+    writer=csv.DictWriter(f,fieldnames=list(rs[0]));writer.writeheader();writer.writerows(rs)
+ return result
+if __name__=='__main__':print({k:v for k,v in build().items() if k in ['complete_total','cache_fields','supplement_completed','telemetry_samples','fresh_samples']})

@@ -1,0 +1,83 @@
+"""Bounded open arrival scheduler. Producer never waits for a request slot."""
+import asyncio
+import random
+import json
+import shutil
+import time
+from common import append, dump, utc
+
+def poisson_offsets(rate,n,max_duration,seed):
+    assert rate>0
+    rng=random.Random(seed);t=0;out=[]
+    for _ in range(n):
+        t+=rng.expovariate(rate)
+        if t>max_duration:break
+        out.append(t)
+    return out
+
+async def execute(runner,client,events,block_id,workers=None,max_queue=32,max_wait=5.0):
+    """events=(offset_seconds, case); workers partitions short/long interference."""
+    workers=workers or {'default':8}
+    assert 0<sum(workers.values())<=8
+    assert all(c.get('stream_kind','default') in workers for _,c in events)
+    queues={key:asyncio.Queue() for key in workers};results=[];arrivals=[]
+    root=runner.root;path=root/'runs/arrivals'/f'{block_id}.jsonl';path.parent.mkdir(exist_ok=True)
+    previous=None;old_arrivals=[]
+    receipt_path=root/'runs/blocks'/f'{block_id}.json'
+    if path.exists() or (root/'runs/arrival_plans'/f'{block_id}.json').exists():
+        assert (root/'protocol/auto_recovery_policy.json').exists(),'Arrival blocks are never replayed without explicit recovery policy'
+        assert receipt_path.exists(),'Unfinished arrival receipt requires review'
+        previous=json.loads(receipt_path.read_text())
+        if not previous.get('stop'):
+            return [json.loads((root/'runs/requests'/i/'result.json').read_text()) for i in previous['request_ids']],previous
+        old_arrivals=[json.loads(x) for x in path.read_text().splitlines()]
+        offered={x['id'] for x in old_arrivals if x['state']=='offered'}
+        assert all(x['state']!='started' for x in runner.ledger['entries'].values()),'Unknown receipt cannot resume arrivals'
+        events=[(t,c) for t,c in events if c['id'] not in offered and c['id'] not in runner.ledger['entries']]
+        shift=min((t for t,c in events),default=0)
+        events=[(t-shift,c) for t,c in events]
+        archive=root/'runs/interrupted_arrivals'/f'{block_id}_{time.time_ns()}'
+        archive.mkdir(parents=True)
+        for p in [path,receipt_path,root/'runs/arrival_plans'/f'{block_id}.json']:
+            if p.exists():shutil.copy2(p,archive/p.name)
+
+    start=time.perf_counter();epoch=time.time()
+    dump(root/'runs/arrival_plans'/f'{block_id}.json',{'created_utc':utc(),'events':[{'offset_s':t,'case_id':c['id']} for t,c in events],'workers':workers,'max_queue':max_queue,'max_wait_s':max_wait})
+    def record(row):arrivals.append(row);append(path,row)
+    async def worker(kind):
+        q=queues[kind]
+        while True:
+            item=await q.get()
+            if item is None:q.task_done();return
+            intended,case,queued=item
+            now=time.perf_counter()
+            meta={'block_start_epoch':epoch,'planned_offset_s':intended,'planned_epoch':epoch+intended,'enqueued_offset_s':queued-start,'dequeued_offset_s':now-start,'client_queue_s':now-queued,'scheduler_delay_s':queued-start-intended}
+            if now-queued>max_wait:
+                record({'id':case['id'],'state':'queue_expired','utc':utc(),**meta})
+            elif runner.stopping():
+                record({'id':case['id'],'state':'stopped_before_send','utc':utc(),**meta})
+            else:
+                r=await runner.case(client,case,schedule=meta);results.append(r)
+                record({'id':case['id'],'state':'finished' if 'start_epoch' in r else 'not_sent','result_state':r.get('state'),'utc':utc(),**meta})
+            q.task_done()
+    tasks=[asyncio.create_task(worker(kind)) for kind,n in workers.items() for _ in range(n)]
+    for offset,case in sorted(events,key=lambda x:x[0]):
+        while time.perf_counter()-start<offset and not runner.stopping():
+            await asyncio.sleep(min(.1,offset-(time.perf_counter()-start)))
+        if runner.stopping():break
+        now=time.perf_counter();kind=case.get('stream_kind','default')
+        record({'id':case['id'],'state':'offered','utc':utc(),'planned_epoch':epoch+offset,'actual_offset_s':now-start,'planned_offset_s':offset,'stream_kind':kind})
+        if sum(q.qsize() for q in queues.values())>=max_queue:
+            record({'id':case['id'],'state':'queue_full','utc':utc(),'planned_epoch':epoch+offset})
+        else:
+            queues[kind].put_nowait((offset,case,now))
+    for kind,n in workers.items():
+        for _ in range(n):queues[kind].put_nowait(None)
+    await asyncio.gather(*tasks)
+    record_summary={'id':block_id,'kind':'open','start_epoch':epoch,'end_epoch':time.time(),'planned':len(events),'offered':sum(x['state']=='offered' for x in arrivals),'sent':sum('start_epoch' in r for r in results),'completed':sum(r.get('state')=='received' for r in results),'local_rejections':sum(x['state'] in ['queue_full','queue_expired','stopped_before_send','not_sent'] for x in arrivals),'workers':workers,'request_ids':[r['id'] for r in results if 'start_epoch' in r],'stop':runner.stopping()}
+    if previous:
+        record_summary.update(segment_count=previous.get('segment_count',1)+1,interrupted=True,interruption_note='Only previously unoffered events resumed; arrival offsets rebased. Interrupted blocks are excluded from stable-rate selection.',start_epoch=previous['start_epoch'],planned=previous['planned'],request_ids=previous['request_ids']+record_summary['request_ids'])
+        for key in ['offered','sent','completed','local_rejections']:record_summary[key]+=previous[key]
+        results=[json.loads((root/'runs/requests'/i/'result.json').read_text()) for i in previous['request_ids']]+results
+    dump(root/'runs/blocks'/f'{block_id}.json',record_summary)
+    return results,record_summary

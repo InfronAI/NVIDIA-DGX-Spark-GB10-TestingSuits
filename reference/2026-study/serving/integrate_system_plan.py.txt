@@ -1,0 +1,74 @@
+"""One-time offline integration from the archived pre-GPU protocol sources.
+
+Regenerate published documents with build_reviewed_plan.py, not this migration.
+No SSH, API inference, package installation or GPU execution.
+"""
+import json
+import re
+from common import ROOT, dump, utc
+import report_gpu_system as gpu
+
+def main():
+    archive=ROOT/'evidence/gpu_system_revision/before/test_plan'
+    out=ROOT/'plans/gpu_system';out.mkdir(parents=True,exist_ok=True)
+    manifest={
+        'schema_version':1,'created_utc':utc(),'state':'planned_not_executed',
+        'scope':'GPU and two-node system protocol integrated with existing serving study',
+        'execution_activated':False,'executor_implemented':False,'new_hardware_runs':0,
+        'primary_host':'spark-node0',
+        'second_node_scope':'key-condition replication and two-node communication',
+        'serving_limits_unchanged':{'actual_attempts':8171,'concurrency':8,'cumulative_budget_usd':500,'deadline_cst':'2026-10-16 12:40:53'},
+        'hardware_window':{'estimated_wall_hours':[8.5,11],'sustained_hours':4,'optional_extended_hours':[12,24],'activation_required_before_execution':True,'overlap_with_serving':False,'api_deadline_extended':False},
+        'seed':20261015,'screening_rounds':5,'key_independent_rounds':10,
+        'inner_timing_seconds_min':1,
+        'warmup':{'min_seconds':300,'max_seconds_before_nonsteady_label':900,'window_seconds':60,'windows':3,'throughput_variation_fraction':0.03,'mean_temperature_range_c':2,'vendor_acceptance_standard':False},
+        'memory_guard':{'available_fraction_cap':0.70,'reserve_min_gib':16,'reserve_physical_fraction':0.15,'check_before_each_allocation':True},
+        'record_fields':['run_id','condition_id','node_id','round','start_utc','end_utc','monotonic_elapsed_s','config_sha256','tool_commit','compiler_target','dtype','accumulator_dtype','sparsity','shape','layout','allocation_type','working_set_bytes','cache_state','power_policy','actual_clocks','timing_boundary','warmup_state','validation_tolerance','validation_errors','raw_metrics','counter_definitions','telemetry_coverage','terminal_state','exclusion_reason'],
+        'modules':[{'id':m[0],'name_zh':m[1],'name_en':m[2],'conditions_zh':m[3],'conditions_en':m[4],'metrics_zh':m[5],'metrics_en':m[6],'state':'planned_not_executed'} for m in gpu.MODULES],
+        'results_policy':'No performance value without completed validated run and provenance; missing is not zero',
+        'existing_rdma_evidence':'../../evidence/rdma_summary.json',
+        'report_generator':'../../report_gpu_system.py',
+        'sources':[{'title_zh':z,'title_en':e,'url':url} for z,e,url in gpu.SOURCES],
+        'future_raw_directory':'runs/gpu_system (not created; no executed hardware records)',
+    }
+    dump(out/'manifest.json',manifest)
+    for lang in ('zh','en'):
+        T=lambda z,e:z if lang=='zh' else e
+        old=(archive/f'plan.{lang}.md').read_text()
+        parts=re.split(r'\n\n## (\d{2}) · [^\n]+\n\n',old)
+        assert len(parts)==17
+        sec={int(parts[i]):parts[i+1].strip() for i in range(1,len(parts),2)}
+        sec[1]=sec[1].replace('时间与费用','模型服务时间与费用').replace('| Time and cost |','| Serving time and cost |')
+        sec[1]+='\n\n'+T('总体研究同时覆盖GB10硬件、独立算子、双机系统与模型服务。新增GPU协议已纳入设计，执行状态为待测；配置规格与历史网络记录不作为新增微基准结果。服务实验的费用、截止时间与执行清单保持原定义；GPU独占阶段按单独设备时间窗口安排。',
+          'The integrated study covers GB10 hardware, standalone operators, the two-node system and model serving. The new GPU protocol is designed but unexecuted; ratings and prior network records do not count as new microbenchmark results. Serving cost, deadline and frozen requests retain their definitions; GPU work uses a separate exclusive device window.')
+        sec[6]=sec[6].replace('第02节','第04节').replace('section 02','section 04')
+        measurement=gpu.framework(lang)+'\n\n### '+T('模型服务指标','Model-serving metrics')+'\n\n'+sec[6]
+        measurement+='\n\n### '+T('GPU与系统指标','GPU and system metrics')+'\n\n'+gpu.metrics(lang)+'\n\n### '+T('硬件实验的统计规则','Statistics for hardware experiments')+'\n\n'+gpu.statistics_protocol(lang)
+        execution='### '+T('模型服务阶段','Model-serving stages')+'\n\n'+sec[7]+'\n\n### '+T('GPU独占窗口与资源预算','Exclusive GPU window and resource budget')+'\n\n'+gpu.schedule(lang)
+        evidence=T('每个结论绑定配置、工作负载、时间窗口、有效样本和原始路径。先检验数值或请求完整性，再形成同条件统计，最后讨论机制。GPU饱和实验与模型服务分时执行；单项GPU活跃度、网络速率或前缀命中不能直接证明唯一瓶颈。',
+          'Bind each conclusion to configuration, workload, window, eligible samples and raw paths. Validate numerical or request integrity before matched-condition statistics and mechanistic interpretation. Run GPU saturation and serving in separate windows; GPU activity, a network rate or prefix hits alone do not prove a unique bottleneck.')
+        evidence+=gpu.tab(lang,[('问题','Question'),('需要的证据链','Required evidence chain'),('解释边界','Interpretation boundary')],[
+          [T('算力是否限制服务','Does compute limit serving?'),T('同精度矩阵上限→同形状算子→真实执行轨迹','Matched-dtype ceiling → same-shape operators → actual execution trace'),T('稀疏FP4规格不能作为稠密BF16分母','Sparse FP4 ratings are not a dense BF16 denominator')],
+          [T('带宽／缓存是否限制服务','Does bandwidth/cache limit serving?'),T('超缓存工作集→实际流量／命中→受控竞争','Beyond-cache work → traffic/hits → controlled contention'),T('硬件缓存与前缀缓存分别计数','Hardware and prefix caches have separate counters')],
+          [T('双机通信代价','What is communication cost?'),T('路径与缓冲区→集合通信曲线→计算重叠轨迹','Path/buffers → collective curves → compute-overlap trace'),T('独立逻辑接口结果不能相加；没有单机对照不报模型加速比','Do not add independently measured paths or infer model speedup without a one-node control')],
+          [T('性能是否持续稳定','Is performance sustained?'),T('同负载基线→分窗吞吐→热／频率／限制原因','Matched baseline → window throughput → thermal/clock/limit reasons'),T('4小时不外推全年可用性或平均故障间隔','Four hours do not establish annual availability or MTBF')],
+          [T('成本是否可迁移','Are cost findings transferable?'),T('实际产出→对应费用与功率边界→利用率敏感性','Observed output → matched charges/power scope → utilization sensitivity'),T('估算整机功率与插座电量分开；ROI为情景','Separate estimated power and outlet energy; ROI is a scenario')],
+        ])
+        evidence+='\n\n'+T('报告状态使用“待测、已观测、支持受控比较、机制待验证、不适用／不支持”。进入不支持状态须有设备或工具证据；待测项不填零。性能总表同时列短时可实现值与持续值，避免挑选单次最快结果作为唯一结论。执行代码、命令和容差完成核验后才冻结正式运行清单；本协议清单本身不等于已经存在可运行GPU执行器。',
+          'Report states distinguish pending, observed, controlled-comparison evidence, unverified mechanism and inapplicable/unsupported. Unsupported states require device/tool evidence; pending values are not zero. Show short-run achievable and sustained values together rather than selecting only the fastest run. Freeze executable conditions after verifying code, commands and tolerances; this protocol manifest is not an implemented GPU runner.')
+        delivery=T('报告按照下表组织，所有结果章节先给出条件与有效覆盖，再提供图表、表格和解释。硬件待测章节保留状态及可回答范围；测量完成后由真实记录填充，不绘制假想性能曲线。',
+          'The report follows the outline below. Each result chapter states conditions and valid coverage before figures, tables and interpretation. Pending hardware chapters retain evidence status and scope; actual records will populate results without hypothetical performance curves.')
+        rows=[('01','研究摘要、对象与部署','Study summary, target and deployment'),('02','分层方法与工作负载','Layered methods and workloads'),('03','指标定义与统计方法','Metric definitions and statistics'),('04','实验覆盖与证据状态','Experiment coverage and evidence status'),('05','GPU计算、内存与算子','GPU compute, memory and operators'),('06','双机通信与系统协同','Two-node communication and cooperation'),('07','模型服务性能与缓存','Model-serving performance and caching'),('08','持续运行与节点资源','Sustained operation and node resources'),('09','综合瓶颈分析与证据边界','Integrated bottleneck analysis and evidence limits'),('10','费用、持有成本与投资回报','API cost, ownership and investment return'),('11','整体结论与后续工作','Overall conclusions and next work'),('12–14','附录：完整指标、补充统计、代码与数据路径','Appendices: metric dictionary, supplementary statistics, code/data paths')]
+        delivery+=gpu.tab(lang,[('章节','Chapter'),('内容','Contents')],[[n,T(z,e)] for n,z,e in rows])
+        # Preserve the source-specific methodology, frozen request and evidence links.
+        rest=sec[8].split('\n\n',1)[1]
+        delivery+='\n\n'+rest+'\n\n'+T('硬件方案与工具依据：','Hardware protocol and tool references: ')+gpu.sources(lang)
+        delivery+='\n\n['+T('GPU与系统协议清单','GPU/system protocol manifest')+'](../plans/gpu_system/manifest.json) · ['+T('官方资料快照与散列','Official-source snapshots and hashes')+'](../evidence/gpu_system_revision/sources/manifest.json)'
+        ordered=[('对象、部署与研究边界','Target, deployment and study boundaries',sec[1]),('分层测量与指标定义','Layered measurement and metric definitions',measurement),('GPU与双机系统实验','GPU and two-node system experiments',gpu.protocol(lang)),('模型工作负载与长度空间','Model workloads and length space',sec[2]),('模型测试矩阵与调用预算','Serving matrix and request budget',sec[3]),('前缀缓存复用与稳定性','Prefix-cache reuse and stability',sec[4]),('独立到达与服务持续运行','Independent arrivals and sustained serving',sec[5]),('执行顺序、时间与资源边界','Execution order, time and resource limits',execution),('证据链与归因规则','Evidence and attribution rules',evidence),('报告结构、交付与复现','Report structure, deliverables and reproduction',delivery)]
+        title=T('# NVIDIA DGX Spark：GPU、双机系统与模型推理测试计划','# NVIDIA DGX Spark: GPU, Two-Node System and Model Inference Test Plan')
+        intro=T('**方案版本：2026-10-15。服务性能与GPU系统测评；模型答案不评分，数值内核必须校验。GPU专项已设计、待执行。**','**Protocol version: 2026-10-15. Serving and GPU/system performance; no model-answer scoring, with numerical kernel validation required. GPU suite designed, not executed.**')
+        doc=title+'\n\n'+intro+'\n\n'+'\n\n'.join(f'## {i:02d} · '+T(z,e)+'\n\n'+body for i,(z,e,body) in enumerate(ordered,1))+'\n'
+        (ROOT/f'test_plan/plan.{lang}.md').write_text(doc)
+    print('Integrated bilingual protocol sources; GPU manifest is planned, not executable.')
+
+if __name__=='__main__':main()

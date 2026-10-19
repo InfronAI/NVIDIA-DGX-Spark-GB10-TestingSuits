@@ -1,0 +1,95 @@
+"""P3 open arrivals and stability; derive rates by a rule fixed before observing them."""
+import asyncio
+import collections
+import json
+import time
+from common import ROOT, append, dump, read_rows, utc
+from arrival import execute, poisson_offsets
+
+RULES={
+ 'lambda_reference':'Maximum aggregate completed requests / sum of full block durations across P1 concurrency conditions; all 3 blocks and 180 complete responses required; no errors or integrity flags.',
+ 'open_stability':'At least 30 measured completions after warmup, zero failed/incomplete responses, zero local rejections, zero integrity flags, no global guard trigger. Highest tested qualifying offered rate.',
+ 'interference_short_rate':'0.70 times P1 c4 aggregate request rate; identical Poisson schedule and prompt IDs in each isolated/mixed pair.',
+ 'interference_arrival_window_s':180,
+ 'interference_long_offsets':'Eight equally spaced midpoints across the measured short arrival window.',
+ 'open_queue_limit':32,'open_queue_wait_limit_s':5,'global_inflight_limit':8,
+ 'soak_rate':'0.60 times highest stable P7a rate; 4 hours or 3000 scheduled requests, first reached.',
+ 'P6':'Skipped: approved P3 requires a service-switch arrangement; no arrangement made, no restart or MTP setting changes.',
+ 'interpretation':'Stable means these engineering gates under c<=8, not production SLO compliance or an absolute hardware maximum.'
+}
+
+def result(ident):return json.loads((ROOT/'runs/requests'/ident/'result.json').read_text())
+
+def reference_rates():
+    groups=collections.defaultdict(list)
+    for f in (ROOT/'runs/blocks').glob('P1_r*_c*.json'):
+        b=json.loads(f.read_text());groups[b['concurrency']].append(b)
+    candidates=[]
+    for c,blocks in sorted(groups.items()):
+        rs=[result(i) for b in blocks for i in b['request_ids']]
+        duration=sum(b['end_epoch']-b['start_epoch'] for b in blocks)
+        eligible=len(blocks)==3 and len(rs)==180 and all(r.get('state')=='received' and not r.get('integrity_flags') and r.get('usage_available') for r in rs)
+        eligible=eligible and not any(r.get('retry_index',0)>0 for r in rs)
+        candidates.append({'concurrency':c,'blocks':len(blocks),'requests':len(rs),'window_s':duration,'requests_s':len(rs)/duration if duration else None,'eligible':eligible})
+    valid=[x for x in candidates if x['eligible']]
+    return {'utc':utc(),'candidates':candidates,'selected':max(valid,key=lambda x:x['requests_s']) if valid else None}
+
+async def run_extended(runner,api,schedule):
+    assert not any(x['state']=='started' for x in runner.ledger['entries'].values()),'Unknown sends require review'
+    frozen_rules=json.loads((ROOT/'plans/extended_rules.json').read_text())
+    assert frozen_rules['rules']==RULES,'Extended selection rules changed'
+    refs=reference_rates();dump(ROOT/'runs/reference_rate.json',refs)
+    for b in schedule['blocks']:
+        if b['phase']=='P6':dump(ROOT/'runs/blocks'/f'{b["id"]}.json',{'id':b['id'],'state':'skipped','reason':RULES['P6'],'planned':128,'sent':0,'completed':0,'utc':utc()})
+    if not refs['selected']:
+        dump(ROOT/'runs/extended_skipped.json',{'utc':utc(),'reason':'No P1 condition passed preregistered reference-rate gates'});return
+    stable=[];reference=refs['selected']['requests_s']
+    for b in (x for x in schedule['blocks'] if x['kind']=='open_arrivals'):
+        if runner.stopping():return
+        cases=read_rows(ROOT/'plans'/b['file']);rate=reference*b['rate_multiplier']
+        offsets=poisson_offsets(rate,len(cases),b['max_duration_s'],b['arrival_seed'])
+        dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'state':'running','stage':'P7a','block':b,'reference_rate':reference,'offered_rate':rate})
+        rs,receipt=await execute(runner,api,list(zip(offsets,cases)),b['id'])
+        measured=[r for r in rs if not r.get('warmup')]
+        accepted=len(measured)>=30 and receipt['completed']==receipt['sent'] and receipt['local_rejections']==0 and all(not r.get('integrity_flags') for r in rs) and not runner.stopping()
+        accepted=accepted and not receipt.get('interrupted') and not any(r.get('retry_index',0)>0 for r in rs)
+        verdict={'utc':utc(),'id':b['id'],'rate':rate,'measured':len(measured),'stable_by_preregistered_gates':accepted,'receipt':receipt}
+        append(ROOT/'runs/open_stability.jsonl',verdict)
+        if accepted:stable.append(verdict)
+    c4=next((x for x in refs['candidates'] if x['concurrency']==4 and x['eligible']),None)
+    if c4:
+        rate=.7*c4['requests_s']
+        pair_offsets={}
+        for b in (x for x in schedule['blocks'] if x['kind']=='interference'):
+            if runner.stopping():return
+            cases=read_rows(ROOT/'plans'/b['file']);warm=[c for c in cases if c.get('warmup')]
+            measured=[c for c in cases if not c.get('warmup')]
+            offsets=pair_offsets.setdefault(b['pair'],poisson_offsets(rate,32,180,b['arrival_seed']))
+            # A full paired schedule must fit its bounded window; never speed it up after seeing outcomes.
+            if len(offsets)<32:
+                dump(ROOT/'runs/blocks'/f'{b["id"]}.json',{'id':b['id'],'state':'skipped','reason':'The fixed-rate 32-arrival short schedule exceeds 180 seconds','sent':0,'completed':0,'planned':len(cases),'utc':utc()});continue
+            warm_path=ROOT/'runs/blocks'/f"{b['id']}_warm.json"
+            pending_warm=[c for c in warm if c['id'] not in runner.ledger['entries']]
+            if pending_warm:await runner.closed(api,pending_warm,1,b['id']+'_warm')
+            if runner.stopping():return
+            short=[c for c in measured if c['stream_kind']=='short'];long=[c for c in measured if c['stream_kind']=='long']
+            long_offsets=[offsets[0]+(offsets[-1]-offsets[0])*(i+.5)/8 for i in range(8)]
+            events=list(zip(offsets,short))+list(zip(long_offsets,long))
+            dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'state':'running','stage':'P7b','block':b,'short_offered_rate':rate})
+            await execute(runner,api,events,b['id'],workers={'short':4,'long':1})
+    else:dump(ROOT/'runs/interference_skipped.json',{'utc':utc(),'reason':'P1 c4 did not qualify for a matched reference rate'})
+    if not stable:
+        dump(ROOT/'runs/soak_skipped.json',{'utc':utc(),'reason':'No P7a offered rate passed preregistered stability gates'});return
+    if runner.stopping():return
+    selected=max(stable,key=lambda x:x['rate']);b=next(x for x in schedule['blocks'] if x['kind']=='soak')
+    rate=.6*selected['rate'];cases=read_rows(ROOT/'plans'/b['file'])
+    remaining=max(0,runner.ledger['deadline_epoch']-time.time())
+    length_manifest=ROOT/'plans/length_expansion/manifest.json'
+    if length_manifest.exists():
+        allocation=json.loads(length_manifest.read_text())['planned_calls']
+        cases=cases[:3000-allocation]
+    max_duration=min(b['max_duration_s'],remaining,3600 if length_manifest.exists() else b['max_duration_s'])
+    offsets=poisson_offsets(rate,len(cases),max_duration,b['arrival_seed'])
+    dump(ROOT/'runs/soak_selection.json',{'utc':utc(),'stable_source':selected['id'],'source_rate':selected['rate'],'rate':rate,'scheduled_requests':len(offsets),'max_arrival_duration_s':max_duration,'note':'Drain may follow the arrival window, without additional arrivals.'})
+    dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'state':'running','stage':'P8','block':b,'offered_rate':rate})
+    await execute(runner,api,list(zip(offsets,cases)),b['id'])

@@ -1,0 +1,56 @@
+"""Offline regression for concurrent evidence writers; no network or model calls."""
+import concurrent.futures
+import json
+import tempfile
+import threading
+import unittest
+from pathlib import Path
+from common import dump
+
+
+def write_many(args):
+    path, writer = args
+    for sequence in range(100):
+        dump(path, {'writer': writer, 'sequence': sequence, 'payload': 'x' * 4096})
+
+
+class AtomicEvidenceTests(unittest.TestCase):
+    def test_concurrent_processes_and_reader(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            path = root / 'evidence.json'
+            dump(path, {'writer': -1, 'sequence': -1, 'payload': 'x' * 4096})
+            done = threading.Event()
+            errors = []
+            def reader():
+                while not done.is_set():
+                    try:
+                        value = json.loads(path.read_text())
+                        assert value['payload'] == 'x' * 4096
+                    except Exception as exc:
+                        errors.append(str(exc))
+                        return
+            thread = threading.Thread(target=reader)
+            thread.start()
+            try:
+                with concurrent.futures.ProcessPoolExecutor(8) as pool:
+                    list(pool.map(write_many, [(path, i) for i in range(8)]))
+            finally:
+                done.set()
+                thread.join()
+            self.assertEqual(errors, [])
+            self.assertEqual(json.loads(path.read_text())['sequence'], 99)
+            self.assertEqual(list(root.glob('*.tmp')), [])
+
+    def test_serialization_failure_keeps_previous_value(self):
+        with tempfile.TemporaryDirectory() as name:
+            path = Path(name) / 'evidence.json'
+            dump(path, {'valid': True})
+            with self.assertRaises(ValueError):
+                dump(path, {'invalid': float('nan')})
+            self.assertEqual(json.loads(path.read_text()), {'valid': True})
+            self.assertEqual(list(Path(name).glob('*.tmp')), [])
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -1,0 +1,102 @@
+"""Final evidence coverage, kept separate from executor termination and call caps."""
+from pathlib import Path
+import collections
+import hashlib
+import json
+
+from common import ROOT
+
+OUT=ROOT/'evidence/coverage_clarification_20261017'
+
+def audit():
+    paths={'initial':ROOT/'reports/analysis.json','length':ROOT/'reports/length_analysis.json',
+           'hardware':ROOT/'hardware_unloaded_confirmed_20261016/analysis/summary.json',
+           'completion':ROOT/'gap_completion_20261017/analysis/summary.json',
+           'public_plan':ROOT/'gap_completion_20261017/public/manifest.json'}
+    a,l,h,d,p=(json.loads(paths[x].read_text()) for x in ['initial','length','hardware','completion','public_plan'])
+    measured=sum(v[suite].get('measured',0) for v in h['coverage_by_suite'].values() for suite in ['base','extensions'])
+    cache=collections.Counter(x['pair'] for x in d['cache'])
+    counters={(x['node'],x['mode'],x['round']) for x in d['counters']}
+    continuous=[x for x in d['public']['blocks'] if x.get('complete_continuous_window')]
+    rows=[
+        ('单节点硬件轮次','Single-node hardware rounds',measured,3740),
+        ('双机集合通信','Two-node collective trials',h['paired_collective_trials'],840),
+        ('计算与通信重叠','Compute/communication pairs',h['paired_overlap_trials'],120),
+        ('原生固定长输出','Native fixed-output requests',sum(x['state']=='complete' for x in d['native_requests']),len(d['native_requests'])),
+        ('GPU剖析配对','GPU profiling pairs',len(d['profile_pairs']),9),
+        ('64K缓存配对','64K cache pairs',sum(n==2 for n in cache.values()),3),
+        ('FP64矩阵轮次','FP64 matrix rounds',len(d['fp64']),30),
+        ('代表性计数器','Counter profiles',len(counters),12),
+        ('公网连续一小时','Continuous public hour',len(continuous),1)]
+    pairs=d['public']['interference'];planned=p['interference_pairs']
+    completed=sum(x['fully_observed'] for x in pairs)
+    result={'execution_complete':d['completion_ready'],'full_evidence_coverage':False,
+            'definition':'Terminal execution is distinct from valid measurement coverage; conditional request caps are not mandatory sample counts.',
+            'fixed_coverage':[{'zh':z,'en':e,'valid':v,'planned':n} for z,e,v,n in rows],
+            'public_length':{'planned':l['planned'],'sent':l['sent'],'complete':l['complete'],
+                             'noncomplete_sent':l['sent']-l['complete'],'not_sent':l['planned']-l['sent'],
+                             'exact_length_qualified':l['qualified']},
+            'interference':{'candidate_pairs':planned,'executed_pairs':len(pairs),'fully_observed_pairs':completed,
+                            'incomplete_pairs':len(pairs)-completed,'not_admitted_pairs':planned-len(pairs),
+                            'incomplete_reason':'Short-request local admission rejection; neither arm may be imputed.',
+                            'not_admitted_reason':'32 fixed-rate arrivals did not fit the 180-second candidate window.'},
+            'continuous_hour':[{'offered':x['offered'],'sent':x['sent'],'complete':x['complete'],
+                                'local_rejections':x['local_rejections'],'continuous_s':x['continuous_s']} for x in continuous],
+            'resource_limits':d['resource_limits']+['Strict per-token timestamps unavailable from aggregated SSE events'],
+            'initial_phases':a['phase_counts'],
+            'source_sha256':{str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths.values()}}
+    return result
+
+def gap_table(lang):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    d=audit();l=d['public_length'];i=d['interference'];s=d['continuous_hour'][0]
+    return table([T('范围','Scope'),T('最终证据状态','Final evidence status'),T('结论限制','Interpretation limit')],[
+        [T('公网长度扩展','Public length extension'),T(f'{l["planned"]}次固定计划；{l["sent"]}次已发送，{l["complete"]}次完整；{l["not_sent"]}次未发送、{l["noncomplete_sent"]}次发送后未完整。',f'{l["planned"]} planned; {l["sent"]} sent, {l["complete"]} complete; {l["not_sent"]} unsent and {l["noncomplete_sent"]} sent without a complete response.'),T('原生16条长输出是另一条测量路径，不能替代缺失的公网组合；自然结束也不等于达到固定输出长度。','The 16 native fixed-output requests use a separate path and do not fill missing public combinations; natural completion is not fixed-length attainment.')],
+        [T('长短请求混合干扰','Mixed-length interference'),T(f'{i["candidate_pairs"]}组候选中，{i["executed_pairs"]}组已执行、{i["not_admitted_pairs"]}组未通过到达窗口准入；有效完整配对{i["fully_observed_pairs"]}组。',f'Of {i["candidate_pairs"]} candidates, {i["executed_pairs"]} ran and {i["not_admitted_pairs"]} failed arrival-window admission; {i["fully_observed_pairs"]} fully observed pairs.'),T('已执行组均有短请求本地拒绝，保留拒绝与等待观测，不给出完整配对的干扰倍数。','Executed groups include local short-request rejection. Retain rejection/waiting observations; no fully paired interference multiplier is supported.')],
+        [T('连续公网服务','Continuous public service'),T(f'连续{s["continuous_s"]:.1f}秒；{s["offered"]}次到达，{s["complete"]}次完整，{s["local_rejections"]}次本地拒绝。',f'{s["continuous_s"]:.1f} continuous seconds; {s["offered"]} arrivals, {s["complete"]} complete and {s["local_rejections"]} locally rejected.'),T('一小时窗口已完成，但到达成功率不是100%，也不代表全天可用性。','The one-hour window is complete; arrival success is below 100% and does not establish all-day availability.')],
+        [T('H200同负载对照','Matched H200 measurements'),T('未执行：本轮没有H200设备。','Not run: no H200 device was available.'),T('只比较官方规格，不能报告实测推理加速比。','Official specifications only; no measured inference-speedup ratio.')],
+        [T('插座能耗','Wall-outlet energy'),T('未测：没有插座电表数据。','Not measured: no wall-meter data.'),T('功率传感器与持有成本情景不能替代整机实测电费。','Sensor power and cost scenarios do not establish measured wall-electricity cost.')],
+        [T('物理DRAM流量与逐词元间隔','Physical DRAM traffic and per-token timing'),T('当前计数器／接口未提供所需完整观测。','Available counters/interfaces do not provide the required complete observations.'),T('逻辑字节带宽、事件片段间隔分别报告，不替代物理流量或严格逐词元时延。','Report logical-byte bandwidth and event spacing without substituting them for physical traffic or exact per-token latency.')]])
+
+def historical_table(a,lang):
+    from build_report import table
+    from report_labels import phase_name
+    T=lambda z,e:z if lang=='zh' else e
+    rows=[]
+    for p in a['phase_counts']:
+        complete=p['complete']+p['expected_context_rejections'];sent=p['logical_sent']
+        basis=T('条件上限','Conditional cap') if p['phase'] in ['P7','P8'] else T('固定计划','Fixed plan')
+        rows.append([phase_name(p['phase'],lang),f'{p["cap"]:,} ({basis})',sent,complete,sent-complete])
+    return table([T('初始公网批次','Initial public batch'),T('设计数量的含义','Design count and meaning'),T('已发送逻辑请求','Logical requests sent'),T('完整／预期边界结果','Complete / expected boundary outcome'),T('未完整结果','Incomplete outcomes')],rows)
+
+def draw(lang,save):
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+    T=lambda z,e:z if lang=='zh' else e
+    d=audit();OUT.mkdir(parents=True,exist_ok=True)
+    (OUT/'audit.json').write_text(json.dumps(d,ensure_ascii=False,indent=2))
+    fig,(ax,right)=plt.subplots(1,2,figsize=(12.7,5.7),gridspec_kw={'width_ratios':[1.15,1]})
+    blue='#004AB9';amber='#A87400';grey='#D8E2F0'
+    for n,r in enumerate(d['fixed_coverage']):
+        pct=100*r['valid']/r['planned']
+        ax.barh(n,100,color=grey,height=.55);ax.barh(n,pct,color=blue,height=.55)
+        ax.text(103,n,f'{r["valid"]:,}/{r["planned"]:,}',va='center',fontsize=8)
+    ax.set_yticks(range(len(d['fixed_coverage'])),[r[lang] for r in d['fixed_coverage']]);ax.invert_yaxis()
+    ax.set_xlim(0,155);ax.set_xticks([0,50,100]);ax.set_xlabel(T('有效轮次／固定计划（%）','Valid units / fixed plan (%)'))
+    ax.set_title(T('已完成的固定实验清单','Completed fixed experiment lists'))
+    l=d['public_length'];i=d['interference']
+    parts=[(l['complete'],l['noncomplete_sent'],l['not_sent']),
+           (i['fully_observed_pairs'],i['incomplete_pairs'],i['not_admitted_pairs'])]
+    for n,values in enumerate(parts):
+        left=0
+        for value,color in zip(values,[blue,amber,grey]):
+            width=100*value/sum(values);right.barh(n,width,left=left,color=color,height=.35);left+=width
+    right.set_yticks([0,1],[T('公网长度：响应完整性','Public length: response completeness'),T('完整干扰配对','Complete interference pairs')])
+    right.set_ylim(1.7,-.65);right.set_xlim(0,100);right.set_xticks([0,50,100]);right.set_xlabel(T('同一清单内的证据状态（%）','Evidence status within each list (%)'))
+    right.set_title(T('仍有限制的实验覆盖','Remaining coverage limitations'))
+    right.text(0,.37,T(f'{l["complete"]}完整 / {l["noncomplete_sent"]}未完整 / {l["not_sent"]}未发送',f'{l["complete"]} complete / {l["noncomplete_sent"]} incomplete / {l["not_sent"]} unsent'),fontsize=8)
+    right.text(0,1.37,T(f'{i["fully_observed_pairs"]}完整 / {i["incomplete_pairs"]}不完整 / {i["not_admitted_pairs"]}未准入',f'{i["fully_observed_pairs"]} complete / {i["incomplete_pairs"]} incomplete / {i["not_admitted_pairs"]} not admitted'),fontsize=8)
+    fig.legend(handles=[Patch(color=blue,label=T('完成（按各行定义）','Complete (as defined per row)')),Patch(color=amber,label=T('已执行但未完整','Executed, incomplete')),Patch(color=grey,label=T('未执行','Not executed'))],loc='lower center',ncol=3,bbox_to_anchor=(.5,-.03),frameon=False)
+    fig.suptitle(T('最终证据覆盖：各行分母不同，不合成总完成率','Final evidence coverage: distinct row denominators, no overall completion percentage'),fontsize=11)
+    save(fig,'workflow',lang)

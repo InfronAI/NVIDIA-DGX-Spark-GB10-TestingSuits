@@ -1,0 +1,55 @@
+"""Regression checks for clock domains and CUDA Graph range duplication."""
+import gzip
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+from analyze_engine import timing, trace_summary
+
+
+class TimingTests(unittest.TestCase):
+    def meta(self):
+        return dict(forward_entry_time=100,prefill_finished_time=102,
+                    e2e_latency=5,first_token_latency=2.5,queue_time=.1,
+                    completion_tokens=6,prompt_tokens=8192,cached_tokens=0,decode_throughput=2)
+
+    def test_scheduler_epoch_shift_does_not_change_durations(self):
+        m=self.meta();expected=timing(m)
+        m['forward_entry_time']+=300;m['prefill_finished_time']+=300
+        self.assertEqual(timing(m),expected)
+
+    def test_native_rate_mismatch_is_rejected(self):
+        m=self.meta();m['decode_throughput']=999
+        with self.assertRaises(AssertionError):timing(m)
+
+    def test_retracted_request_is_not_silently_scored(self):
+        m=self.meta();m['num_retractions']=1
+        with self.assertRaises(ValueError):timing(m)
+
+    def test_one_token_output_has_no_decode_rate(self):
+        m=self.meta();m['completion_tokens']=1;m['e2e_latency']=m['first_token_latency']
+        self.assertIsNone(timing(m)['decode_token_s'])
+
+    def test_graph_streams_are_one_execution_and_overlap_is_not_summed(self):
+        events=[
+            dict(ph='X',cat='user_annotation',name='step[VERIFY bs=1]',ts=0,dur=1,pid=10,tid=10,args={'External id':9}),
+            dict(ph='X',cat='gpu_user_annotation',name='step[VERIFY bs=1]',ts=10,dur=10,pid=0,tid=1,args={'External id':9}),
+            dict(ph='X',cat='gpu_user_annotation',name='step[VERIFY bs=1]',ts=15,dur=10,pid=0,tid=2,args={'External id':9}),
+            dict(ph='X',cat='kernel',name='matmul',ts=10,dur=10,pid=0,tid=1),
+            dict(ph='X',cat='kernel',name='nccl_allreduce',ts=15,dur=10,pid=0,tid=2),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'node0/traces/test-DECODE.trace.json.gz';p.parent.mkdir(parents=True)
+            p.write_bytes(gzip.compress(json.dumps({'traceEvents':events}).encode()))
+            r=trace_summary(p)
+        self.assertAlmostEqual(r['gpu_span_ms'],.015)
+        self.assertAlmostEqual(r['gpu_busy_union_ms'],.015)
+        self.assertAlmostEqual(r['overlap_ms'],.005)
+        self.assertAlmostEqual(r['nccl_only_ms'],.005)
+        self.assertAlmostEqual(r['other_activity_only_ms'],.005)
+        self.assertEqual(len(r['semantic_annotations']['verify']['matched_steps']),1)
+        self.assertAlmostEqual(r['semantic_annotations']['verify']['mean_step_gpu_range_ms'],.015)
+
+
+if __name__=='__main__':unittest.main()

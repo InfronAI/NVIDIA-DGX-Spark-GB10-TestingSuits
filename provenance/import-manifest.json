@@ -1,0 +1,2731 @@
+{
+  "origin": "Completed Infron study, 2026-10-14 to 2026-10-17",
+  "transformations": [
+    "Remove known credentials",
+    "Replace personal workspace paths and deployment host identifiers",
+    "Publish analytical tables without raw API bodies",
+    "Archive one-off implementations as non-executable reference text"
+  ],
+  "files": [
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/investment-scenarios.csv",
+      "source_sha256": "77896860f0cbd1eca4ab47f91f6cce1f7b43c82ef5a4885a795ceadb696ad74f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/investment-scenarios.csv",
+      "published_sha256": "77896860f0cbd1eca4ab47f91f6cce1f7b43c82ef5a4885a795ceadb696ad74f",
+      "transformed": false,
+      "imported_sha256": "77896860f0cbd1eca4ab47f91f6cce1f7b43c82ef5a4885a795ceadb696ad74f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/business_results.json",
+      "source_sha256": "df5340c7279209d6e8c5fd68d5b2ac5d0c3b81e7c981e116976bb313e9e7dd0a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/business_results.json",
+      "published_sha256": "df5340c7279209d6e8c5fd68d5b2ac5d0c3b81e7c981e116976bb313e9e7dd0a",
+      "transformed": false,
+      "imported_sha256": "df5340c7279209d6e8c5fd68d5b2ac5d0c3b81e7c981e116976bb313e9e7dd0a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cohort-costs.csv",
+      "source_sha256": "945a3b730cd5b6cf8655b37a9c3d265e111edd69e8d1fe303135fd40297b259e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cohort-costs.csv",
+      "published_sha256": "945a3b730cd5b6cf8655b37a9c3d265e111edd69e8d1fe303135fd40297b259e",
+      "transformed": false,
+      "imported_sha256": "945a3b730cd5b6cf8655b37a9c3d265e111edd69e8d1fe303135fd40297b259e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length-metrics.csv",
+      "source_sha256": "7fea6f8833de08082d4ee91a64bd66a3c7dc1a4c41420168b766da7e031530e2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/length-metrics.csv",
+      "published_sha256": "7fea6f8833de08082d4ee91a64bd66a3c7dc1a4c41420168b766da7e031530e2",
+      "transformed": false,
+      "imported_sha256": "7fea6f8833de08082d4ee91a64bd66a3c7dc1a4c41420168b766da7e031530e2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_analysis.json",
+      "source_sha256": "6a0a054c7f56135a7831a3c4794ee6910d0753dd5c8845eb7aafd3e5cc5e178c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/length_analysis.json",
+      "published_sha256": "6a0a054c7f56135a7831a3c4794ee6910d0753dd5c8845eb7aafd3e5cc5e178c",
+      "transformed": false,
+      "imported_sha256": "6a0a054c7f56135a7831a3c4794ee6910d0753dd5c8845eb7aafd3e5cc5e178c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_reuse_pairs.csv",
+      "source_sha256": "569ce16bfbeda0576c35e1d3170ec923cd0f65f01c3d4ac31d9008fbfd46b6c0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_reuse_pairs.csv",
+      "published_sha256": "569ce16bfbeda0576c35e1d3170ec923cd0f65f01c3d4ac31d9008fbfd46b6c0",
+      "transformed": false,
+      "imported_sha256": "569ce16bfbeda0576c35e1d3170ec923cd0f65f01c3d4ac31d9008fbfd46b6c0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_analysis.json",
+      "source_sha256": "c864fc980c7be04a6277590a3cac3a12d38b519a1d6f399538b2991e39a2c252",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_analysis.json",
+      "published_sha256": "c864fc980c7be04a6277590a3cac3a12d38b519a1d6f399538b2991e39a2c252",
+      "transformed": false,
+      "imported_sha256": "c864fc980c7be04a6277590a3cac3a12d38b519a1d6f399538b2991e39a2c252"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/diagnostics.json",
+      "source_sha256": "4da8d4f68e19858b45b2ac3cf57e613b9852044a26c3b848c21140932c38c9b6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/diagnostics.json",
+      "published_sha256": "4da8d4f68e19858b45b2ac3cf57e613b9852044a26c3b848c21140932c38c9b6",
+      "transformed": false,
+      "imported_sha256": "4da8d4f68e19858b45b2ac3cf57e613b9852044a26c3b848c21140932c38c9b6"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cohort-resources.csv",
+      "source_sha256": "f3bbc981b34463f2589b106e1aa9011d113be4ec7321bf205fb9807d6a4634a2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cohort-resources.csv",
+      "published_sha256": "f3bbc981b34463f2589b106e1aa9011d113be4ec7321bf205fb9807d6a4634a2",
+      "transformed": false,
+      "imported_sha256": "f3bbc981b34463f2589b106e1aa9011d113be4ec7321bf205fb9807d6a4634a2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/goodput.csv",
+      "source_sha256": "c0b65641c48a9f8df64014be39aa1e59f13959b84bb3761cda108b098a0ae4a7",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/goodput.csv",
+      "published_sha256": "c0b65641c48a9f8df64014be39aa1e59f13959b84bb3761cda108b098a0ae4a7",
+      "transformed": false,
+      "imported_sha256": "c0b65641c48a9f8df64014be39aa1e59f13959b84bb3761cda108b098a0ae4a7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_conditions.csv",
+      "source_sha256": "d571c160d20d1d7980531c95864a9f55bc4fbf70f3f0c1dc455ec1d2edf5e84f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_conditions.csv",
+      "published_sha256": "d571c160d20d1d7980531c95864a9f55bc4fbf70f3f0c1dc455ec1d2edf5e84f",
+      "transformed": false,
+      "imported_sha256": "d571c160d20d1d7980531c95864a9f55bc4fbf70f3f0c1dc455ec1d2edf5e84f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/presentation.json",
+      "source_sha256": "d5847d17db45b2298e15b3899dc937d863b762a3f1991fda520de008d018cdaf",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/presentation.json",
+      "published_sha256": "d5847d17db45b2298e15b3899dc937d863b762a3f1991fda520de008d018cdaf",
+      "transformed": false,
+      "imported_sha256": "d5847d17db45b2298e15b3899dc937d863b762a3f1991fda520de008d018cdaf"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_requests.csv",
+      "source_sha256": "17fe2b6e4bfac94a812b36a1c8aa7878b7e47ab4012cce437506294d4c1b0c79",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_requests.csv",
+      "published_sha256": "17fe2b6e4bfac94a812b36a1c8aa7878b7e47ab4012cce437506294d4c1b0c79",
+      "transformed": false,
+      "imported_sha256": "17fe2b6e4bfac94a812b36a1c8aa7878b7e47ab4012cce437506294d4c1b0c79"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_field_coverage.csv",
+      "source_sha256": "7d6a27fccb3a87e90a388095a218001b357fa5b913e74a866e85e3237980933d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_field_coverage.csv",
+      "published_sha256": "7d6a27fccb3a87e90a388095a218001b357fa5b913e74a866e85e3237980933d",
+      "transformed": false,
+      "imported_sha256": "7d6a27fccb3a87e90a388095a218001b357fa5b913e74a866e85e3237980933d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_time_windows.csv",
+      "source_sha256": "14cd81c33de6a443d1e5d2664e7e6065f60863b01e67313ba84e905ea7b44e0f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cache_time_windows.csv",
+      "published_sha256": "14cd81c33de6a443d1e5d2664e7e6065f60863b01e67313ba84e905ea7b44e0f",
+      "transformed": false,
+      "imported_sha256": "14cd81c33de6a443d1e5d2664e7e6065f60863b01e67313ba84e905ea7b44e0f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cost-scenarios.csv",
+      "source_sha256": "21342443798e37e92f1153fef1a6b755a7eb3f7d6f7114289b7c257a6a22c2d1",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/cost-scenarios.csv",
+      "published_sha256": "21342443798e37e92f1153fef1a6b755a7eb3f7d6f7114289b7c257a6a22c2d1",
+      "transformed": false,
+      "imported_sha256": "21342443798e37e92f1153fef1a6b755a7eb3f7d6f7114289b7c257a6a22c2d1"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/requests.csv",
+      "source_sha256": "5d91967b637f7e9c3e9e3f8af7ecc3990dc8b18ac6103dcb17d43bb69ca57651",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/requests.csv",
+      "published_sha256": "5d91967b637f7e9c3e9e3f8af7ecc3990dc8b18ac6103dcb17d43bb69ca57651",
+      "transformed": false,
+      "imported_sha256": "5d91967b637f7e9c3e9e3f8af7ecc3990dc8b18ac6103dcb17d43bb69ca57651"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length-observations.csv",
+      "source_sha256": "d0cccb431dfbfe3030886173393fbb422293aa70477a742b437d1d0cdc534352",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/service/length-observations.csv",
+      "published_sha256": "d0cccb431dfbfe3030886173393fbb422293aa70477a742b437d1d0cdc534352",
+      "transformed": false,
+      "imported_sha256": "d0cccb431dfbfe3030886173393fbb422293aa70477a742b437d1d0cdc534352"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/collective_trials.csv",
+      "source_sha256": "06af41ba407d10d2b15671109e675ec9dec26b7ca19bff672a59c55991672468",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/collective_trials.csv",
+      "published_sha256": "06af41ba407d10d2b15671109e675ec9dec26b7ca19bff672a59c55991672468",
+      "transformed": false,
+      "imported_sha256": "06af41ba407d10d2b15671109e675ec9dec26b7ca19bff672a59c55991672468"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/groups.csv",
+      "source_sha256": "1db0810bd799ecfc17bd74766478e4b5b3ba53a24047289af3a879afc7b56146",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/groups.csv",
+      "published_sha256": "1db0810bd799ecfc17bd74766478e4b5b3ba53a24047289af3a879afc7b56146",
+      "transformed": false,
+      "imported_sha256": "1db0810bd799ecfc17bd74766478e4b5b3ba53a24047289af3a879afc7b56146"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/summary.json",
+      "source_sha256": "a141ee91ad4e8d10ca9a82b3a09d80ba30cde7d135ae0d8675906bd9a77a058e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/summary.json",
+      "published_sha256": "1ebc033eeb2a95c3be0684b21cb4183e9d0b4cc3679a591dc6bec432331be678",
+      "transformed": true,
+      "imported_sha256": "1ebc033eeb2a95c3be0684b21cb4183e9d0b4cc3679a591dc6bec432331be678"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/soak_windows.csv",
+      "source_sha256": "f806558e5662eadea3ec9378fa7fed67bcb93090c5dc2944cae1250515e45c8d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/soak_windows.csv",
+      "published_sha256": "f806558e5662eadea3ec9378fa7fed67bcb93090c5dc2944cae1250515e45c8d",
+      "transformed": false,
+      "imported_sha256": "f806558e5662eadea3ec9378fa7fed67bcb93090c5dc2944cae1250515e45c8d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/overlap_trials.csv",
+      "source_sha256": "7669e830ecb60f710bca65f5dd2b1806897968b3e4cc95af6db87f992f8f8ff9",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/overlap_trials.csv",
+      "published_sha256": "7669e830ecb60f710bca65f5dd2b1806897968b3e4cc95af6db87f992f8f8ff9",
+      "transformed": false,
+      "imported_sha256": "7669e830ecb60f710bca65f5dd2b1806897968b3e4cc95af6db87f992f8f8ff9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analysis/measurements.csv",
+      "source_sha256": "99a494d730ff99f8f2e2f3ec05be915fdbd062285a6748d375feb959e3495df0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/hardware/measurements.csv",
+      "published_sha256": "ddf01581aee26096ce223bf547614aca47553aa886e9b2576b8d930c0a98cb00",
+      "transformed": true,
+      "imported_sha256": "ddf01581aee26096ce223bf547614aca47553aa886e9b2576b8d930c0a98cb00"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/analysis/groups.csv",
+      "source_sha256": "9ad5824afa36a249321e5a54093ef3f6d4441659540b5caa891e31411dc8320a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/engine/groups.csv",
+      "published_sha256": "9ad5824afa36a249321e5a54093ef3f6d4441659540b5caa891e31411dc8320a",
+      "transformed": false,
+      "imported_sha256": "9ad5824afa36a249321e5a54093ef3f6d4441659540b5caa891e31411dc8320a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/analysis/summary.json",
+      "source_sha256": "06c7f8b49587e082a5ecdf0bba27b6d942576ecb1579f4ec3aa97011fce03212",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/engine/summary.json",
+      "published_sha256": "23a8ddf2664604967b026348103ad2b04a3a877ff9735956e80d4480a4069cb9",
+      "transformed": true,
+      "imported_sha256": "23a8ddf2664604967b026348103ad2b04a3a877ff9735956e80d4480a4069cb9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/analysis/requests.csv",
+      "source_sha256": "1ce7f0722dcb8233a25cc12e59e7760168dd0ae1d63ee2f13461c6bd94c918a8",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/engine/requests.csv",
+      "published_sha256": "27206844aa085a11ee7d1df2c9c708212137574408377a6d4c0aa7715f5d3c35",
+      "transformed": true,
+      "imported_sha256": "27206844aa085a11ee7d1df2c9c708212137574408377a6d4c0aa7715f5d3c35"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/analysis/blocks.csv",
+      "source_sha256": "1d505402368af56224088bc6dbbac4c81c29d99ab27bde3446139d588ab1fc7e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/engine/blocks.csv",
+      "published_sha256": "1d505402368af56224088bc6dbbac4c81c29d99ab27bde3446139d588ab1fc7e",
+      "transformed": false,
+      "imported_sha256": "1d505402368af56224088bc6dbbac4c81c29d99ab27bde3446139d588ab1fc7e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/summary.json",
+      "source_sha256": "2a4e02adb2239d46fa7f223064461c37cc7ab392e49e83134d2155f5396943b6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/summary.json",
+      "published_sha256": "52a91753e503384eff4cfeb29beab0b90916d23f8fda2f46ee4f258fa0307847",
+      "transformed": true,
+      "imported_sha256": "85204111a8a52ed18f31ef8d2e49aaf087ba25c38a602b4fb74c6310e5fe4bd0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/soak_windows.csv",
+      "source_sha256": "2f06074f56f305cb8eb2f0a37e6cc756cb06c55f78a8a73506cf0b018caa5bc2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/soak_windows.csv",
+      "published_sha256": "2f06074f56f305cb8eb2f0a37e6cc756cb06c55f78a8a73506cf0b018caa5bc2",
+      "transformed": false,
+      "imported_sha256": "2f06074f56f305cb8eb2f0a37e6cc756cb06c55f78a8a73506cf0b018caa5bc2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/native_groups.csv",
+      "source_sha256": "40a8252961f57762eb7c7e5f110d8dc89d6e493bbd38e92bf87d98b4c416955f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/native_groups.csv",
+      "published_sha256": "40a8252961f57762eb7c7e5f110d8dc89d6e493bbd38e92bf87d98b4c416955f",
+      "transformed": false,
+      "imported_sha256": "40a8252961f57762eb7c7e5f110d8dc89d6e493bbd38e92bf87d98b4c416955f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/cache.csv",
+      "source_sha256": "db9d0a262020edd650479dbd5a6cd523c0ace7405a92977cf365fd022fbcbc28",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/cache.csv",
+      "published_sha256": "db9d0a262020edd650479dbd5a6cd523c0ace7405a92977cf365fd022fbcbc28",
+      "transformed": false,
+      "imported_sha256": "db9d0a262020edd650479dbd5a6cd523c0ace7405a92977cf365fd022fbcbc28"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/fp64.csv",
+      "source_sha256": "0597222f7b223d1a2b28e90bdce5ba4eec4b756a0d7e3dc21613e85b93908d0c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/fp64.csv",
+      "published_sha256": "0597222f7b223d1a2b28e90bdce5ba4eec4b756a0d7e3dc21613e85b93908d0c",
+      "transformed": false,
+      "imported_sha256": "0597222f7b223d1a2b28e90bdce5ba4eec4b756a0d7e3dc21613e85b93908d0c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/native_requests.csv",
+      "source_sha256": "daa7c5d008087116436f362bc905687b00266a3eee3c3283d026a597510575af",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/native_requests.csv",
+      "published_sha256": "3002ae8cddb98aac3e056fef2a70d77e94bba8a858f37eee41fe902fdb00b42c",
+      "transformed": true,
+      "imported_sha256": "3002ae8cddb98aac3e056fef2a70d77e94bba8a858f37eee41fe902fdb00b42c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/counters.csv",
+      "source_sha256": "d9291182f7ebbc7266fdc26dcf4c7b4563237c44ff697bd82b3a1d5550123005",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/counters.csv",
+      "published_sha256": "d9291182f7ebbc7266fdc26dcf4c7b4563237c44ff697bd82b3a1d5550123005",
+      "transformed": false,
+      "imported_sha256": "d9291182f7ebbc7266fdc26dcf4c7b4563237c44ff697bd82b3a1d5550123005"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/profile_pairs.csv",
+      "source_sha256": "8e78d2cef304e3aa14edf03dd0891b296ebcf7c6867cdf09ddea2b85b8f8bbc8",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/profile_pairs.csv",
+      "published_sha256": "8e78d2cef304e3aa14edf03dd0891b296ebcf7c6867cdf09ddea2b85b8f8bbc8",
+      "transformed": false,
+      "imported_sha256": "8e78d2cef304e3aa14edf03dd0891b296ebcf7c6867cdf09ddea2b85b8f8bbc8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analysis/public_blocks.csv",
+      "source_sha256": "58b0b0f196d9020d5d65fd886b02054d8522d99597ae743072009a0e92063d66",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/completion/public_blocks.csv",
+      "published_sha256": "3cd2901d1db57ec5577a5282222c491601defe1668f862221b868a52641e8e68",
+      "transformed": true,
+      "imported_sha256": "3cd2901d1db57ec5577a5282222c491601defe1668f862221b868a52641e8e68"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/evidence/coverage_clarification_20261017/audit.json",
+      "source_sha256": "89383eea197f3b3a912b3e3038bd9434d113324e827c2931d062efd3964a8595",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/coverage.json",
+      "published_sha256": "89383eea197f3b3a912b3e3038bd9434d113324e827c2931d062efd3964a8595",
+      "transformed": false,
+      "imported_sha256": "89383eea197f3b3a912b3e3038bd9434d113324e827c2931d062efd3964a8595"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/protocol/workloads.jsonl",
+      "source_sha256": "26a8eb32a3ade76680c145fce160376f9f4de0fd1074b617a2840043300e8707",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/protocol/workloads.jsonl",
+      "published_sha256": "26a8eb32a3ade76680c145fce160376f9f4de0fd1074b617a2840043300e8707",
+      "transformed": false,
+      "imported_sha256": "26a8eb32a3ade76680c145fce160376f9f4de0fd1074b617a2840043300e8707"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/protocol/workload_manifest.json",
+      "source_sha256": "0c14b37b3135988d5ff3f529121f1ed516e5966e2e7429b0240a49dc3d5bcaa2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/protocol/workload_manifest.json",
+      "published_sha256": "0c14b37b3135988d5ff3f529121f1ed516e5966e2e7429b0240a49dc3d5bcaa2",
+      "transformed": false,
+      "imported_sha256": "0c14b37b3135988d5ff3f529121f1ed516e5966e2e7429b0240a49dc3d5bcaa2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/plans/business/manifest.json",
+      "source_sha256": "33422fe79b881a7b475c000cfb17e9beb85d37c91af07ba220c9ba12a5a3b80e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/business/manifest.json",
+      "published_sha256": "730e065ba933bd4bd96f41a7e782a45d82a9a3d6c70f011e5bb48b869eac5bed",
+      "transformed": true,
+      "imported_sha256": "730e065ba933bd4bd96f41a7e782a45d82a9a3d6c70f011e5bb48b869eac5bed"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/plans/cache_diagnostics/manifest.json",
+      "source_sha256": "be966bb79cf9de2fa5a0e835c8472346109c47463bc2a39acf7e9114aaa255bc",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/cache_diagnostics/manifest.json",
+      "published_sha256": "be966bb79cf9de2fa5a0e835c8472346109c47463bc2a39acf7e9114aaa255bc",
+      "transformed": false,
+      "imported_sha256": "be966bb79cf9de2fa5a0e835c8472346109c47463bc2a39acf7e9114aaa255bc"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/plans/length_expansion/manifest.json",
+      "source_sha256": "eef73d225e7da793d010730c56e98beab843d9502a1c2f47a22e122c37a2e822",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/length_expansion/manifest.json",
+      "published_sha256": "eef73d225e7da793d010730c56e98beab843d9502a1c2f47a22e122c37a2e822",
+      "transformed": false,
+      "imported_sha256": "eef73d225e7da793d010730c56e98beab843d9502a1c2f47a22e122c37a2e822"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/plans/corpus_provenance.json",
+      "source_sha256": "d564053d1e350410919eaf3a1f839f0549ae9aaca58d40c71027b3ac70b3437e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/plans/corpus_provenance.json",
+      "published_sha256": "d564053d1e350410919eaf3a1f839f0549ae9aaca58d40c71027b3ac70b3437e",
+      "transformed": false,
+      "imported_sha256": "d564053d1e350410919eaf3a1f839f0549ae9aaca58d40c71027b3ac70b3437e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/manifest.json",
+      "source_sha256": "23b8448529966275ade2eefce23da07022728dd6ea94397007fdf92bc144c0aa",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/completion.json",
+      "published_sha256": "673cc28845be4febe0bec46041ccfcc15246bc5f2779b88e3ee1d176d85c84a7",
+      "transformed": true,
+      "imported_sha256": "673cc28845be4febe0bec46041ccfcc15246bc5f2779b88e3ee1d176d85c84a7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_plan/test-plan.zh.md",
+      "source_sha256": "dfe61de48d8f3aa6b4abb7f37acc172b889741b6052352f7372f836cbdb941d6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/test-plan.zh.md",
+      "published_sha256": "1416002a691e20b83b533c27c540ca6381cc57d69dbea79352de35c9736a0ec2",
+      "transformed": true,
+      "imported_sha256": "6d50f21e12f52493bb37ca9514c2be4f07f56a38a955a676669516e3a7c4375a",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/infron-dgx-spark-inference-report.zh.html",
+      "source_sha256": "c663b0bb74bb7af6797f6174cc7760759c94dad31abcdb1985db9cfbbaf83bec",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.zh.html",
+      "published_sha256": "c7573ab67c96e26d8fbbdf8e05d6ec4eb9c3db9c42d5b6ff0295c44b52031da0",
+      "transformed": true,
+      "imported_sha256": "cec682b7721c7939b6e41279af4bf12acdf9e5d2e894c988c6be3a29abcb4afd",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/report.zh.md",
+      "source_sha256": "c5295f54fc53aedfa9bbd2bfd1f5fbc244814c381ce4493e8b929841b5c1640b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.zh.md",
+      "published_sha256": "5042112fb0ef9de3bca775288761897308c781a1a07f792653b3b54058bc02d5",
+      "transformed": true,
+      "imported_sha256": "fcf182391eaec5aeff8298dc5480ca9cd6745008721aab1380499429b35c8cda",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_plan/test-plan.en.md",
+      "source_sha256": "edc79be42055216b919f605bd73c9efa6463f264b95f778f9c6156cf7dcc1273",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/test-plan.en.md",
+      "published_sha256": "30c153b5d2ba5fe239212380276cef789b728e6fe51a5be94e12c9ad801508b5",
+      "transformed": true,
+      "imported_sha256": "4aab62e6bd8db2ad8f6b367af779e2affac2057b8e4e18b5e082f29728e43493",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/infron-dgx-spark-inference-report.en.html",
+      "source_sha256": "3b4a9386f9e182ef482b9d47cea52ec98a4b83fe3e20d4c3916d7667ba331d02",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.en.html",
+      "published_sha256": "3b5d63330537b28af76ee93695a079d1936d222ab854cdb0cc9bd0bfd79daf0e",
+      "transformed": true,
+      "imported_sha256": "693f5bea7197926fda3c336619dba9ca3b0408f2f7e3a4632d46567d88e4e899",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/report.en.md",
+      "source_sha256": "0541473e2f9eba1850819ed5a554b6a62c72250fcdbacaccd7248e125112e028",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.en.md",
+      "published_sha256": "436636a775a8c78af8715b72d24a382e71d968d47bec5c4b0ca2f27f10ee9379",
+      "transformed": true,
+      "imported_sha256": "82045e832b5fcfb58d0532ac35ef65aa7eab7603ca282d387248b305780adc81",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_mtp_stages.en.svg",
+      "source_sha256": "71b3f9332bf2e2865323fd12f308d599cab4f2b0e58bf7dbc451b3f0054e9dbb",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_mtp_stages.en.svg",
+      "published_sha256": "71b3f9332bf2e2865323fd12f308d599cab4f2b0e58bf7dbc451b3f0054e9dbb",
+      "transformed": false,
+      "imported_sha256": "71b3f9332bf2e2865323fd12f308d599cab4f2b0e58bf7dbc451b3f0054e9dbb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_memory.zh.svg",
+      "source_sha256": "cf826e1638685e7e4f51abb4b0e781ac7e477b18cfcd3b857e2540690a0db89a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_memory.zh.svg",
+      "published_sha256": "cf826e1638685e7e4f51abb4b0e781ac7e477b18cfcd3b857e2540690a0db89a",
+      "transformed": false,
+      "imported_sha256": "cf826e1638685e7e4f51abb4b0e781ac7e477b18cfcd3b857e2540690a0db89a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_attainment.en.svg",
+      "source_sha256": "def0376d5ecf7913b53e7e189c7be5bc57abe29a1767b5277c89c2e3d03cf6e2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_attainment.en.svg",
+      "published_sha256": "def0376d5ecf7913b53e7e189c7be5bc57abe29a1767b5277c89c2e3d03cf6e2",
+      "transformed": false,
+      "imported_sha256": "def0376d5ecf7913b53e7e189c7be5bc57abe29a1767b5277c89c2e3d03cf6e2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_retention.en.svg",
+      "source_sha256": "91b9dd8fa55f7e04a0fa71af7cd1a028b733dbf165621e7b0316484f1a6b75d3",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_retention.en.svg",
+      "published_sha256": "91b9dd8fa55f7e04a0fa71af7cd1a028b733dbf165621e7b0316484f1a6b75d3",
+      "transformed": false,
+      "imported_sha256": "91b9dd8fa55f7e04a0fa71af7cd1a028b733dbf165621e7b0316484f1a6b75d3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_launch_shared.zh.svg",
+      "source_sha256": "230a533e1424d0c11d44e051395ea7878eac653c8d42d1e96c8a0e3aef284ed4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_launch_shared.zh.svg",
+      "published_sha256": "230a533e1424d0c11d44e051395ea7878eac653c8d42d1e96c8a0e3aef284ed4",
+      "transformed": false,
+      "imported_sha256": "230a533e1424d0c11d44e051395ea7878eac653c8d42d1e96c8a0e3aef284ed4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cost_sensitivity.en.svg",
+      "source_sha256": "ea6e36a953862de4a43151eecc64144d9f105bfdafc7999937972a12e1149f84",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cost_sensitivity.en.svg",
+      "published_sha256": "ea6e36a953862de4a43151eecc64144d9f105bfdafc7999937972a12e1149f84",
+      "transformed": false,
+      "imported_sha256": "ea6e36a953862de4a43151eecc64144d9f105bfdafc7999937972a12e1149f84"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_network.zh.svg",
+      "source_sha256": "3a73371844f32e82bfd7a5ffbd7182d8857ec2caaed034f5ccb2d88dc96b2630",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_network.zh.svg",
+      "published_sha256": "3a73371844f32e82bfd7a5ffbd7182d8857ec2caaed034f5ccb2d88dc96b2630",
+      "transformed": false,
+      "imported_sha256": "3a73371844f32e82bfd7a5ffbd7182d8857ec2caaed034f5ccb2d88dc96b2630"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_fabric_map.en.svg",
+      "source_sha256": "a8a52c1e984e23abeb6f491154f0f798f5295167bb30835443e0fc3d7ae3cd44",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_fabric_map.en.svg",
+      "published_sha256": "a8a52c1e984e23abeb6f491154f0f798f5295167bb30835443e0fc3d7ae3cd44",
+      "transformed": false,
+      "imported_sha256": "a8a52c1e984e23abeb6f491154f0f798f5295167bb30835443e0fc3d7ae3cd44"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/investment_self.zh.svg",
+      "source_sha256": "42b930c81654b946e8cb508bd1eb9cfa6540a99b0abf8919d9a2b7872b84e40d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/investment_self.zh.svg",
+      "published_sha256": "42b930c81654b946e8cb508bd1eb9cfa6540a99b0abf8919d9a2b7872b84e40d",
+      "transformed": false,
+      "imported_sha256": "42b930c81654b946e8cb508bd1eb9cfa6540a99b0abf8919d9a2b7872b84e40d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_collective.en.svg",
+      "source_sha256": "ccee6221d8ea20bcc9d3cf57f32c4489ffcefbb94e5667addcbb690b70f90f2a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_collective.en.svg",
+      "published_sha256": "ccee6221d8ea20bcc9d3cf57f32c4489ffcefbb94e5667addcbb690b70f90f2a",
+      "transformed": false,
+      "imported_sha256": "ccee6221d8ea20bcc9d3cf57f32c4489ffcefbb94e5667addcbb690b70f90f2a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/system_map.en.svg",
+      "source_sha256": "4cc19e48c426a8e902ad92c3903837ded52e4abc0223f962833b258e778e3a91",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/system_map.en.svg",
+      "published_sha256": "4cc19e48c426a8e902ad92c3903837ded52e4abc0223f962833b258e778e3a91",
+      "transformed": false,
+      "imported_sha256": "4cc19e48c426a8e902ad92c3903837ded52e4abc0223f962833b258e778e3a91"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_memory.en.svg",
+      "source_sha256": "f2200aa464290c5fba1e074c720d923172ccbb0ea0d10c33b6623e79071d4ef7",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_memory.en.svg",
+      "published_sha256": "f2200aa464290c5fba1e074c720d923172ccbb0ea0d10c33b6623e79071d4ef7",
+      "transformed": false,
+      "imported_sha256": "f2200aa464290c5fba1e074c720d923172ccbb0ea0d10c33b6623e79071d4ef7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/shapes.en.svg",
+      "source_sha256": "c15b883949f54e7b44eb957bd06c8df0cc8f4570f941f599c4d46a2b98b18073",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/shapes.en.svg",
+      "published_sha256": "c15b883949f54e7b44eb957bd06c8df0cc8f4570f941f599c4d46a2b98b18073",
+      "transformed": false,
+      "imported_sha256": "c15b883949f54e7b44eb957bd06c8df0cc8f4570f941f599c4d46a2b98b18073"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_concurrency.zh.svg",
+      "source_sha256": "6fdc1485f8f4d3341efed1bd396c1d9c230dfb7206e56412264c5c4fee94bddb",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_concurrency.zh.svg",
+      "published_sha256": "6fdc1485f8f4d3341efed1bd396c1d9c230dfb7206e56412264c5c4fee94bddb",
+      "transformed": false,
+      "imported_sha256": "6fdc1485f8f4d3341efed1bd396c1d9c230dfb7206e56412264c5c4fee94bddb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_telemetry.zh.svg",
+      "source_sha256": "1e3670029a4ed655c7e3fa5abdf20c55db11c6c748a53f41d9e6705a02be7b30",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_telemetry.zh.svg",
+      "published_sha256": "1e3670029a4ed655c7e3fa5abdf20c55db11c6c748a53f41d9e6705a02be7b30",
+      "transformed": false,
+      "imported_sha256": "1e3670029a4ed655c7e3fa5abdf20c55db11c6c748a53f41d9e6705a02be7b30"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_compute.en.svg",
+      "source_sha256": "f3fdcabca98e3efc32fb5c2f0b8a9bfd35bc51018bca2a9a88fb1d32a4e110b2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_compute.en.svg",
+      "published_sha256": "f3fdcabca98e3efc32fb5c2f0b8a9bfd35bc51018bca2a9a88fb1d32a4e110b2",
+      "transformed": false,
+      "imported_sha256": "f3fdcabca98e3efc32fb5c2f0b8a9bfd35bc51018bca2a9a88fb1d32a4e110b2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_soak_windows.en.svg",
+      "source_sha256": "282c27e2360706b96637008d6f9e276765fc0b04d6de8ac2db1741912b7235c4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_soak_windows.en.svg",
+      "published_sha256": "282c27e2360706b96637008d6f9e276765fc0b04d6de8ac2db1741912b7235c4",
+      "transformed": false,
+      "imported_sha256": "282c27e2360706b96637008d6f9e276765fc0b04d6de8ac2db1741912b7235c4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_interference.zh.svg",
+      "source_sha256": "2237e8ec5622bde6ae26527add800876f6f1188946fddf8ba6c7bf72e4d4bd5b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_interference.zh.svg",
+      "published_sha256": "2237e8ec5622bde6ae26527add800876f6f1188946fddf8ba6c7bf72e4d4bd5b",
+      "transformed": false,
+      "imported_sha256": "2237e8ec5622bde6ae26527add800876f6f1188946fddf8ba6c7bf72e4d4bd5b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_internal_rates.zh.svg",
+      "source_sha256": "88f73ce81b839797a2c03e3babf777bef7f56a3548c43966d89053695257a905",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_internal_rates.zh.svg",
+      "published_sha256": "88f73ce81b839797a2c03e3babf777bef7f56a3548c43966d89053695257a905",
+      "transformed": false,
+      "imported_sha256": "88f73ce81b839797a2c03e3babf777bef7f56a3548c43966d89053695257a905"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/study_layers.en.svg",
+      "source_sha256": "ed42ec28a9ad5deff43c4ea1f21c13879b5d9607c374a3bcd3e5a21905aef960",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/study_layers.en.svg",
+      "published_sha256": "ed42ec28a9ad5deff43c4ea1f21c13879b5d9607c374a3bcd3e5a21905aef960",
+      "transformed": false,
+      "imported_sha256": "ed42ec28a9ad5deff43c4ea1f21c13879b5d9607c374a3bcd3e5a21905aef960"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_throughput.en.svg",
+      "source_sha256": "b7fd6312285e4bd4272fef66641a456187dda8e5131544183e2e0306b3b66ba2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_throughput.en.svg",
+      "published_sha256": "b7fd6312285e4bd4272fef66641a456187dda8e5131544183e2e0306b3b66ba2",
+      "transformed": false,
+      "imported_sha256": "b7fd6312285e4bd4272fef66641a456187dda8e5131544183e2e0306b3b66ba2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/latency.en.svg",
+      "source_sha256": "a5f9f2a982ac720a4fb45054bcb099aadbadc22cc43a305e439481ed7e5c3f7a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/latency.en.svg",
+      "published_sha256": "a5f9f2a982ac720a4fb45054bcb099aadbadc22cc43a305e439481ed7e5c3f7a",
+      "transformed": false,
+      "imported_sha256": "a5f9f2a982ac720a4fb45054bcb099aadbadc22cc43a305e439481ed7e5c3f7a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_gpu_timeline.en.svg",
+      "source_sha256": "129067576315f43118f8518fa46c9967535f62b2ff85f9bdbb6299c83616083a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_gpu_timeline.en.svg",
+      "published_sha256": "129067576315f43118f8518fa46c9967535f62b2ff85f9bdbb6299c83616083a",
+      "transformed": false,
+      "imported_sha256": "129067576315f43118f8518fa46c9967535f62b2ff85f9bdbb6299c83616083a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/measurement.en.svg",
+      "source_sha256": "908ed3fd764aabe69f1938e10897d8fb7bb06fad967eace813cc16e2a7e3f97f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/measurement.en.svg",
+      "published_sha256": "908ed3fd764aabe69f1938e10897d8fb7bb06fad967eace813cc16e2a7e3f97f",
+      "transformed": false,
+      "imported_sha256": "908ed3fd764aabe69f1938e10897d8fb7bb06fad967eace813cc16e2a7e3f97f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_partial.zh.svg",
+      "source_sha256": "47e9f0f245196e2275e7e274001f90af77ee011e579b73af45f4b8dbf92d0d1e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_partial.zh.svg",
+      "published_sha256": "47e9f0f245196e2275e7e274001f90af77ee011e579b73af45f4b8dbf92d0d1e",
+      "transformed": false,
+      "imported_sha256": "47e9f0f245196e2275e7e274001f90af77ee011e579b73af45f4b8dbf92d0d1e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_decode_grid.zh.svg",
+      "source_sha256": "6a816eb7af21a417a511fccc80c0e064d8623391c3736a649c6ff14b9d2358c0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_decode_grid.zh.svg",
+      "published_sha256": "6a816eb7af21a417a511fccc80c0e064d8623391c3736a649c6ff14b9d2358c0",
+      "transformed": false,
+      "imported_sha256": "6a816eb7af21a417a511fccc80c0e064d8623391c3736a649c6ff14b9d2358c0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/dataset_profile.en.svg",
+      "source_sha256": "31d1808cb9327d19f0ee7f8e27d6cbc60105d7493e5ae16db61c6e0f09f6bb0a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/dataset_profile.en.svg",
+      "published_sha256": "31d1808cb9327d19f0ee7f8e27d6cbc60105d7493e5ae16db61c6e0f09f6bb0a",
+      "transformed": false,
+      "imported_sha256": "31d1808cb9327d19f0ee7f8e27d6cbc60105d7493e5ae16db61c6e0f09f6bb0a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_fp64.zh.svg",
+      "source_sha256": "dc832b0ac8c84379f41d3a574a3d60ed1628b16fdcb066d1ddf5dfd526a65148",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_fp64.zh.svg",
+      "published_sha256": "dc832b0ac8c84379f41d3a574a3d60ed1628b16fdcb066d1ddf5dfd526a65148",
+      "transformed": false,
+      "imported_sha256": "dc832b0ac8c84379f41d3a574a3d60ed1628b16fdcb066d1ddf5dfd526a65148"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/rdma_links.en.svg",
+      "source_sha256": "3bcf1cc63b6c2888a56c7e6a4f3252ee7e3ed5e426cd82bb829f334c986a18c3",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/rdma_links.en.svg",
+      "published_sha256": "3bcf1cc63b6c2888a56c7e6a4f3252ee7e3ed5e426cd82bb829f334c986a18c3",
+      "transformed": false,
+      "imported_sha256": "3bcf1cc63b6c2888a56c7e6a4f3252ee7e3ed5e426cd82bb829f334c986a18c3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/pareto.zh.svg",
+      "source_sha256": "d5e265616a2f0af21496c32f83e294f892131685fa205075152c85ad4c67830a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/pareto.zh.svg",
+      "published_sha256": "d5e265616a2f0af21496c32f83e294f892131685fa205075152c85ad4c67830a",
+      "transformed": false,
+      "imported_sha256": "d5e265616a2f0af21496c32f83e294f892131685fa205075152c85ad4c67830a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/collective_measured.en.svg",
+      "source_sha256": "45f45542113146da35aa3d18008f452cb84d53972ad79483151680eb8d706e46",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/collective_measured.en.svg",
+      "published_sha256": "45f45542113146da35aa3d18008f452cb84d53972ad79483151680eb8d706e46",
+      "transformed": false,
+      "imported_sha256": "45f45542113146da35aa3d18008f452cb84d53972ad79483151680eb8d706e46"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_contention.zh.svg",
+      "source_sha256": "c73e52736f9d320da83e69ae0f4b2bd73c58a7dda5b525274ab428a04c7d2b0e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_contention.zh.svg",
+      "published_sha256": "c73e52736f9d320da83e69ae0f4b2bd73c58a7dda5b525274ab428a04c7d2b0e",
+      "transformed": false,
+      "imported_sha256": "c73e52736f9d320da83e69ae0f4b2bd73c58a7dda5b525274ab428a04c7d2b0e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_compute.zh.svg",
+      "source_sha256": "e09d5d95497e194f9c52f0e299f28370bbb07690fd826d0d050e401d0e79eb4d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_compute.zh.svg",
+      "published_sha256": "e09d5d95497e194f9c52f0e299f28370bbb07690fd826d0d050e401d0e79eb4d",
+      "transformed": false,
+      "imported_sha256": "e09d5d95497e194f9c52f0e299f28370bbb07690fd826d0d050e401d0e79eb4d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/resource_by_load.en.svg",
+      "source_sha256": "107de89d3f368a3c7e77b5ad62a27b01303aab8e2745885750c58da5f5e82fa6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/resource_by_load.en.svg",
+      "published_sha256": "107de89d3f368a3c7e77b5ad62a27b01303aab8e2745885750c58da5f5e82fa6",
+      "transformed": false,
+      "imported_sha256": "107de89d3f368a3c7e77b5ad62a27b01303aab8e2745885750c58da5f5e82fa6"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_long_output.zh.svg",
+      "source_sha256": "218e1db361a564588c223ebac6e73112278b70e0dd43028fccf0fa6631a920ce",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_long_output.zh.svg",
+      "published_sha256": "218e1db361a564588c223ebac6e73112278b70e0dd43028fccf0fa6631a920ce",
+      "transformed": false,
+      "imported_sha256": "218e1db361a564588c223ebac6e73112278b70e0dd43028fccf0fa6631a920ce"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_fp64.en.svg",
+      "source_sha256": "81308b961c604c64c41843559f8a9030c63857444a3912f798b7b7c2fb00a5b9",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_fp64.en.svg",
+      "published_sha256": "81308b961c604c64c41843559f8a9030c63857444a3912f798b7b7c2fb00a5b9",
+      "transformed": false,
+      "imported_sha256": "81308b961c604c64c41843559f8a9030c63857444a3912f798b7b7c2fb00a5b9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/dataset_profile.zh.svg",
+      "source_sha256": "1a3f556b622c4aff4ebc0109fb218b90c352a5ef594ea78650d10bdba13105a5",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/dataset_profile.zh.svg",
+      "published_sha256": "1a3f556b622c4aff4ebc0109fb218b90c352a5ef594ea78650d10bdba13105a5",
+      "transformed": false,
+      "imported_sha256": "1a3f556b622c4aff4ebc0109fb218b90c352a5ef594ea78650d10bdba13105a5"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/pareto.en.svg",
+      "source_sha256": "d4f910c6a5d7b8ea49c162c13380f73f61dad031064321f5ca844048144469b9",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/pareto.en.svg",
+      "published_sha256": "d4f910c6a5d7b8ea49c162c13380f73f61dad031064321f5ca844048144469b9",
+      "transformed": false,
+      "imported_sha256": "d4f910c6a5d7b8ea49c162c13380f73f61dad031064321f5ca844048144469b9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/rdma_links.zh.svg",
+      "source_sha256": "25e769dd11bbcc827ada3b5fc2b9a11988224af3469d9ccb9c4fabecad5030e4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/rdma_links.zh.svg",
+      "published_sha256": "25e769dd11bbcc827ada3b5fc2b9a11988224af3469d9ccb9c4fabecad5030e4",
+      "transformed": false,
+      "imported_sha256": "25e769dd11bbcc827ada3b5fc2b9a11988224af3469d9ccb9c4fabecad5030e4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/measurement.zh.svg",
+      "source_sha256": "0fbd1054b4b0b97c914d2257e99e72178b0f464fd156bb5c94f22780d29d61b5",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/measurement.zh.svg",
+      "published_sha256": "0fbd1054b4b0b97c914d2257e99e72178b0f464fd156bb5c94f22780d29d61b5",
+      "transformed": false,
+      "imported_sha256": "0fbd1054b4b0b97c914d2257e99e72178b0f464fd156bb5c94f22780d29d61b5"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_decode_grid.en.svg",
+      "source_sha256": "4b74a7b5847aa1a74a3e85178590a604f3fdf659399cc6339018ec31ed9892e7",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_decode_grid.en.svg",
+      "published_sha256": "4b74a7b5847aa1a74a3e85178590a604f3fdf659399cc6339018ec31ed9892e7",
+      "transformed": false,
+      "imported_sha256": "4b74a7b5847aa1a74a3e85178590a604f3fdf659399cc6339018ec31ed9892e7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_partial.en.svg",
+      "source_sha256": "c3e1929cf889dcc6d43d7434dfc2af2d6c2f1679b75fc56858ff7260fe424cbc",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_partial.en.svg",
+      "published_sha256": "c3e1929cf889dcc6d43d7434dfc2af2d6c2f1679b75fc56858ff7260fe424cbc",
+      "transformed": false,
+      "imported_sha256": "c3e1929cf889dcc6d43d7434dfc2af2d6c2f1679b75fc56858ff7260fe424cbc"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_throughput.zh.svg",
+      "source_sha256": "9c913e007f79bee26ab5cfcbd224357d3dd0182b0af083f99eb8140376d9e74d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_throughput.zh.svg",
+      "published_sha256": "9c913e007f79bee26ab5cfcbd224357d3dd0182b0af083f99eb8140376d9e74d",
+      "transformed": false,
+      "imported_sha256": "9c913e007f79bee26ab5cfcbd224357d3dd0182b0af083f99eb8140376d9e74d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_gpu_timeline.zh.svg",
+      "source_sha256": "3670fe323bcb3a319538a5950422f2c19d24659bb1affb6c9914d88841fae933",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_gpu_timeline.zh.svg",
+      "published_sha256": "3670fe323bcb3a319538a5950422f2c19d24659bb1affb6c9914d88841fae933",
+      "transformed": false,
+      "imported_sha256": "3670fe323bcb3a319538a5950422f2c19d24659bb1affb6c9914d88841fae933"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/latency.zh.svg",
+      "source_sha256": "b8ee9b72f7d2cae8bee6f7600448e513ba3c4064203859fb29d1af475bef2a4a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/latency.zh.svg",
+      "published_sha256": "b8ee9b72f7d2cae8bee6f7600448e513ba3c4064203859fb29d1af475bef2a4a",
+      "transformed": false,
+      "imported_sha256": "b8ee9b72f7d2cae8bee6f7600448e513ba3c4064203859fb29d1af475bef2a4a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/resource_by_load.zh.svg",
+      "source_sha256": "d478ff61b032d931d9faea755e877f905c7778132595e8315763220e2c262e37",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/resource_by_load.zh.svg",
+      "published_sha256": "d478ff61b032d931d9faea755e877f905c7778132595e8315763220e2c262e37",
+      "transformed": false,
+      "imported_sha256": "d478ff61b032d931d9faea755e877f905c7778132595e8315763220e2c262e37"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_long_output.en.svg",
+      "source_sha256": "e59dea8e4a3ad217177bb2ec375fc9cddac0f88d2eca2da8627f0f1b64660b96",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_long_output.en.svg",
+      "published_sha256": "e59dea8e4a3ad217177bb2ec375fc9cddac0f88d2eca2da8627f0f1b64660b96",
+      "transformed": false,
+      "imported_sha256": "e59dea8e4a3ad217177bb2ec375fc9cddac0f88d2eca2da8627f0f1b64660b96"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_compute.en.svg",
+      "source_sha256": "530bc566ee421b047fe07dabfa38e4a23cc617bf87823746be1f75ba34f724d4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_compute.en.svg",
+      "published_sha256": "530bc566ee421b047fe07dabfa38e4a23cc617bf87823746be1f75ba34f724d4",
+      "transformed": false,
+      "imported_sha256": "530bc566ee421b047fe07dabfa38e4a23cc617bf87823746be1f75ba34f724d4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_contention.en.svg",
+      "source_sha256": "ec3b8e1235caf1a548006436980dd51b99303ba5b0d660d637b79d25c7c3d4ef",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_contention.en.svg",
+      "published_sha256": "ec3b8e1235caf1a548006436980dd51b99303ba5b0d660d637b79d25c7c3d4ef",
+      "transformed": false,
+      "imported_sha256": "ec3b8e1235caf1a548006436980dd51b99303ba5b0d660d637b79d25c7c3d4ef"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/collective_measured.zh.svg",
+      "source_sha256": "2849a57f331b8422d2e5e962d9b88b674ea56f2e35a1bc289932d361438652e0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/collective_measured.zh.svg",
+      "published_sha256": "2849a57f331b8422d2e5e962d9b88b674ea56f2e35a1bc289932d361438652e0",
+      "transformed": false,
+      "imported_sha256": "2849a57f331b8422d2e5e962d9b88b674ea56f2e35a1bc289932d361438652e0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_fabric_map.zh.svg",
+      "source_sha256": "b1fa95f4a79441cb3a60451278f61c5c5bc5e6b3a935d42a261581df8a4df589",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_fabric_map.zh.svg",
+      "published_sha256": "b1fa95f4a79441cb3a60451278f61c5c5bc5e6b3a935d42a261581df8a4df589",
+      "transformed": false,
+      "imported_sha256": "b1fa95f4a79441cb3a60451278f61c5c5bc5e6b3a935d42a261581df8a4df589"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_network.en.svg",
+      "source_sha256": "395772fc2559e8b591396f69e49b986c5eabe821feae5318ac76ba853dae1ba8",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_network.en.svg",
+      "published_sha256": "395772fc2559e8b591396f69e49b986c5eabe821feae5318ac76ba853dae1ba8",
+      "transformed": false,
+      "imported_sha256": "395772fc2559e8b591396f69e49b986c5eabe821feae5318ac76ba853dae1ba8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/investment_self.en.svg",
+      "source_sha256": "42b0ca1cb5a0e9cdb29609476c495feef6f99551664b5d14a458a6e5ab43b6ab",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/investment_self.en.svg",
+      "published_sha256": "42b0ca1cb5a0e9cdb29609476c495feef6f99551664b5d14a458a6e5ab43b6ab",
+      "transformed": false,
+      "imported_sha256": "42b0ca1cb5a0e9cdb29609476c495feef6f99551664b5d14a458a6e5ab43b6ab"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cost_sensitivity.zh.svg",
+      "source_sha256": "368f27a17f7e7c2699b9d7cbb72e1abf1d85674e71ec915ba600546f111b1a10",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cost_sensitivity.zh.svg",
+      "published_sha256": "368f27a17f7e7c2699b9d7cbb72e1abf1d85674e71ec915ba600546f111b1a10",
+      "transformed": false,
+      "imported_sha256": "368f27a17f7e7c2699b9d7cbb72e1abf1d85674e71ec915ba600546f111b1a10"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_launch_shared.en.svg",
+      "source_sha256": "c6f6a1ae43d53d634693c93931c93e5cdfdd5e08b0ac45fca0b043385e67143f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_launch_shared.en.svg",
+      "published_sha256": "c6f6a1ae43d53d634693c93931c93e5cdfdd5e08b0ac45fca0b043385e67143f",
+      "transformed": false,
+      "imported_sha256": "c6f6a1ae43d53d634693c93931c93e5cdfdd5e08b0ac45fca0b043385e67143f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_attainment.zh.svg",
+      "source_sha256": "e3ef58e24b66de66f24cf3c5929ed97b5f9f995a80905846903ef85efa48a605",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_attainment.zh.svg",
+      "published_sha256": "e3ef58e24b66de66f24cf3c5929ed97b5f9f995a80905846903ef85efa48a605",
+      "transformed": false,
+      "imported_sha256": "e3ef58e24b66de66f24cf3c5929ed97b5f9f995a80905846903ef85efa48a605"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_mtp_stages.zh.svg",
+      "source_sha256": "84d17c3827106c45133f8cfdf2a0ebe7deccc0d887d12437ee3c52eddb596d7c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_mtp_stages.zh.svg",
+      "published_sha256": "84d17c3827106c45133f8cfdf2a0ebe7deccc0d887d12437ee3c52eddb596d7c",
+      "transformed": false,
+      "imported_sha256": "84d17c3827106c45133f8cfdf2a0ebe7deccc0d887d12437ee3c52eddb596d7c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_memory.en.svg",
+      "source_sha256": "40da0eadf6f877376f902e240c14bb8cb134d8bd184e3f3a8b1248e633e59df2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_memory.en.svg",
+      "published_sha256": "40da0eadf6f877376f902e240c14bb8cb134d8bd184e3f3a8b1248e633e59df2",
+      "transformed": false,
+      "imported_sha256": "40da0eadf6f877376f902e240c14bb8cb134d8bd184e3f3a8b1248e633e59df2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_retention.zh.svg",
+      "source_sha256": "ad1cccc50daa4f0be6a68408823dd2c11b3df28e7ff52d76bce000373be1445b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_retention.zh.svg",
+      "published_sha256": "ad1cccc50daa4f0be6a68408823dd2c11b3df28e7ff52d76bce000373be1445b",
+      "transformed": false,
+      "imported_sha256": "ad1cccc50daa4f0be6a68408823dd2c11b3df28e7ff52d76bce000373be1445b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_h200_compute.zh.svg",
+      "source_sha256": "f9972f9f272e24aa71731bd1bd823f3a8900ad4bb2b4bf05745afd72ee38f32e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_h200_compute.zh.svg",
+      "published_sha256": "f9972f9f272e24aa71731bd1bd823f3a8900ad4bb2b4bf05745afd72ee38f32e",
+      "transformed": false,
+      "imported_sha256": "f9972f9f272e24aa71731bd1bd823f3a8900ad4bb2b4bf05745afd72ee38f32e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_soak_windows.zh.svg",
+      "source_sha256": "271d96db6d52a968aa29c4f082f5e49a9a59071f626f25d042b073f452d621df",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_soak_windows.zh.svg",
+      "published_sha256": "271d96db6d52a968aa29c4f082f5e49a9a59071f626f25d042b073f452d621df",
+      "transformed": false,
+      "imported_sha256": "271d96db6d52a968aa29c4f082f5e49a9a59071f626f25d042b073f452d621df"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/study_layers.zh.svg",
+      "source_sha256": "a6ac4af6280e75da30bb3afb64594ba93119574cacd10e473a6a3eb7460429a4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/study_layers.zh.svg",
+      "published_sha256": "a6ac4af6280e75da30bb3afb64594ba93119574cacd10e473a6a3eb7460429a4",
+      "transformed": false,
+      "imported_sha256": "a6ac4af6280e75da30bb3afb64594ba93119574cacd10e473a6a3eb7460429a4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine_internal_rates.en.svg",
+      "source_sha256": "569c32c9e9a58f944497b12f30b0bdf3cb7ad3ab57bef2e854f329ff885b2a5b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine_internal_rates.en.svg",
+      "published_sha256": "569c32c9e9a58f944497b12f30b0bdf3cb7ad3ab57bef2e854f329ff885b2a5b",
+      "transformed": false,
+      "imported_sha256": "569c32c9e9a58f944497b12f30b0bdf3cb7ad3ab57bef2e854f329ff885b2a5b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_interference.en.svg",
+      "source_sha256": "a5ea3fc861bc2ed4cf78f8f7a4b527a4d3c01654d713bf0db4f6821577211c7b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_interference.en.svg",
+      "published_sha256": "a5ea3fc861bc2ed4cf78f8f7a4b527a4d3c01654d713bf0db4f6821577211c7b",
+      "transformed": false,
+      "imported_sha256": "a5ea3fc861bc2ed4cf78f8f7a4b527a4d3c01654d713bf0db4f6821577211c7b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_concurrency.en.svg",
+      "source_sha256": "193cd421a42b5a35fc7d7a4bd7b25cef0af08ddf1d6fd39f37fb365764154d35",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_concurrency.en.svg",
+      "published_sha256": "193cd421a42b5a35fc7d7a4bd7b25cef0af08ddf1d6fd39f37fb365764154d35",
+      "transformed": false,
+      "imported_sha256": "193cd421a42b5a35fc7d7a4bd7b25cef0af08ddf1d6fd39f37fb365764154d35"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/shapes.zh.svg",
+      "source_sha256": "3b961f2c479a63c4bf085267f2f46d7bbaf9f72444046a4a4868206cbea9ea2c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/shapes.zh.svg",
+      "published_sha256": "3b961f2c479a63c4bf085267f2f46d7bbaf9f72444046a4a4868206cbea9ea2c",
+      "transformed": false,
+      "imported_sha256": "3b961f2c479a63c4bf085267f2f46d7bbaf9f72444046a4a4868206cbea9ea2c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_telemetry.en.svg",
+      "source_sha256": "4d39c97f25349215d8ce0801a7c03edc56df5aa24c6f010bfac444903fc41e35",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_telemetry.en.svg",
+      "published_sha256": "4d39c97f25349215d8ce0801a7c03edc56df5aa24c6f010bfac444903fc41e35",
+      "transformed": false,
+      "imported_sha256": "4d39c97f25349215d8ce0801a7c03edc56df5aa24c6f010bfac444903fc41e35"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_memory.zh.svg",
+      "source_sha256": "0e59060994ac173e5d9b44915edbf32dc28bc0ae770cda2a917539d68f188aa0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_memory.zh.svg",
+      "published_sha256": "0e59060994ac173e5d9b44915edbf32dc28bc0ae770cda2a917539d68f188aa0",
+      "transformed": false,
+      "imported_sha256": "0e59060994ac173e5d9b44915edbf32dc28bc0ae770cda2a917539d68f188aa0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/system_map.zh.svg",
+      "source_sha256": "4909e49d24038d0eb85767c49b99eb042a75f1f95e56805ba6cd0afe65801f9a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/system_map.zh.svg",
+      "published_sha256": "4909e49d24038d0eb85767c49b99eb042a75f1f95e56805ba6cd0afe65801f9a",
+      "transformed": false,
+      "imported_sha256": "4909e49d24038d0eb85767c49b99eb042a75f1f95e56805ba6cd0afe65801f9a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_complete_collective.zh.svg",
+      "source_sha256": "50e2bed53e9079cb6cac054d76f136ea5c76db566cfa85039905af10b02fb665",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_complete_collective.zh.svg",
+      "published_sha256": "50e2bed53e9079cb6cac054d76f136ea5c76db566cfa85039905af10b02fb665",
+      "transformed": false,
+      "imported_sha256": "50e2bed53e9079cb6cac054d76f136ea5c76db566cfa85039905af10b02fb665"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/workflow.en.svg",
+      "source_sha256": "8853ce865624e741fb433d1871a5fbb32a66f063ab44d4d473673e61620e72ac",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/workflow.en.svg",
+      "published_sha256": "8853ce865624e741fb433d1871a5fbb32a66f063ab44d4d473673e61620e72ac",
+      "transformed": false,
+      "imported_sha256": "8853ce865624e741fb433d1871a5fbb32a66f063ab44d4d473673e61620e72ac"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_compute.en.svg",
+      "source_sha256": "b75c9288b1e7361a718e44016d3c0b2c944e94ae244d65f89e0128b99bceec2e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_compute.en.svg",
+      "published_sha256": "b75c9288b1e7361a718e44016d3c0b2c944e94ae244d65f89e0128b99bceec2e",
+      "transformed": false,
+      "imported_sha256": "b75c9288b1e7361a718e44016d3c0b2c944e94ae244d65f89e0128b99bceec2e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_node_parity.zh.svg",
+      "source_sha256": "4ed561ba86ac2dc17ed93740b0c6590c3d0e6391e5cb00992399dce4cc2dcd94",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_node_parity.zh.svg",
+      "published_sha256": "4ed561ba86ac2dc17ed93740b0c6590c3d0e6391e5cb00992399dce4cc2dcd94",
+      "transformed": false,
+      "imported_sha256": "4ed561ba86ac2dc17ed93740b0c6590c3d0e6391e5cb00992399dce4cc2dcd94"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_telemetry.zh.svg",
+      "source_sha256": "fe09e34f020993a9b44b0e11a12e4a63c1ccefc306bcb59651c176ac799a0f24",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_telemetry.zh.svg",
+      "published_sha256": "fe09e34f020993a9b44b0e11a12e4a63c1ccefc306bcb59651c176ac799a0f24",
+      "transformed": false,
+      "imported_sha256": "fe09e34f020993a9b44b0e11a12e4a63c1ccefc306bcb59651c176ac799a0f24"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_wait.en.svg",
+      "source_sha256": "cfece10c9a27cbd84a791c6c3a17b196c9a1033f2830f4430ac840e1071253f3",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_wait.en.svg",
+      "published_sha256": "cfece10c9a27cbd84a791c6c3a17b196c9a1033f2830f4430ac840e1071253f3",
+      "transformed": false,
+      "imported_sha256": "cfece10c9a27cbd84a791c6c3a17b196c9a1033f2830f4430ac840e1071253f3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_managed.en.svg",
+      "source_sha256": "df623f1cc83e2de76bad745fcf8b9ed109744cf2f79d23b8791c0662f3f8535e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_managed.en.svg",
+      "published_sha256": "df623f1cc83e2de76bad745fcf8b9ed109744cf2f79d23b8791c0662f3f8535e",
+      "transformed": false,
+      "imported_sha256": "df623f1cc83e2de76bad745fcf8b9ed109744cf2f79d23b8791c0662f3f8535e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/capacity.zh.svg",
+      "source_sha256": "90635e73bf9f05dfab2f22ec8c7fb10ada5f41ca6d7d127c892709ce9c565ab4",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/capacity.zh.svg",
+      "published_sha256": "90635e73bf9f05dfab2f22ec8c7fb10ada5f41ca6d7d127c892709ce9c565ab4",
+      "transformed": false,
+      "imported_sha256": "90635e73bf9f05dfab2f22ec8c7fb10ada5f41ca6d7d127c892709ce9c565ab4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine.zh.svg",
+      "source_sha256": "81e5b6b316bfe28c481874ddd9ccbab688285c4c2b1ac0c374bfc612a237552a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine.zh.svg",
+      "published_sha256": "81e5b6b316bfe28c481874ddd9ccbab688285c4c2b1ac0c374bfc612a237552a",
+      "transformed": false,
+      "imported_sha256": "81e5b6b316bfe28c481874ddd9ccbab688285c4c2b1ac0c374bfc612a237552a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_timeline.en.svg",
+      "source_sha256": "3597b8ab4cb535aeb6a2f0ca44d60c0230a451f45c3490b740a39a920f97aa72",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_timeline.en.svg",
+      "published_sha256": "3597b8ab4cb535aeb6a2f0ca44d60c0230a451f45c3490b740a39a920f97aa72",
+      "transformed": false,
+      "imported_sha256": "3597b8ab4cb535aeb6a2f0ca44d60c0230a451f45c3490b740a39a920f97aa72"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_design.en.svg",
+      "source_sha256": "c31559f185ce71297bc8e8319e6e47eb580c1a38db61eaba821d9c6f165030bb",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_design.en.svg",
+      "published_sha256": "c31559f185ce71297bc8e8319e6e47eb580c1a38db61eaba821d9c6f165030bb",
+      "transformed": false,
+      "imported_sha256": "c31559f185ce71297bc8e8319e6e47eb580c1a38db61eaba821d9c6f165030bb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_sustained.zh.svg",
+      "source_sha256": "e2742d32ce533b5190407c0c5929385b245b85df2a0d8631659e859500a842b6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_sustained.zh.svg",
+      "published_sha256": "e2742d32ce533b5190407c0c5929385b245b85df2a0d8631659e859500a842b6",
+      "transformed": false,
+      "imported_sha256": "e2742d32ce533b5190407c0c5929385b245b85df2a0d8631659e859500a842b6"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/arrival_design.en.svg",
+      "source_sha256": "da5e7932b3d6cff30c956953b0580b3b1124b949ca0c44fb3ff4d92e02fb9cf0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/arrival_design.en.svg",
+      "published_sha256": "da5e7932b3d6cff30c956953b0580b3b1124b949ca0c44fb3ff4d92e02fb9cf0",
+      "transformed": false,
+      "imported_sha256": "da5e7932b3d6cff30c956953b0580b3b1124b949ca0c44fb3ff4d92e02fb9cf0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_fma.zh.svg",
+      "source_sha256": "2621f7cc625a807c250b84792a496a6d630e2996503fead4f275bb6bfde704dd",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_fma.zh.svg",
+      "published_sha256": "2621f7cc625a807c250b84792a496a6d630e2996503fead4f275bb6bfde704dd",
+      "transformed": false,
+      "imported_sha256": "2621f7cc625a807c250b84792a496a6d630e2996503fead4f275bb6bfde704dd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_domain.zh.svg",
+      "source_sha256": "cb4d1d7f7eb4cfdaf39034256e4142f664e237f2779377df500a6a604f9c4ab2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_domain.zh.svg",
+      "published_sha256": "cb4d1d7f7eb4cfdaf39034256e4142f664e237f2779377df500a6a604f9c4ab2",
+      "transformed": false,
+      "imported_sha256": "cb4d1d7f7eb4cfdaf39034256e4142f664e237f2779377df500a6a604f9c4ab2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_memory.zh.svg",
+      "source_sha256": "949358b3e5ea63be7e8e88021db959870322eab24031e3f3ca6d1f91765478ac",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_memory.zh.svg",
+      "published_sha256": "949358b3e5ea63be7e8e88021db959870322eab24031e3f3ca6d1f91765478ac",
+      "transformed": false,
+      "imported_sha256": "949358b3e5ea63be7e8e88021db959870322eab24031e3f3ca6d1f91765478ac"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_overlap.zh.svg",
+      "source_sha256": "bd7ecca1bc43cdbb75376dcd8b8901d662eacab53819ffc140d8ac413656c95a",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_overlap.zh.svg",
+      "published_sha256": "bd7ecca1bc43cdbb75376dcd8b8901d662eacab53819ffc140d8ac413656c95a",
+      "transformed": false,
+      "imported_sha256": "bd7ecca1bc43cdbb75376dcd8b8901d662eacab53819ffc140d8ac413656c95a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_retention.en.svg",
+      "source_sha256": "fa6eba9791b9725c85f0af0355227cab29cd6406d5b7402b331eadf2ba7219d9",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_retention.en.svg",
+      "published_sha256": "fa6eba9791b9725c85f0af0355227cab29cd6406d5b7402b331eadf2ba7219d9",
+      "transformed": false,
+      "imported_sha256": "fa6eba9791b9725c85f0af0355227cab29cd6406d5b7402b331eadf2ba7219d9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/evolution.zh.svg",
+      "source_sha256": "54e56a798aaa12b28a83beeeb115a14a31a5ee689837cad03c7e7e07c09921b8",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/evolution.zh.svg",
+      "published_sha256": "54e56a798aaa12b28a83beeeb115a14a31a5ee689837cad03c7e7e07c09921b8",
+      "transformed": false,
+      "imported_sha256": "54e56a798aaa12b28a83beeeb115a14a31a5ee689837cad03c7e7e07c09921b8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_profile_cost.en.svg",
+      "source_sha256": "09c5eed4981317401945b61eec8821979b63cbad95b4c3749d19f29423f269c6",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_profile_cost.en.svg",
+      "published_sha256": "09c5eed4981317401945b61eec8821979b63cbad95b4c3749d19f29423f269c6",
+      "transformed": false,
+      "imported_sha256": "09c5eed4981317401945b61eec8821979b63cbad95b4c3749d19f29423f269c6"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/generation_shape.zh.svg",
+      "source_sha256": "64a14c86e152d9c7fefef1332339c34f206f915090e2dfbbcd949ffe9b249f5d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/generation_shape.zh.svg",
+      "published_sha256": "64a14c86e152d9c7fefef1332339c34f206f915090e2dfbbcd949ffe9b249f5d",
+      "transformed": false,
+      "imported_sha256": "64a14c86e152d9c7fefef1332339c34f206f915090e2dfbbcd949ffe9b249f5d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/reasoning.zh.svg",
+      "source_sha256": "733725d2b9579210204895a229ceca1516de24f8eb5f699a3bfbd46c4c8c2050",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/reasoning.zh.svg",
+      "published_sha256": "733725d2b9579210204895a229ceca1516de24f8eb5f699a3bfbd46c4c8c2050",
+      "transformed": false,
+      "imported_sha256": "733725d2b9579210204895a229ceca1516de24f8eb5f699a3bfbd46c4c8c2050"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware.en.svg",
+      "source_sha256": "0128362b1dba72b41c08e3fc24838bb807435578cd556652866cf6c5b677edb3",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware.en.svg",
+      "published_sha256": "0128362b1dba72b41c08e3fc24838bb807435578cd556652866cf6c5b677edb3",
+      "transformed": false,
+      "imported_sha256": "0128362b1dba72b41c08e3fc24838bb807435578cd556652866cf6c5b677edb3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_operators.en.svg",
+      "source_sha256": "15ff6094f8f87156779d99d4dee7c318edac968ec5836c094cf9d840898ee5e5",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_operators.en.svg",
+      "published_sha256": "15ff6094f8f87156779d99d4dee7c318edac968ec5836c094cf9d840898ee5e5",
+      "transformed": false,
+      "imported_sha256": "15ff6094f8f87156779d99d4dee7c318edac968ec5836c094cf9d840898ee5e5"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_evidence.en.svg",
+      "source_sha256": "242948c89d2722001ca740fd803247761241be975777c28dbea9096bce93d923",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_evidence.en.svg",
+      "published_sha256": "242948c89d2722001ca740fd803247761241be975777c28dbea9096bce93d923",
+      "transformed": false,
+      "imported_sha256": "242948c89d2722001ca740fd803247761241be975777c28dbea9096bce93d923"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_collective.en.svg",
+      "source_sha256": "5d07aa545a598c475d2672e5f89bc484630ac368c55ca7be14b3d92ca2d82c01",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_collective.en.svg",
+      "published_sha256": "5d07aa545a598c475d2672e5f89bc484630ac368c55ca7be14b3d92ca2d82c01",
+      "transformed": false,
+      "imported_sha256": "5d07aa545a598c475d2672e5f89bc484630ac368c55ca7be14b3d92ca2d82c01"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/investment_sales.zh.svg",
+      "source_sha256": "9da1749ff270df6f4ffde03c50642c3eba167242ca3be996f9f335c328886a1b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/investment_sales.zh.svg",
+      "published_sha256": "9da1749ff270df6f4ffde03c50642c3eba167242ca3be996f9f335c328886a1b",
+      "transformed": false,
+      "imported_sha256": "9da1749ff270df6f4ffde03c50642c3eba167242ca3be996f9f335c328886a1b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/sample_flow.zh.svg",
+      "source_sha256": "c1ab13ad159c1439f1e09c409df13fc7b97b961ba6cd88b78693cf25453be5f3",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/sample_flow.zh.svg",
+      "published_sha256": "c1ab13ad159c1439f1e09c409df13fc7b97b961ba6cd88b78693cf25453be5f3",
+      "transformed": false,
+      "imported_sha256": "c1ab13ad159c1439f1e09c409df13fc7b97b961ba6cd88b78693cf25453be5f3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_protocol.zh.svg",
+      "source_sha256": "020d9874481fb10277511d86027e0636eae28b941a3a0415d85a0bde2b409a87",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_protocol.zh.svg",
+      "published_sha256": "020d9874481fb10277511d86027e0636eae28b941a3a0415d85a0bde2b409a87",
+      "transformed": false,
+      "imported_sha256": "020d9874481fb10277511d86027e0636eae28b941a3a0415d85a0bde2b409a87"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gpu_sequence.zh.svg",
+      "source_sha256": "303e23fc2695ecfa904d3f68724f476fa3226d8e2a2153c0a1d6a3e76dd9a269",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gpu_sequence.zh.svg",
+      "published_sha256": "303e23fc2695ecfa904d3f68724f476fa3226d8e2a2153c0a1d6a3e76dd9a269",
+      "transformed": false,
+      "imported_sha256": "303e23fc2695ecfa904d3f68724f476fa3226d8e2a2153c0a1d6a3e76dd9a269"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cost_by_workload.zh.svg",
+      "source_sha256": "d5390b4442212afada0092ea11dca4a5077ab0ba7bbbcb1d2266e3324664031f",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cost_by_workload.zh.svg",
+      "published_sha256": "d5390b4442212afada0092ea11dca4a5077ab0ba7bbbcb1d2266e3324664031f",
+      "transformed": false,
+      "imported_sha256": "d5390b4442212afada0092ea11dca4a5077ab0ba7bbbcb1d2266e3324664031f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_collective.zh.svg",
+      "source_sha256": "50cf4770591b5bb9db5bda5ea257dd9cbbde19b729023c807fa21673f2ae9cb9",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_collective.zh.svg",
+      "published_sha256": "50cf4770591b5bb9db5bda5ea257dd9cbbde19b729023c807fa21673f2ae9cb9",
+      "transformed": false,
+      "imported_sha256": "50cf4770591b5bb9db5bda5ea257dd9cbbde19b729023c807fa21673f2ae9cb9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_evidence.zh.svg",
+      "source_sha256": "cf179a1c30ac69a186ecc1d94aeb422c126493f09813b935efb3c444d34c9687",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_evidence.zh.svg",
+      "published_sha256": "cf179a1c30ac69a186ecc1d94aeb422c126493f09813b935efb3c444d34c9687",
+      "transformed": false,
+      "imported_sha256": "cf179a1c30ac69a186ecc1d94aeb422c126493f09813b935efb3c444d34c9687"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_operators.zh.svg",
+      "source_sha256": "1a966c8b7d551ef572510196bbff7a0bfd6983bebd4bd3468253cfa9b47d89b2",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_operators.zh.svg",
+      "published_sha256": "1a966c8b7d551ef572510196bbff7a0bfd6983bebd4bd3468253cfa9b47d89b2",
+      "transformed": false,
+      "imported_sha256": "1a966c8b7d551ef572510196bbff7a0bfd6983bebd4bd3468253cfa9b47d89b2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware.zh.svg",
+      "source_sha256": "7e8b947e3b5e51f089d62a4f7f2b052f94c3a4da211abdfa586f149715e22b1c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware.zh.svg",
+      "published_sha256": "7e8b947e3b5e51f089d62a4f7f2b052f94c3a4da211abdfa586f149715e22b1c",
+      "transformed": false,
+      "imported_sha256": "7e8b947e3b5e51f089d62a4f7f2b052f94c3a4da211abdfa586f149715e22b1c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/generation_shape.en.svg",
+      "source_sha256": "dfda44f3cf76943a83015bb4dc661965cce9e598a35e92933500277508b9ed6e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/generation_shape.en.svg",
+      "published_sha256": "dfda44f3cf76943a83015bb4dc661965cce9e598a35e92933500277508b9ed6e",
+      "transformed": false,
+      "imported_sha256": "dfda44f3cf76943a83015bb4dc661965cce9e598a35e92933500277508b9ed6e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gap_profile_cost.zh.svg",
+      "source_sha256": "0a5432fc8226e486dda69a495963ffa8b1c542eca2103d7c87376610cf3b7a66",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gap_profile_cost.zh.svg",
+      "published_sha256": "0a5432fc8226e486dda69a495963ffa8b1c542eca2103d7c87376610cf3b7a66",
+      "transformed": false,
+      "imported_sha256": "0a5432fc8226e486dda69a495963ffa8b1c542eca2103d7c87376610cf3b7a66"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/evolution.en.svg",
+      "source_sha256": "9f18fece354da4dcd1c096c67c6f81ca2fd3898a5a063dde4d9c66772e59c97c",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/evolution.en.svg",
+      "published_sha256": "9f18fece354da4dcd1c096c67c6f81ca2fd3898a5a063dde4d9c66772e59c97c",
+      "transformed": false,
+      "imported_sha256": "9f18fece354da4dcd1c096c67c6f81ca2fd3898a5a063dde4d9c66772e59c97c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/reasoning.en.svg",
+      "source_sha256": "b8ef52ac40fded0fae2dc683299ba32c563b271b7d6b54d5ed755ffcdad8ee41",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/reasoning.en.svg",
+      "published_sha256": "b8ef52ac40fded0fae2dc683299ba32c563b271b7d6b54d5ed755ffcdad8ee41",
+      "transformed": false,
+      "imported_sha256": "b8ef52ac40fded0fae2dc683299ba32c563b271b7d6b54d5ed755ffcdad8ee41"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/gpu_sequence.en.svg",
+      "source_sha256": "c3953c17f1a02220eb7f5bac91c50aadccf0149cdcebc0b2def17f8231736645",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/gpu_sequence.en.svg",
+      "published_sha256": "c3953c17f1a02220eb7f5bac91c50aadccf0149cdcebc0b2def17f8231736645",
+      "transformed": false,
+      "imported_sha256": "c3953c17f1a02220eb7f5bac91c50aadccf0149cdcebc0b2def17f8231736645"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_protocol.en.svg",
+      "source_sha256": "d145f246ee4f99711ae39f4dcd4b510afa0212127cfa3c6a57ac94538b14795d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_protocol.en.svg",
+      "published_sha256": "d145f246ee4f99711ae39f4dcd4b510afa0212127cfa3c6a57ac94538b14795d",
+      "transformed": false,
+      "imported_sha256": "d145f246ee4f99711ae39f4dcd4b510afa0212127cfa3c6a57ac94538b14795d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cost_by_workload.en.svg",
+      "source_sha256": "47587919910c03e7e2b93b7bad3725e4d45cf580d434ea50eabd0503c88c9f49",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cost_by_workload.en.svg",
+      "published_sha256": "47587919910c03e7e2b93b7bad3725e4d45cf580d434ea50eabd0503c88c9f49",
+      "transformed": false,
+      "imported_sha256": "47587919910c03e7e2b93b7bad3725e4d45cf580d434ea50eabd0503c88c9f49"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/sample_flow.en.svg",
+      "source_sha256": "82e35dbdf7117ca7baccc54840ab5f958d2d6b6e62c3575ad49f6a17626addff",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/sample_flow.en.svg",
+      "published_sha256": "82e35dbdf7117ca7baccc54840ab5f958d2d6b6e62c3575ad49f6a17626addff",
+      "transformed": false,
+      "imported_sha256": "82e35dbdf7117ca7baccc54840ab5f958d2d6b6e62c3575ad49f6a17626addff"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/investment_sales.en.svg",
+      "source_sha256": "8c1423471152b98bffa1686d4bf84be6779ae20c60595ff43c88bca5c11003ab",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/investment_sales.en.svg",
+      "published_sha256": "8c1423471152b98bffa1686d4bf84be6779ae20c60595ff43c88bca5c11003ab",
+      "transformed": false,
+      "imported_sha256": "8c1423471152b98bffa1686d4bf84be6779ae20c60595ff43c88bca5c11003ab"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_timeline.zh.svg",
+      "source_sha256": "f84d85189ed5dd24683a7b4d57c5b663069f60168a2a3eea3ebad29386967dfe",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_timeline.zh.svg",
+      "published_sha256": "f84d85189ed5dd24683a7b4d57c5b663069f60168a2a3eea3ebad29386967dfe",
+      "transformed": false,
+      "imported_sha256": "f84d85189ed5dd24683a7b4d57c5b663069f60168a2a3eea3ebad29386967dfe"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/capacity.en.svg",
+      "source_sha256": "5cbefce285872dd144f09c52dfe956dc5adc72f2a4a1bffcaa6762be2fa3a69b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/capacity.en.svg",
+      "published_sha256": "5cbefce285872dd144f09c52dfe956dc5adc72f2a4a1bffcaa6762be2fa3a69b",
+      "transformed": false,
+      "imported_sha256": "5cbefce285872dd144f09c52dfe956dc5adc72f2a4a1bffcaa6762be2fa3a69b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/engine.en.svg",
+      "source_sha256": "4e435767d3f5456ca5f00771995e01e7d532b074068fe1e22472b35886943d7e",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/engine.en.svg",
+      "published_sha256": "4e435767d3f5456ca5f00771995e01e7d532b074068fe1e22472b35886943d7e",
+      "transformed": false,
+      "imported_sha256": "4e435767d3f5456ca5f00771995e01e7d532b074068fe1e22472b35886943d7e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_managed.zh.svg",
+      "source_sha256": "9891fd48620935766368cb08a70ceb307e4d9a184327166df5148a2a3e9b2dff",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_managed.zh.svg",
+      "published_sha256": "9891fd48620935766368cb08a70ceb307e4d9a184327166df5148a2a3e9b2dff",
+      "transformed": false,
+      "imported_sha256": "9891fd48620935766368cb08a70ceb307e4d9a184327166df5148a2a3e9b2dff"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_telemetry.en.svg",
+      "source_sha256": "238019ec1ec48c5e129077bbe8ecd39d78ae820cd7de17e547173b4f09efe2de",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_telemetry.en.svg",
+      "published_sha256": "238019ec1ec48c5e129077bbe8ecd39d78ae820cd7de17e547173b4f09efe2de",
+      "transformed": false,
+      "imported_sha256": "238019ec1ec48c5e129077bbe8ecd39d78ae820cd7de17e547173b4f09efe2de"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_wait.zh.svg",
+      "source_sha256": "2349c2d95c867b2cef4b5f66aea73c527a0ec02d105aba1e193823e7c2fc780d",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_wait.zh.svg",
+      "published_sha256": "2349c2d95c867b2cef4b5f66aea73c527a0ec02d105aba1e193823e7c2fc780d",
+      "transformed": false,
+      "imported_sha256": "2349c2d95c867b2cef4b5f66aea73c527a0ec02d105aba1e193823e7c2fc780d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_compute.zh.svg",
+      "source_sha256": "4849ec0f0661f49d57023eaa88b012d4289c1ecde447e43547061acae5381a55",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_compute.zh.svg",
+      "published_sha256": "4849ec0f0661f49d57023eaa88b012d4289c1ecde447e43547061acae5381a55",
+      "transformed": false,
+      "imported_sha256": "4849ec0f0661f49d57023eaa88b012d4289c1ecde447e43547061acae5381a55"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/workflow.zh.svg",
+      "source_sha256": "7b01cdaef74c6d8e3d19e068dcc1a710b0e4ad08cf13e1ba57cc07ef9c880702",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/workflow.zh.svg",
+      "published_sha256": "7b01cdaef74c6d8e3d19e068dcc1a710b0e4ad08cf13e1ba57cc07ef9c880702",
+      "transformed": false,
+      "imported_sha256": "7b01cdaef74c6d8e3d19e068dcc1a710b0e4ad08cf13e1ba57cc07ef9c880702"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_node_parity.en.svg",
+      "source_sha256": "42c5c9eb74cbebf12b110b632600e742be058bcbdf09cfcdf0b5a716ca0e6fcb",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_node_parity.en.svg",
+      "published_sha256": "42c5c9eb74cbebf12b110b632600e742be058bcbdf09cfcdf0b5a716ca0e6fcb",
+      "transformed": false,
+      "imported_sha256": "42c5c9eb74cbebf12b110b632600e742be058bcbdf09cfcdf0b5a716ca0e6fcb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_retention.zh.svg",
+      "source_sha256": "b91fafd18f3d4397b61bfe99fa6f4975d5cfd4d08cb7bbc27826840adc21d4f1",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_retention.zh.svg",
+      "published_sha256": "b91fafd18f3d4397b61bfe99fa6f4975d5cfd4d08cb7bbc27826840adc21d4f1",
+      "transformed": false,
+      "imported_sha256": "b91fafd18f3d4397b61bfe99fa6f4975d5cfd4d08cb7bbc27826840adc21d4f1"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_overlap.en.svg",
+      "source_sha256": "58f183a8fbd842f8483301df6fad68fc169c6cbbeab0fd10afeb323163c5689b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_overlap.en.svg",
+      "published_sha256": "58f183a8fbd842f8483301df6fad68fc169c6cbbeab0fd10afeb323163c5689b",
+      "transformed": false,
+      "imported_sha256": "58f183a8fbd842f8483301df6fad68fc169c6cbbeab0fd10afeb323163c5689b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_memory.en.svg",
+      "source_sha256": "0ee3b6337b8b3724be70138f1d52e94b19addf3669ec61a8cf9da0ed5e900505",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_memory.en.svg",
+      "published_sha256": "0ee3b6337b8b3724be70138f1d52e94b19addf3669ec61a8cf9da0ed5e900505",
+      "transformed": false,
+      "imported_sha256": "0ee3b6337b8b3724be70138f1d52e94b19addf3669ec61a8cf9da0ed5e900505"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/hardware_unloaded_fma.en.svg",
+      "source_sha256": "86797402b582ec2113fb0773661ba1c36be278fce5388490154c5f33d02b8416",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/hardware_unloaded_fma.en.svg",
+      "published_sha256": "86797402b582ec2113fb0773661ba1c36be278fce5388490154c5f33d02b8416",
+      "transformed": false,
+      "imported_sha256": "86797402b582ec2113fb0773661ba1c36be278fce5388490154c5f33d02b8416"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/length_domain.en.svg",
+      "source_sha256": "62aa70927d10df81b3f1e6a4429928af736ac9a64a5c04b24b8ea4ed709a9b55",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/length_domain.en.svg",
+      "published_sha256": "62aa70927d10df81b3f1e6a4429928af736ac9a64a5c04b24b8ea4ed709a9b55",
+      "transformed": false,
+      "imported_sha256": "62aa70927d10df81b3f1e6a4429928af736ac9a64a5c04b24b8ea4ed709a9b55"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/cache_design.zh.svg",
+      "source_sha256": "bb5389354021a3ce40a400938c04d6fd5daf9448c6f31b1a52ba7ef705ece5a0",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/cache_design.zh.svg",
+      "published_sha256": "bb5389354021a3ce40a400938c04d6fd5daf9448c6f31b1a52ba7ef705ece5a0",
+      "transformed": false,
+      "imported_sha256": "bb5389354021a3ce40a400938c04d6fd5daf9448c6f31b1a52ba7ef705ece5a0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/arrival_design.zh.svg",
+      "source_sha256": "3fff802b0580a3f42c7c554ba83724bbbc48529c797b7bd8d0f91fde10986f4b",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/arrival_design.zh.svg",
+      "published_sha256": "3fff802b0580a3f42c7c554ba83724bbbc48529c797b7bd8d0f91fde10986f4b",
+      "transformed": false,
+      "imported_sha256": "3fff802b0580a3f42c7c554ba83724bbbc48529c797b7bd8d0f91fde10986f4b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reports/review_sustained.en.svg",
+      "source_sha256": "61732980623de6236d80ce49f513686379baa3ae64036f039f3bb7a8f79399b8",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/review_sustained.en.svg",
+      "published_sha256": "61732980623de6236d80ce49f513686379baa3ae64036f039f3bb7a8f79399b8",
+      "transformed": false,
+      "imported_sha256": "61732980623de6236d80ce49f513686379baa3ae64036f039f3bb7a8f79399b8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_bench.py",
+      "source_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22",
+      "published": "benchmarks/gb10/gpu_system_bench.py",
+      "published_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22",
+      "transformed": false,
+      "imported_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_collectives.py",
+      "source_sha256": "5a569685d1010cdccfdbb56c6e4bef57b56a25e56093dd3868309b17511b65ff",
+      "published": "benchmarks/gb10/gpu_system_collectives.py",
+      "published_sha256": "f163d5b7041a550af7fd0eafc8a50ac988aef2a373610a2a2173610bca315de8",
+      "transformed": true,
+      "imported_sha256": "f9201505d67d84f1ec546b3606b22dde7aebd4e3670c5ef20f59b042518241d7",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_extensions.py",
+      "source_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef",
+      "published": "benchmarks/gb10/gpu_extensions.py",
+      "published_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef",
+      "transformed": false,
+      "imported_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_overlap.py",
+      "source_sha256": "2104eec675a464937ecb653b4ea3b762f34fd48d23ca5f3d848b10a69467a9b9",
+      "published": "benchmarks/gb10/gpu_overlap.py",
+      "published_sha256": "b55210f49182b3f8b2bdaab91d72e756b7139e7c06708e3ceaa246dacd695d42",
+      "transformed": true,
+      "imported_sha256": "2462b2bbdbcc520d085706f770b01c1b492487a121509f15f1370ed9d9a5fd13",
+      "post_import_adaptation": true
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/kernels.cu",
+      "source_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd",
+      "published": "benchmarks/gb10/kernels.cu",
+      "published_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd",
+      "transformed": false,
+      "imported_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/thermal_backoff.py",
+      "source_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0",
+      "published": "benchmarks/gb10/thermal_backoff.py",
+      "published_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0",
+      "transformed": false,
+      "imported_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/soak_protocol.py",
+      "source_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3",
+      "published": "benchmarks/gb10/soak_protocol.py",
+      "published_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3",
+      "transformed": false,
+      "imported_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/extensions_manifest.json",
+      "source_sha256": "5d9dabbdc3d5ea95360e94e944121444e8d08b7e7130aaac610504f375065474",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/hardware/extensions_manifest.json",
+      "published_sha256": "2db1172d8d00180b0afec0ad72a07ada994745e7e9b440a3065ef542c743353d",
+      "transformed": true,
+      "imported_sha256": "2db1172d8d00180b0afec0ad72a07ada994745e7e9b440a3065ef542c743353d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/manifest.json",
+      "source_sha256": "cdd8910c370130a6b3fee933eb57821ad6d3c337bf23bc42596e39d59d615354",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/hardware/manifest.json",
+      "published_sha256": "a6846140857b0dd0d179312f5aa1f3e66e5df834d58a242a1c44c2e348b7acb7",
+      "transformed": true,
+      "imported_sha256": "a6846140857b0dd0d179312f5aa1f3e66e5df834d58a242a1c44c2e348b7acb7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/metrics.py",
+      "source_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80",
+      "published": "src/sparkbench/metrics.py",
+      "published_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80",
+      "transformed": false,
+      "imported_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_visual_layout.py",
+      "source_sha256": "768a892775e6548f21415cb5f0bd5b96846c720bf6b679c5bb2b2a28f678311f",
+      "published": "reference/2026-study/serving/report_visual_layout.py.txt",
+      "published_sha256": "768a892775e6548f21415cb5f0bd5b96846c720bf6b679c5bb2b2a28f678311f",
+      "transformed": false,
+      "imported_sha256": "768a892775e6548f21415cb5f0bd5b96846c720bf6b679c5bb2b2a28f678311f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_incident.py",
+      "source_sha256": "9321e773ee68b56ccf86d436675692b21fc44f47f6d38ed1b65aec3e12351a40",
+      "published": "reference/2026-study/serving/test_incident.py.txt",
+      "published_sha256": "9321e773ee68b56ccf86d436675692b21fc44f47f6d38ed1b65aec3e12351a40",
+      "transformed": false,
+      "imported_sha256": "9321e773ee68b56ccf86d436675692b21fc44f47f6d38ed1b65aec3e12351a40"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/length_runner.py",
+      "source_sha256": "b72225481562df6670d2fa271a083ca83f66eceb900094c396feaedca0723c7d",
+      "published": "reference/2026-study/serving/length_runner.py.txt",
+      "published_sha256": "b72225481562df6670d2fa271a083ca83f66eceb900094c396feaedca0723c7d",
+      "transformed": false,
+      "imported_sha256": "b72225481562df6670d2fa271a083ca83f66eceb900094c396feaedca0723c7d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/length_plan.py",
+      "source_sha256": "f12a8ad8b916cef71a9b6e3bd8ea946d62bb2754f5c25724c19c50a36193a345",
+      "published": "reference/2026-study/serving/length_plan.py.txt",
+      "published_sha256": "f12a8ad8b916cef71a9b6e3bd8ea946d62bb2754f5c25724c19c50a36193a345",
+      "transformed": false,
+      "imported_sha256": "f12a8ad8b916cef71a9b6e3bd8ea946d62bb2754f5c25724c19c50a36193a345"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_bench.py",
+      "source_sha256": "db97c134b028873e90a8b288e747460e5f2078704112c6941c29d8675ac27298",
+      "published": "reference/2026-study/serving/gpu_system_bench.py.txt",
+      "published_sha256": "db97c134b028873e90a8b288e747460e5f2078704112c6941c29d8675ac27298",
+      "transformed": false,
+      "imported_sha256": "db97c134b028873e90a8b288e747460e5f2078704112c6941c29d8675ac27298"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/build_reviewed_plan.py",
+      "source_sha256": "c78b6330495511bd644be77e57e4c6ca4a665289935a9cd2f611ad99dc32862a",
+      "published": "reference/2026-study/serving/build_reviewed_plan.py.txt",
+      "published_sha256": "c78b6330495511bd644be77e57e4c6ca4a665289935a9cd2f611ad99dc32862a",
+      "transformed": false,
+      "imported_sha256": "c78b6330495511bd644be77e57e4c6ca4a665289935a9cd2f611ad99dc32862a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/metrics.py",
+      "source_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80",
+      "published": "reference/2026-study/serving/metrics.py.txt",
+      "published_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80",
+      "transformed": false,
+      "imported_sha256": "1c98dc61b8da5f66f1d53bfe54b78fad032217d3fe795ee669b4a28f4dc11d80"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_report.py",
+      "source_sha256": "dd1d4193b97633771d7b34d91d8d49814fa6704eca4fc1e43607fcd0fa4b6cc4",
+      "published": "reference/2026-study/serving/engine_split_report.py.txt",
+      "published_sha256": "dd1d4193b97633771d7b34d91d8d49814fa6704eca4fc1e43607fcd0fa4b6cc4",
+      "transformed": false,
+      "imported_sha256": "dd1d4193b97633771d7b34d91d8d49814fa6704eca4fc1e43607fcd0fa4b6cc4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_partial.py",
+      "source_sha256": "5b693b58d6f6add9fdc8c321db842f95e06a79ba2ca3fda7e612c607ae9e9d5d",
+      "published": "reference/2026-study/serving/hardware_partial.py.txt",
+      "published_sha256": "5b693b58d6f6add9fdc8c321db842f95e06a79ba2ca3fda7e612c607ae9e9d5d",
+      "transformed": false,
+      "imported_sha256": "5b693b58d6f6add9fdc8c321db842f95e06a79ba2ca3fda7e612c607ae9e9d5d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_overview.py",
+      "source_sha256": "c5ce3d8301613b8de930e4050333d6710badf57acfc6a1decd56b84c676714fc",
+      "published": "reference/2026-study/serving/report_overview.py.txt",
+      "published_sha256": "c5ce3d8301613b8de930e4050333d6710badf57acfc6a1decd56b84c676714fc",
+      "transformed": false,
+      "imported_sha256": "c5ce3d8301613b8de930e4050333d6710badf57acfc6a1decd56b84c676714fc"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_review.py",
+      "source_sha256": "985cb7fd52a316d7ad0066c5033f79c66bb2d70fcdbf6f02996d79ab1c1e7965",
+      "published": "reference/2026-study/serving/report_review.py.txt",
+      "published_sha256": "985cb7fd52a316d7ad0066c5033f79c66bb2d70fcdbf6f02996d79ab1c1e7965",
+      "transformed": false,
+      "imported_sha256": "985cb7fd52a316d7ad0066c5033f79c66bb2d70fcdbf6f02996d79ab1c1e7965"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/runner.py",
+      "source_sha256": "dc0a7e7aaaf7ba40b28be4a8e97ae8436a14135c1e7014d20ec8f6509fcb7779",
+      "published": "reference/2026-study/serving/runner.py.txt",
+      "published_sha256": "4253c5b284a29295882e96c4febb510fd645a310437899ed65a1b87ded8e1d38",
+      "transformed": true,
+      "imported_sha256": "dc0a7e7aaaf7ba40b28be4a8e97ae8436a14135c1e7014d20ec8f6509fcb7779"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_observer.py",
+      "source_sha256": "18653be3f04c1dca29ad0a29b641ff26254ff39ccde44e3370cfacffd8d19adf",
+      "published": "reference/2026-study/serving/gpu_system_observer.py.txt",
+      "published_sha256": "18653be3f04c1dca29ad0a29b641ff26254ff39ccde44e3370cfacffd8d19adf",
+      "transformed": false,
+      "imported_sha256": "18653be3f04c1dca29ad0a29b641ff26254ff39ccde44e3370cfacffd8d19adf"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/integrate_system_plan.py",
+      "source_sha256": "77d4e3474a24d26e6fda401770de61ab2df6df9692f9c244cd7c42555d5cc7bb",
+      "published": "reference/2026-study/serving/integrate_system_plan.py.txt",
+      "published_sha256": "a5be047e90d709e05692349980fe532b730481270aa93b606303072e859849ea",
+      "transformed": true,
+      "imported_sha256": "a5be047e90d709e05692349980fe532b730481270aa93b606303072e859849ea"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_diagnostics.py",
+      "source_sha256": "152488e22778e16363af51ca4277b6fd3a5336a726ecb95d1f5e8d4c259943d3",
+      "published": "reference/2026-study/serving/report_diagnostics.py.txt",
+      "published_sha256": "152488e22778e16363af51ca4277b6fd3a5336a726ecb95d1f5e8d4c259943d3",
+      "transformed": false,
+      "imported_sha256": "152488e22778e16363af51ca4277b6fd3a5336a726ecb95d1f5e8d4c259943d3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_cost_widget.py",
+      "source_sha256": "ceb0e401571c07d08368a1f8a1ec17fe382c34a788e43bd1a8d6f3e8af9d5617",
+      "published": "reference/2026-study/serving/report_cost_widget.py.txt",
+      "published_sha256": "ceb0e401571c07d08368a1f8a1ec17fe382c34a788e43bd1a8d6f3e8af9d5617",
+      "transformed": false,
+      "imported_sha256": "ceb0e401571c07d08368a1f8a1ec17fe382c34a788e43bd1a8d6f3e8af9d5617"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_common_atomic.py",
+      "source_sha256": "c9bf018d18f8a36f75502fb60a7492953600233c741bf8989e65f89e79c9b70c",
+      "published": "reference/2026-study/serving/test_common_atomic.py.txt",
+      "published_sha256": "c9bf018d18f8a36f75502fb60a7492953600233c741bf8989e65f89e79c9b70c",
+      "transformed": false,
+      "imported_sha256": "c9bf018d18f8a36f75502fb60a7492953600233c741bf8989e65f89e79c9b70c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_length.py",
+      "source_sha256": "ea2a71ca3d98de2b37a87196cbf0a20c16eedb5c2b87b7a8bc3f778d60c7e938",
+      "published": "reference/2026-study/serving/report_length.py.txt",
+      "published_sha256": "ea2a71ca3d98de2b37a87196cbf0a20c16eedb5c2b87b7a8bc3f778d60c7e938",
+      "transformed": false,
+      "imported_sha256": "ea2a71ca3d98de2b37a87196cbf0a20c16eedb5c2b87b7a8bc3f778d60c7e938"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/public_monitor.py",
+      "source_sha256": "cb97678ebbf1794430c0bb2f76aa48659336426ac48f67aa49e2d192095fbb77",
+      "published": "reference/2026-study/serving/public_monitor.py.txt",
+      "published_sha256": "194a71e35ca434a88271aa63f2cbb501d25b1d902af80c765abde7e4b8cde64f",
+      "transformed": true,
+      "imported_sha256": "194a71e35ca434a88271aa63f2cbb501d25b1d902af80c765abde7e4b8cde64f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/boundary_review.py",
+      "source_sha256": "e7ccb7968778ea565a4e6d92c67cd8a67ade0833bcd55066ac281944b1377478",
+      "published": "reference/2026-study/serving/boundary_review.py.txt",
+      "published_sha256": "e7ccb7968778ea565a4e6d92c67cd8a67ade0833bcd55066ac281944b1377478",
+      "transformed": false,
+      "imported_sha256": "e7ccb7968778ea565a4e6d92c67cd8a67ade0833bcd55066ac281944b1377478"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_model.py",
+      "source_sha256": "6b4a3c4cb6ea76541793f8d7e9bf45547ae4470948c77165121f1c653a2750ac",
+      "published": "reference/2026-study/serving/report_model.py.txt",
+      "published_sha256": "6b4a3c4cb6ea76541793f8d7e9bf45547ae4470948c77165121f1c653a2750ac",
+      "transformed": false,
+      "imported_sha256": "6b4a3c4cb6ea76541793f8d7e9bf45547ae4470948c77165121f1c653a2750ac"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_chart_catalog.py",
+      "source_sha256": "2a12ce08d5b329cc28118eb42b0aebec39a10e592b8719fa28b8088ecd71c531",
+      "published": "reference/2026-study/serving/report_chart_catalog.py.txt",
+      "published_sha256": "2a12ce08d5b329cc28118eb42b0aebec39a10e592b8719fa28b8088ecd71c531",
+      "transformed": false,
+      "imported_sha256": "2a12ce08d5b329cc28118eb42b0aebec39a10e592b8719fa28b8088ecd71c531"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_measurements.py",
+      "source_sha256": "cb9496427de5b02db698149030fd8c95cc901cc820359e7f50fe1236dd00a8ea",
+      "published": "reference/2026-study/serving/report_measurements.py.txt",
+      "published_sha256": "cb9496427de5b02db698149030fd8c95cc901cc820359e7f50fe1236dd00a8ea",
+      "transformed": false,
+      "imported_sha256": "cb9496427de5b02db698149030fd8c95cc901cc820359e7f50fe1236dd00a8ea"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_guard.py",
+      "source_sha256": "51572073182f6b560d08d018f8ef2a70d6db7079530c88937d967815b013b009",
+      "published": "reference/2026-study/serving/gpu_system_guard.py.txt",
+      "published_sha256": "51572073182f6b560d08d018f8ef2a70d6db7079530c88937d967815b013b009",
+      "transformed": false,
+      "imported_sha256": "51572073182f6b560d08d018f8ef2a70d6db7079530c88937d967815b013b009"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_metrics.py",
+      "source_sha256": "1685f3d4065470dde64b1e756566e4f9444f880e6c84886c8712d1263ecd4bbf",
+      "published": "reference/2026-study/serving/test_metrics.py.txt",
+      "published_sha256": "1685f3d4065470dde64b1e756566e4f9444f880e6c84886c8712d1263ecd4bbf",
+      "transformed": false,
+      "imported_sha256": "1685f3d4065470dde64b1e756566e4f9444f880e6c84886c8712d1263ecd4bbf"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_collectives.py",
+      "source_sha256": "5a569685d1010cdccfdbb56c6e4bef57b56a25e56093dd3868309b17511b65ff",
+      "published": "reference/2026-study/serving/gpu_system_collectives.py.txt",
+      "published_sha256": "f9201505d67d84f1ec546b3606b22dde7aebd4e3670c5ef20f59b042518241d7",
+      "transformed": true,
+      "imported_sha256": "f9201505d67d84f1ec546b3606b22dde7aebd4e3670c5ef20f59b042518241d7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_cf_retry.py",
+      "source_sha256": "1915d2cb86df4465c59953e30d1934beee7ba58e914769bcb7a06bb1ef5005b8",
+      "published": "reference/2026-study/serving/test_cf_retry.py.txt",
+      "published_sha256": "1915d2cb86df4465c59953e30d1934beee7ba58e914769bcb7a06bb1ef5005b8",
+      "transformed": false,
+      "imported_sha256": "1915d2cb86df4465c59953e30d1934beee7ba58e914769bcb7a06bb1ef5005b8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/extended.py",
+      "source_sha256": "7c45be8d28d42650ab54c467ca0bc198bb1d7fc6cc78b145437bd200d42d4f49",
+      "published": "reference/2026-study/serving/extended.py.txt",
+      "published_sha256": "7c45be8d28d42650ab54c467ca0bc198bb1d7fc6cc78b145437bd200d42d4f49",
+      "transformed": false,
+      "imported_sha256": "7c45be8d28d42650ab54c467ca0bc198bb1d7fc6cc78b145437bd200d42d4f49"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_gpu_system.py",
+      "source_sha256": "f3f770330da1e1100441e245479404ed3e243a6bbf26b9e108e325aaf8cbd46d",
+      "published": "reference/2026-study/serving/report_gpu_system.py.txt",
+      "published_sha256": "282940113d8c3d945cac9dac41c6d0a5fdb27011eced651b5462421d3b9d89d7",
+      "transformed": true,
+      "imported_sha256": "282940113d8c3d945cac9dac41c6d0a5fdb27011eced651b5462421d3b9d89d7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/terminal_review.py",
+      "source_sha256": "3eeb5f451cf7d642f27d94c590ff8555604c3ea6cac51d42e036a6ff82e29dfd",
+      "published": "reference/2026-study/serving/terminal_review.py.txt",
+      "published_sha256": "3eeb5f451cf7d642f27d94c590ff8555604c3ea6cac51d42e036a6ff82e29dfd",
+      "transformed": false,
+      "imported_sha256": "3eeb5f451cf7d642f27d94c590ff8555604c3ea6cac51d42e036a6ff82e29dfd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/verify_visual_system.py",
+      "source_sha256": "91b97ff8fc1944a4b76ef6832d31a6c94852a0c8e202b128f22d9a688c9ceb66",
+      "published": "reference/2026-study/serving/verify_visual_system.py.txt",
+      "published_sha256": "91b97ff8fc1944a4b76ef6832d31a6c94852a0c8e202b128f22d9a688c9ceb66",
+      "transformed": false,
+      "imported_sha256": "91b97ff8fc1944a4b76ef6832d31a6c94852a0c8e202b128f22d9a688c9ceb66"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_h200_report.py",
+      "source_sha256": "420020842a9669410a31ecbb790a70b50d72cc8a1be7a2622307420134a4fda9",
+      "published": "reference/2026-study/serving/hardware_h200_report.py.txt",
+      "published_sha256": "420020842a9669410a31ecbb790a70b50d72cc8a1be7a2622307420134a4fda9",
+      "transformed": false,
+      "imported_sha256": "420020842a9669410a31ecbb790a70b50d72cc8a1be7a2622307420134a4fda9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_emphasis.py",
+      "source_sha256": "546f4f31480ad24fc84806331942bd1a1b1b81a90c999af20f9911dd92c73485",
+      "published": "reference/2026-study/serving/report_emphasis.py.txt",
+      "published_sha256": "546f4f31480ad24fc84806331942bd1a1b1b81a90c999af20f9911dd92c73485",
+      "transformed": false,
+      "imported_sha256": "546f4f31480ad24fc84806331942bd1a1b1b81a90c999af20f9911dd92c73485"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/redraw_report_figures.py",
+      "source_sha256": "817146aabe09e7cecb6f0dafa8508382fdc9a207038fa91ae62ec671bba66e3e",
+      "published": "reference/2026-study/serving/redraw_report_figures.py.txt",
+      "published_sha256": "817146aabe09e7cecb6f0dafa8508382fdc9a207038fa91ae62ec671bba66e3e",
+      "transformed": false,
+      "imported_sha256": "817146aabe09e7cecb6f0dafa8508382fdc9a207038fa91ae62ec671bba66e3e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/prepare_performance.py",
+      "source_sha256": "daabd07fedcedf11ccadd0ac1d2b325ac02a1d85db2d73c334760a4674937044",
+      "published": "reference/2026-study/serving/prepare_performance.py.txt",
+      "published_sha256": "daabd07fedcedf11ccadd0ac1d2b325ac02a1d85db2d73c334760a4674937044",
+      "transformed": false,
+      "imported_sha256": "daabd07fedcedf11ccadd0ac1d2b325ac02a1d85db2d73c334760a4674937044"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/verify_scientific_report.py",
+      "source_sha256": "ba4b2a665880984485f920140e49ab6acdf36c6ce1a7733c2d711b212ac59c10",
+      "published": "reference/2026-study/serving/verify_scientific_report.py.txt",
+      "published_sha256": "ba4b2a665880984485f920140e49ab6acdf36c6ce1a7733c2d711b212ac59c10",
+      "transformed": false,
+      "imported_sha256": "ba4b2a665880984485f920140e49ab6acdf36c6ce1a7733c2d711b212ac59c10"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_quarantine.py",
+      "source_sha256": "aecdff4a59ed327ac83d5c510ad75aeaea2a71f97b5fddd4a0bf10d26853506c",
+      "published": "reference/2026-study/serving/test_quarantine.py.txt",
+      "published_sha256": "aecdff4a59ed327ac83d5c510ad75aeaea2a71f97b5fddd4a0bf10d26853506c",
+      "transformed": false,
+      "imported_sha256": "aecdff4a59ed327ac83d5c510ad75aeaea2a71f97b5fddd4a0bf10d26853506c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/length_rejections.py",
+      "source_sha256": "0bb9911da572cdea7c42b8d679b7d450466347abff2d3c1e4ed138c25c0f73bc",
+      "published": "reference/2026-study/serving/length_rejections.py.txt",
+      "published_sha256": "0bb9911da572cdea7c42b8d679b7d450466347abff2d3c1e4ed138c25c0f73bc",
+      "transformed": false,
+      "imported_sha256": "0bb9911da572cdea7c42b8d679b7d450466347abff2d3c1e4ed138c25c0f73bc"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/business_runner.py",
+      "source_sha256": "f395303c54416c206d094a605f80184b94ced11d0f45891c7c4d52cde11d9c4b",
+      "published": "reference/2026-study/serving/business_runner.py.txt",
+      "published_sha256": "f395303c54416c206d094a605f80184b94ced11d0f45891c7c4d52cde11d9c4b",
+      "transformed": false,
+      "imported_sha256": "f395303c54416c206d094a605f80184b94ced11d0f45891c7c4d52cde11d9c4b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cache_plan.py",
+      "source_sha256": "85f909f5d3e0fe34201fea8b77862b205ef5a7c4e5cadfeb03e2ee97554a0a0b",
+      "published": "reference/2026-study/serving/cache_plan.py.txt",
+      "published_sha256": "85f909f5d3e0fe34201fea8b77862b205ef5a7c4e5cadfeb03e2ee97554a0a0b",
+      "transformed": false,
+      "imported_sha256": "85f909f5d3e0fe34201fea8b77862b205ef5a7c4e5cadfeb03e2ee97554a0a0b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cf_retry.py",
+      "source_sha256": "6e0f1766e3f45c35c8807dbed4d52af497e7b5bba641a2ac4848cc3cc588e045",
+      "published": "reference/2026-study/serving/cf_retry.py.txt",
+      "published_sha256": "6e0f1766e3f45c35c8807dbed4d52af497e7b5bba641a2ac4848cc3cc588e045",
+      "transformed": false,
+      "imported_sha256": "6e0f1766e3f45c35c8807dbed4d52af497e7b5bba641a2ac4848cc3cc588e045"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cache_figures.py",
+      "source_sha256": "57f1e2a0b76876e52ad72b0126163b3c84da05172b10c0b0d13988d55f0d81b4",
+      "published": "reference/2026-study/serving/cache_figures.py.txt",
+      "published_sha256": "57f1e2a0b76876e52ad72b0126163b3c84da05172b10c0b0d13988d55f0d81b4",
+      "transformed": false,
+      "imported_sha256": "57f1e2a0b76876e52ad72b0126163b3c84da05172b10c0b0d13988d55f0d81b4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/observe_tunnel.py",
+      "source_sha256": "f9e5106b76db5085a0c543ed580fb6fc7e867c955ecad58fc2ab6e44d2a76aad",
+      "published": "reference/2026-study/serving/observe_tunnel.py.txt",
+      "published_sha256": "e32124084c19eadd0b82959926ace946961c92594e8e0ba23991e4dd4591232f",
+      "transformed": true,
+      "imported_sha256": "e32124084c19eadd0b82959926ace946961c92594e8e0ba23991e4dd4591232f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/build_report.py",
+      "source_sha256": "3e974f35eb6f2eae8b1f73ea1d9f6b3849b233736a0be7f10228d635b5a2c4f9",
+      "published": "reference/2026-study/serving/build_report.py.txt",
+      "published_sha256": "3e974f35eb6f2eae8b1f73ea1d9f6b3849b233736a0be7f10228d635b5a2c4f9",
+      "transformed": false,
+      "imported_sha256": "3e974f35eb6f2eae8b1f73ea1d9f6b3849b233736a0be7f10228d635b5a2c4f9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_labels.py",
+      "source_sha256": "5fa20c3c6c4b3a2fa220ad2c703503437ee2209609072cf8316a3a79152b9542",
+      "published": "reference/2026-study/serving/report_labels.py.txt",
+      "published_sha256": "5fa20c3c6c4b3a2fa220ad2c703503437ee2209609072cf8316a3a79152b9542",
+      "transformed": false,
+      "imported_sha256": "5fa20c3c6c4b3a2fa220ad2c703503437ee2209609072cf8316a3a79152b9542"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/validate_h200_comparison.py",
+      "source_sha256": "8e5ae3946d94cc6c8dc80e3bf00fafdcd7499ea94130e2d0e47298e6fa35f289",
+      "published": "reference/2026-study/serving/validate_h200_comparison.py.txt",
+      "published_sha256": "8e5ae3946d94cc6c8dc80e3bf00fafdcd7499ea94130e2d0e47298e6fa35f289",
+      "transformed": false,
+      "imported_sha256": "8e5ae3946d94cc6c8dc80e3bf00fafdcd7499ea94130e2d0e47298e6fa35f289"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_narrative.py",
+      "source_sha256": "96eed1d38e97e845514283d7a428c104071c324c54331e5788741c1f8da99d1d",
+      "published": "reference/2026-study/serving/report_narrative.py.txt",
+      "published_sha256": "96eed1d38e97e845514283d7a428c104071c324c54331e5788741c1f8da99d1d",
+      "transformed": false,
+      "imported_sha256": "96eed1d38e97e845514283d7a428c104071c324c54331e5788741c1f8da99d1d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_extension_figures.py",
+      "source_sha256": "99eea7285c65fc1cd51ef16abc9906c328a2b29bbf1600f69df09355bf0acad7",
+      "published": "reference/2026-study/serving/hardware_extension_figures.py.txt",
+      "published_sha256": "99eea7285c65fc1cd51ef16abc9906c328a2b29bbf1600f69df09355bf0acad7",
+      "transformed": false,
+      "imported_sha256": "99eea7285c65fc1cd51ef16abc9906c328a2b29bbf1600f69df09355bf0acad7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/continuation.py",
+      "source_sha256": "9a4d9980001b3a88e58322ff7753a575ca184b06fadecaa9781f12fee2f77967",
+      "published": "reference/2026-study/serving/continuation.py.txt",
+      "published_sha256": "9a4d9980001b3a88e58322ff7753a575ca184b06fadecaa9781f12fee2f77967",
+      "transformed": false,
+      "imported_sha256": "9a4d9980001b3a88e58322ff7753a575ca184b06fadecaa9781f12fee2f77967"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_visual_theme.py",
+      "source_sha256": "c2aa72559206c91d5b06fe9f559835f0fafb8d3ead9249392a1ff4eba4deef4b",
+      "published": "reference/2026-study/serving/report_visual_theme.py.txt",
+      "published_sha256": "c2aa72559206c91d5b06fe9f559835f0fafb8d3ead9249392a1ff4eba4deef4b",
+      "transformed": false,
+      "imported_sha256": "c2aa72559206c91d5b06fe9f559835f0fafb8d3ead9249392a1ff4eba4deef4b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cf_edge_review.py",
+      "source_sha256": "4860fced357e4b954ca4b08b46cfb149dd76d3d228143f4273b43ccf29d4ce6a",
+      "published": "reference/2026-study/serving/cf_edge_review.py.txt",
+      "published_sha256": "4860fced357e4b954ca4b08b46cfb149dd76d3d228143f4273b43ccf29d4ce6a",
+      "transformed": false,
+      "imported_sha256": "4860fced357e4b954ca4b08b46cfb149dd76d3d228143f4273b43ccf29d4ce6a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/system_figures.py",
+      "source_sha256": "83dbba5294a7e4e41bbbf0cdca333d82179681c2246d9915a690f5ea20e77e6a",
+      "published": "reference/2026-study/serving/system_figures.py.txt",
+      "published_sha256": "83dbba5294a7e4e41bbbf0cdca333d82179681c2246d9915a690f5ea20e77e6a",
+      "transformed": false,
+      "imported_sha256": "83dbba5294a7e4e41bbbf0cdca333d82179681c2246d9915a690f5ea20e77e6a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cache_analysis.py",
+      "source_sha256": "f4f6f2621886fba530f82879cf7b439485fc970a679bebf4a81c0c4799ba08f2",
+      "published": "reference/2026-study/serving/cache_analysis.py.txt",
+      "published_sha256": "f4f6f2621886fba530f82879cf7b439485fc970a679bebf4a81c0c4799ba08f2",
+      "transformed": false,
+      "imported_sha256": "f4f6f2621886fba530f82879cf7b439485fc970a679bebf4a81c0c4799ba08f2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_foundations.py",
+      "source_sha256": "30589bf75987e042e3ac0ce4c69728bf0fed311b1d8c402d8935eb3c9de30caf",
+      "published": "reference/2026-study/serving/report_foundations.py.txt",
+      "published_sha256": "30589bf75987e042e3ac0ce4c69728bf0fed311b1d8c402d8935eb3c9de30caf",
+      "transformed": false,
+      "imported_sha256": "30589bf75987e042e3ac0ce4c69728bf0fed311b1d8c402d8935eb3c9de30caf"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cache_runner.py",
+      "source_sha256": "cb7f65d334760ea277f1cf338053ab7b4c86222da3024799950cc54887db3b22",
+      "published": "reference/2026-study/serving/cache_runner.py.txt",
+      "published_sha256": "cb7f65d334760ea277f1cf338053ab7b4c86222da3024799950cc54887db3b22",
+      "transformed": false,
+      "imported_sha256": "cb7f65d334760ea277f1cf338053ab7b4c86222da3024799950cc54887db3b22"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/plots.py",
+      "source_sha256": "35ba732663b297681dcb0039c0da6e1bdc54669c8a3712976d1eeb4984db1408",
+      "published": "reference/2026-study/serving/plots.py.txt",
+      "published_sha256": "35ba732663b297681dcb0039c0da6e1bdc54669c8a3712976d1eeb4984db1408",
+      "transformed": false,
+      "imported_sha256": "35ba732663b297681dcb0039c0da6e1bdc54669c8a3712976d1eeb4984db1408"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/business_results.py",
+      "source_sha256": "4ed566ee0ba48b7a8bc32021b0719466a6b0d3ee966459e95b1f2cdb21afb19d",
+      "published": "reference/2026-study/serving/business_results.py.txt",
+      "published_sha256": "4ed566ee0ba48b7a8bc32021b0719466a6b0d3ee966459e95b1f2cdb21afb19d",
+      "transformed": false,
+      "imported_sha256": "4ed566ee0ba48b7a8bc32021b0719466a6b0d3ee966459e95b1f2cdb21afb19d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/review_figures.py",
+      "source_sha256": "c3e22f928ee84440b033e4538367366024d71f9bbe664c491216b0482c1de2d1",
+      "published": "reference/2026-study/serving/review_figures.py.txt",
+      "published_sha256": "c3e22f928ee84440b033e4538367366024d71f9bbe664c491216b0482c1de2d1",
+      "transformed": false,
+      "imported_sha256": "c3e22f928ee84440b033e4538367366024d71f9bbe664c491216b0482c1de2d1"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/common.py",
+      "source_sha256": "bd6632a84c6e29747c83841983dfae90775e1756d29422558fdb8348403a6204",
+      "published": "reference/2026-study/serving/common.py.txt",
+      "published_sha256": "bd6632a84c6e29747c83841983dfae90775e1756d29422558fdb8348403a6204",
+      "transformed": false,
+      "imported_sha256": "bd6632a84c6e29747c83841983dfae90775e1756d29422558fdb8348403a6204"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_preflight.py",
+      "source_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c",
+      "published": "reference/2026-study/serving/gpu_system_preflight.py.txt",
+      "published_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c",
+      "transformed": false,
+      "imported_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/length_analysis.py",
+      "source_sha256": "344d1c3ede0fb4638dba2581f3bcc69e6d9ab75bce6196d5e9f3594abcaa2792",
+      "published": "reference/2026-study/serving/length_analysis.py.txt",
+      "published_sha256": "344d1c3ede0fb4638dba2581f3bcc69e6d9ab75bce6196d5e9f3594abcaa2792",
+      "transformed": false,
+      "imported_sha256": "344d1c3ede0fb4638dba2581f3bcc69e6d9ab75bce6196d5e9f3594abcaa2792"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/verify_share_report.py",
+      "source_sha256": "1acd2ee17cb97f503dcbbb8ba63d528746e39f22e67c6eb534eeeb64102a331b",
+      "published": "reference/2026-study/serving/verify_share_report.py.txt",
+      "published_sha256": "1acd2ee17cb97f503dcbbb8ba63d528746e39f22e67c6eb534eeeb64102a331b",
+      "transformed": false,
+      "imported_sha256": "1acd2ee17cb97f503dcbbb8ba63d528746e39f22e67c6eb534eeeb64102a331b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_runner.py",
+      "source_sha256": "14c3adb517b39bcdcbde2ce18c73b130cf15e591acaa7237fe36bd05393f8f19",
+      "published": "reference/2026-study/serving/test_runner.py.txt",
+      "published_sha256": "14c3adb517b39bcdcbde2ce18c73b130cf15e591acaa7237fe36bd05393f8f19",
+      "transformed": false,
+      "imported_sha256": "14c3adb517b39bcdcbde2ce18c73b130cf15e591acaa7237fe36bd05393f8f19"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/build_share_report.py",
+      "source_sha256": "dccc8c94858779cb6b5ba3ce1200cb38dcfde6383b84d7f196e6ef4a4ed57fce",
+      "published": "reference/2026-study/serving/build_share_report.py.txt",
+      "published_sha256": "dccc8c94858779cb6b5ba3ce1200cb38dcfde6383b84d7f196e6ef4a4ed57fce",
+      "transformed": false,
+      "imported_sha256": "dccc8c94858779cb6b5ba3ce1200cb38dcfde6383b84d7f196e6ef4a4ed57fce"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_editorial.py",
+      "source_sha256": "3fdc5eba5da31e50096579722ee33639ff83cc1bd0b167a97f62f44d37436068",
+      "published": "reference/2026-study/serving/report_editorial.py.txt",
+      "published_sha256": "3fdc5eba5da31e50096579722ee33639ff83cc1bd0b167a97f62f44d37436068",
+      "transformed": false,
+      "imported_sha256": "3fdc5eba5da31e50096579722ee33639ff83cc1bd0b167a97f62f44d37436068"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/cache_counters.py",
+      "source_sha256": "7aaa9c7fa184f532e4ee26c20a19ccffce14c771cc9b7383b31d02a8f89f3c9b",
+      "published": "reference/2026-study/serving/cache_counters.py.txt",
+      "published_sha256": "2e0c8e42cce556205dc5ac6c189c30c908df7cff3e383df854ae81f48c6782ab",
+      "transformed": true,
+      "imported_sha256": "2e0c8e42cce556205dc5ac6c189c30c908df7cff3e383df854ae81f48c6782ab"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/incident_report.py",
+      "source_sha256": "b8c47ffa02a7a2ee94979cebbacbf6e61ca54950df2800ff2adb525460a76afd",
+      "published": "reference/2026-study/serving/incident_report.py.txt",
+      "published_sha256": "74139e7879dcd7e525be41f7d7f6264978418c988c71756c3028414fb733ee74",
+      "transformed": true,
+      "imported_sha256": "b8c47ffa02a7a2ee94979cebbacbf6e61ca54950df2800ff2adb525460a76afd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/research_figures.py",
+      "source_sha256": "7a9b71655af63170a4b0d7c82607bd817fe3ff3705f211f75240d2e2ea1c1022",
+      "published": "reference/2026-study/serving/research_figures.py.txt",
+      "published_sha256": "7a9b71655af63170a4b0d7c82607bd817fe3ff3705f211f75240d2e2ea1c1022",
+      "transformed": false,
+      "imported_sha256": "7a9b71655af63170a4b0d7c82607bd817fe3ff3705f211f75240d2e2ea1c1022"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/refine_business_plan.py",
+      "source_sha256": "e3c4bbd6f686f1332080c7a26baefa2df8663d78de6a73f3304c2738a043b764",
+      "published": "reference/2026-study/serving/refine_business_plan.py.txt",
+      "published_sha256": "e3c4bbd6f686f1332080c7a26baefa2df8663d78de6a73f3304c2738a043b764",
+      "transformed": false,
+      "imported_sha256": "e3c4bbd6f686f1332080c7a26baefa2df8663d78de6a73f3304c2738a043b764"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/quarantine.py",
+      "source_sha256": "9b18f191b95df66dcc01062f26e8563886929cc0fe06ea10305241f7f769416b",
+      "published": "reference/2026-study/serving/quarantine.py.txt",
+      "published_sha256": "9b18f191b95df66dcc01062f26e8563886929cc0fe06ea10305241f7f769416b",
+      "transformed": false,
+      "imported_sha256": "9b18f191b95df66dcc01062f26e8563886929cc0fe06ea10305241f7f769416b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/length_figures.py",
+      "source_sha256": "e74a74c52277070a06308ae6c91af122d4d53d561b529579d35201c102d6875a",
+      "published": "reference/2026-study/serving/length_figures.py.txt",
+      "published_sha256": "e74a74c52277070a06308ae6c91af122d4d53d561b529579d35201c102d6875a",
+      "transformed": false,
+      "imported_sha256": "e74a74c52277070a06308ae6c91af122d4d53d561b529579d35201c102d6875a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_cache_diagnostics.py",
+      "source_sha256": "88f20d645fc1c7acba7ee3fd688f014988e432429bf833e054e1d29a76b2f03e",
+      "published": "reference/2026-study/serving/test_cache_diagnostics.py.txt",
+      "published_sha256": "88f20d645fc1c7acba7ee3fd688f014988e432429bf833e054e1d29a76b2f03e",
+      "transformed": false,
+      "imported_sha256": "88f20d645fc1c7acba7ee3fd688f014988e432429bf833e054e1d29a76b2f03e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_benchmarks.py",
+      "source_sha256": "a744ed296900e9a174de63228fb2db37deaaa937390b36551107326a05e60ba4",
+      "published": "reference/2026-study/serving/report_benchmarks.py.txt",
+      "published_sha256": "a744ed296900e9a174de63228fb2db37deaaa937390b36551107326a05e60ba4",
+      "transformed": false,
+      "imported_sha256": "a744ed296900e9a174de63228fb2db37deaaa937390b36551107326a05e60ba4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_remote.py",
+      "source_sha256": "59e8e99cb56e85666d8e8a5d6117ff2eb3f6957aeb57b8e9d527ee763bb8c41e",
+      "published": "reference/2026-study/serving/gpu_system_remote.py.txt",
+      "published_sha256": "a6353f1791387955b1135118e9aa7255d9ec4340442616af85421e5293213c84",
+      "transformed": true,
+      "imported_sha256": "a6353f1791387955b1135118e9aa7255d9ec4340442616af85421e5293213c84"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_completion_report.py",
+      "source_sha256": "8353a0dc1a8482b148c258789e42af37094223b1308c5e90cf33d854bed4636a",
+      "published": "reference/2026-study/serving/hardware_completion_report.py.txt",
+      "published_sha256": "7c446adf7ad7ca24625061be815f2707c0b4fd3c4686404aaf6df5263d0a006f",
+      "transformed": true,
+      "imported_sha256": "7c446adf7ad7ca24625061be815f2707c0b4fd3c4686404aaf6df5263d0a006f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_recover.py",
+      "source_sha256": "3912e60d32dfb977cedc3c34ee6b422bd640f255b1e7447ede8dcf0f3449675b",
+      "published": "reference/2026-study/serving/test_recover.py.txt",
+      "published_sha256": "3912e60d32dfb977cedc3c34ee6b422bd640f255b1e7447ede8dcf0f3449675b",
+      "transformed": false,
+      "imported_sha256": "3912e60d32dfb977cedc3c34ee6b422bd640f255b1e7447ede8dcf0f3449675b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_endpoint_details.py",
+      "source_sha256": "31055456b41259c084914bc23b6809b0c8489c579036e32946f4f48587e6f01f",
+      "published": "reference/2026-study/serving/report_endpoint_details.py.txt",
+      "published_sha256": "3e546f63f933fe05c0c8ebf57af689ad62bfae3f2fc827ede6c6076119496350",
+      "transformed": true,
+      "imported_sha256": "3e546f63f933fe05c0c8ebf57af689ad62bfae3f2fc827ede6c6076119496350"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_cache.py",
+      "source_sha256": "4f5e9544f7aaebd495854cd0f1f03c5a759994d961ce5ced7790530ae1b0fbaa",
+      "published": "reference/2026-study/serving/report_cache.py.txt",
+      "published_sha256": "4f5e9544f7aaebd495854cd0f1f03c5a759994d961ce5ced7790530ae1b0fbaa",
+      "transformed": false,
+      "imported_sha256": "4f5e9544f7aaebd495854cd0f1f03c5a759994d961ce5ced7790530ae1b0fbaa"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/origin.py",
+      "source_sha256": "04c65d7a49915e83b6e9ab54b207c81e349d88d122ebe75d1624233f83428516",
+      "published": "reference/2026-study/serving/origin.py.txt",
+      "published_sha256": "04c65d7a49915e83b6e9ab54b207c81e349d88d122ebe75d1624233f83428516",
+      "transformed": false,
+      "imported_sha256": "04c65d7a49915e83b6e9ab54b207c81e349d88d122ebe75d1624233f83428516"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_business.py",
+      "source_sha256": "4c77702299d48eead635914401602ee10c5f2dc48f24ede35a9ea72126f23eb2",
+      "published": "reference/2026-study/serving/test_business.py.txt",
+      "published_sha256": "4c77702299d48eead635914401602ee10c5f2dc48f24ede35a9ea72126f23eb2",
+      "transformed": false,
+      "imported_sha256": "4c77702299d48eead635914401602ee10c5f2dc48f24ede35a9ea72126f23eb2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_arrival.py",
+      "source_sha256": "1596d7fd7549c95fb97aa8e6cd903246e9f9efbf39bce8e6cfefb394695537b8",
+      "published": "reference/2026-study/serving/test_arrival.py.txt",
+      "published_sha256": "1596d7fd7549c95fb97aa8e6cd903246e9f9efbf39bce8e6cfefb394695537b8",
+      "transformed": false,
+      "imported_sha256": "1596d7fd7549c95fb97aa8e6cd903246e9f9efbf39bce8e6cfefb394695537b8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/driver.py",
+      "source_sha256": "84097d9164dd6480dd43e2477f04586b6bb35da317ab165071cec3de3415174b",
+      "published": "reference/2026-study/serving/driver.py.txt",
+      "published_sha256": "84097d9164dd6480dd43e2477f04586b6bb35da317ab165071cec3de3415174b",
+      "transformed": false,
+      "imported_sha256": "84097d9164dd6480dd43e2477f04586b6bb35da317ab165071cec3de3415174b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/reconcile.py",
+      "source_sha256": "54371b1732d9813039ddb5562d25fc761dc9cfd7cd9127cd4de9fac095bffedb",
+      "published": "reference/2026-study/serving/reconcile.py.txt",
+      "published_sha256": "54371b1732d9813039ddb5562d25fc761dc9cfd7cd9127cd4de9fac095bffedb",
+      "transformed": false,
+      "imported_sha256": "54371b1732d9813039ddb5562d25fc761dc9cfd7cd9127cd4de9fac095bffedb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/business_plan.py",
+      "source_sha256": "e6f0b572427386066f5613cba01183f45e9d3ee10f648ac917609f08d942ff67",
+      "published": "reference/2026-study/serving/business_plan.py.txt",
+      "published_sha256": "e37033c3a5bcea5d9dbf9bc71f43b0d0b97fb909512d152023a3c8866826bf43",
+      "transformed": true,
+      "imported_sha256": "e37033c3a5bcea5d9dbf9bc71f43b0d0b97fb909512d152023a3c8866826bf43"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_cost_model.py",
+      "source_sha256": "f082b0cdeff07b43b9c33efb047a46237f23967fa12c56927b7578ea3fdd31eb",
+      "published": "reference/2026-study/serving/report_cost_model.py.txt",
+      "published_sha256": "f082b0cdeff07b43b9c33efb047a46237f23967fa12c56927b7578ea3fdd31eb",
+      "transformed": false,
+      "imported_sha256": "f082b0cdeff07b43b9c33efb047a46237f23967fa12c56927b7578ea3fdd31eb"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gpu_system_control.py",
+      "source_sha256": "bbb37dfff4fe6526155d09fed50840ab41c41fe4d854372f16ba718e6543f806",
+      "published": "reference/2026-study/serving/gpu_system_control.py.txt",
+      "published_sha256": "9c400c1fe7a0213ab3a25e7347d1c0642ece7545510b144c312469103e91a595",
+      "transformed": true,
+      "imported_sha256": "e6d7792ab1c332ca3db9f546b2f628de96dae73c08406bda035c86a104b0a91f"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_gap_completion.py",
+      "source_sha256": "4ae9b06baae85cf9380079fa98eb4ff8e481bc4e295878f0602e392b93566d54",
+      "published": "reference/2026-study/serving/report_gap_completion.py.txt",
+      "published_sha256": "4ae9b06baae85cf9380079fa98eb4ff8e481bc4e295878f0602e392b93566d54",
+      "transformed": false,
+      "imported_sha256": "4ae9b06baae85cf9380079fa98eb4ff8e481bc4e295878f0602e392b93566d54"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/supervise.py",
+      "source_sha256": "cc5ade86f0484ac5b44bd98119d1685aa88c0f24c63a693a8c3dd35e8970b2b4",
+      "published": "reference/2026-study/serving/supervise.py.txt",
+      "published_sha256": "cc5ade86f0484ac5b44bd98119d1685aa88c0f24c63a693a8c3dd35e8970b2b4",
+      "transformed": false,
+      "imported_sha256": "cc5ade86f0484ac5b44bd98119d1685aa88c0f24c63a693a8c3dd35e8970b2b4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_diag.py",
+      "source_sha256": "a0fc0ce5aac88f2719f0c2cc9a8d3947f6418fa20658c658ea046929f26d666f",
+      "published": "reference/2026-study/serving/hardware_diag.py.txt",
+      "published_sha256": "e6dea79146c47714520881030feb3b41689cdc2b917ebf80fb41492328a2bb5b",
+      "transformed": true,
+      "imported_sha256": "cdeddeca5d3e13f7ad3dc3d6c4746d36b7582517fcde7d69a62ebc4a9af57b61"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_collective_analysis.py",
+      "source_sha256": "9add155e3f2abf83b6ac28eeac4b8a26fcb213667ac8513f82fed3b5d437deba",
+      "published": "reference/2026-study/serving/hardware_collective_analysis.py.txt",
+      "published_sha256": "9add155e3f2abf83b6ac28eeac4b8a26fcb213667ac8513f82fed3b5d437deba",
+      "transformed": false,
+      "imported_sha256": "9add155e3f2abf83b6ac28eeac4b8a26fcb213667ac8513f82fed3b5d437deba"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/finalize_hardware.py",
+      "source_sha256": "25e44679c55492f27ce7e9371ebe556af575b2aabe792b969573af9339e705ee",
+      "published": "reference/2026-study/serving/finalize_hardware.py.txt",
+      "published_sha256": "25e44679c55492f27ce7e9371ebe556af575b2aabe792b969573af9339e705ee",
+      "transformed": false,
+      "imported_sha256": "25e44679c55492f27ce7e9371ebe556af575b2aabe792b969573af9339e705ee"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/diagnostic_figures.py",
+      "source_sha256": "5bcacd59533e6dbf39dc6d70c6bb732b14c1dd5f144e731e6a4fc2282d068e31",
+      "published": "reference/2026-study/serving/diagnostic_figures.py.txt",
+      "published_sha256": "5bcacd59533e6dbf39dc6d70c6bb732b14c1dd5f144e731e6a4fc2282d068e31",
+      "transformed": false,
+      "imported_sha256": "5bcacd59533e6dbf39dc6d70c6bb732b14c1dd5f144e731e6a4fc2282d068e31"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_terminal_review.py",
+      "source_sha256": "44054f2cce8a930c7c1283e3e181a98dee4230491164d79a64ea595262469053",
+      "published": "reference/2026-study/serving/test_terminal_review.py.txt",
+      "published_sha256": "44054f2cce8a930c7c1283e3e181a98dee4230491164d79a64ea595262469053",
+      "transformed": false,
+      "imported_sha256": "44054f2cce8a930c7c1283e3e181a98dee4230491164d79a64ea595262469053"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/arrival.py",
+      "source_sha256": "b7127f13aaa82bcd98d98c6b17701cee0c7f1ed5c28fc327c8ecedc6955e0264",
+      "published": "reference/2026-study/serving/arrival.py.txt",
+      "published_sha256": "b7127f13aaa82bcd98d98c6b17701cee0c7f1ed5c28fc327c8ecedc6955e0264",
+      "transformed": false,
+      "imported_sha256": "b7127f13aaa82bcd98d98c6b17701cee0c7f1ed5c28fc327c8ecedc6955e0264"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_results_expansion.py",
+      "source_sha256": "cf4104b0978d91ce89aa9d38305b2743b338654c07e58b468127d46b9c99b11b",
+      "published": "reference/2026-study/serving/report_results_expansion.py.txt",
+      "published_sha256": "cf4104b0978d91ce89aa9d38305b2743b338654c07e58b468127d46b9c99b11b",
+      "transformed": false,
+      "imported_sha256": "cf4104b0978d91ce89aa9d38305b2743b338654c07e58b468127d46b9c99b11b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/analyze.py",
+      "source_sha256": "34d5e361648de86be514767fb6f535309664978e8721237e59e3ab96ddaa8378",
+      "published": "reference/2026-study/serving/analyze.py.txt",
+      "published_sha256": "34d5e361648de86be514767fb6f535309664978e8721237e59e3ab96ddaa8378",
+      "transformed": false,
+      "imported_sha256": "34d5e361648de86be514767fb6f535309664978e8721237e59e3ab96ddaa8378"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_returns.py",
+      "source_sha256": "19a1bbbb998616c9536f2c638dd9201d3523b81b69ffe1b6683d59222dcab779",
+      "published": "reference/2026-study/serving/report_returns.py.txt",
+      "published_sha256": "19a1bbbb998616c9536f2c638dd9201d3523b81b69ffe1b6683d59222dcab779",
+      "transformed": false,
+      "imported_sha256": "19a1bbbb998616c9536f2c638dd9201d3523b81b69ffe1b6683d59222dcab779"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_coverage.py",
+      "source_sha256": "65cb47fc56291b555321e7651b27cb91194109b7623054faf6b0593d2151145d",
+      "published": "reference/2026-study/serving/report_coverage.py.txt",
+      "published_sha256": "65cb47fc56291b555321e7651b27cb91194109b7623054faf6b0593d2151145d",
+      "transformed": false,
+      "imported_sha256": "65cb47fc56291b555321e7651b27cb91194109b7623054faf6b0593d2151145d"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/recover.py",
+      "source_sha256": "83d215e5045371b31480423dcc51efed784967c0eea897fbcd8850df98f80619",
+      "published": "reference/2026-study/serving/recover.py.txt",
+      "published_sha256": "83d215e5045371b31480423dcc51efed784967c0eea897fbcd8850df98f80619",
+      "transformed": false,
+      "imported_sha256": "83d215e5045371b31480423dcc51efed784967c0eea897fbcd8850df98f80619"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/report_appendix.py",
+      "source_sha256": "f715d986cc31daef1b85e5f953c8d82ac3ba8512d414677a1a05892e86b3a9ce",
+      "published": "reference/2026-study/serving/report_appendix.py.txt",
+      "published_sha256": "f715d986cc31daef1b85e5f953c8d82ac3ba8512d414677a1a05892e86b3a9ce",
+      "transformed": false,
+      "imported_sha256": "f715d986cc31daef1b85e5f953c8d82ac3ba8512d414677a1a05892e86b3a9ce"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_public_monitor.py",
+      "source_sha256": "8fb286aa2d0c85e84a770f96d0dc4568e2dc90f0b9187e362984f2acb2eae868",
+      "published": "reference/2026-study/serving/test_public_monitor.py.txt",
+      "published_sha256": "8fb286aa2d0c85e84a770f96d0dc4568e2dc90f0b9187e362984f2acb2eae868",
+      "transformed": false,
+      "imported_sha256": "8fb286aa2d0c85e84a770f96d0dc4568e2dc90f0b9187e362984f2acb2eae868"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/test_report_diagnostics.py",
+      "source_sha256": "a89b18e1e2aba293036a2ae350741a4325aa81ccea0f2b75312b61acc0eae831",
+      "published": "reference/2026-study/serving/test_report_diagnostics.py.txt",
+      "published_sha256": "a89b18e1e2aba293036a2ae350741a4325aa81ccea0f2b75312b61acc0eae831",
+      "transformed": false,
+      "imported_sha256": "a89b18e1e2aba293036a2ae350741a4325aa81ccea0f2b75312b61acc0eae831"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_maintenance.py",
+      "source_sha256": "4346047664644c8b4958564ea919c6a693129c41146934e3d6fc417c8aebb6f9",
+      "published": "reference/2026-study/hardware/test_maintenance.py.txt",
+      "published_sha256": "4346047664644c8b4958564ea919c6a693129c41146934e3d6fc417c8aebb6f9",
+      "transformed": false,
+      "imported_sha256": "4346047664644c8b4958564ea919c6a693129c41146934e3d6fc417c8aebb6f9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_bench.py",
+      "source_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22",
+      "published": "reference/2026-study/hardware/gpu_system_bench.py.txt",
+      "published_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22",
+      "transformed": false,
+      "imported_sha256": "aac48fbd1c32964f7ee85d78e685f99b8f876d7a03e7666f703514d987132a22"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/soak_protocol.py",
+      "source_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3",
+      "published": "reference/2026-study/hardware/soak_protocol.py.txt",
+      "published_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3",
+      "transformed": false,
+      "imported_sha256": "a89283bd51d1023464c7c22695fd3480e5b3dc1259b68af344cfb6aec03593e3"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_observer.py",
+      "source_sha256": "5a6301681a3aa5baf84652cd3fcb26a875d9e9c2988b1d17814d451ef53d2814",
+      "published": "reference/2026-study/hardware/gpu_system_observer.py.txt",
+      "published_sha256": "5a6301681a3aa5baf84652cd3fcb26a875d9e9c2988b1d17814d451ef53d2814",
+      "transformed": false,
+      "imported_sha256": "5a6301681a3aa5baf84652cd3fcb26a875d9e9c2988b1d17814d451ef53d2814"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_soak_protocol.py",
+      "source_sha256": "74cf8b372887b7ba44ddfd50e09534502beb35364b1f13fec930e3dfd1833f70",
+      "published": "reference/2026-study/hardware/test_soak_protocol.py.txt",
+      "published_sha256": "74cf8b372887b7ba44ddfd50e09534502beb35364b1f13fec930e3dfd1833f70",
+      "transformed": false,
+      "imported_sha256": "74cf8b372887b7ba44ddfd50e09534502beb35364b1f13fec930e3dfd1833f70"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_guard.py",
+      "source_sha256": "5fc1cee25cfb5e2b8363eeb8056ba52c9d6cb7c12a54d92161ac579f5d32579e",
+      "published": "reference/2026-study/hardware/gpu_system_guard.py.txt",
+      "published_sha256": "5fc1cee25cfb5e2b8363eeb8056ba52c9d6cb7c12a54d92161ac579f5d32579e",
+      "transformed": false,
+      "imported_sha256": "5fc1cee25cfb5e2b8363eeb8056ba52c9d6cb7c12a54d92161ac579f5d32579e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_collectives.py",
+      "source_sha256": "5a569685d1010cdccfdbb56c6e4bef57b56a25e56093dd3868309b17511b65ff",
+      "published": "reference/2026-study/hardware/gpu_system_collectives.py.txt",
+      "published_sha256": "f9201505d67d84f1ec546b3606b22dde7aebd4e3670c5ef20f59b042518241d7",
+      "transformed": true,
+      "imported_sha256": "f9201505d67d84f1ec546b3606b22dde7aebd4e3670c5ef20f59b042518241d7"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/counter_retry_remote.py",
+      "source_sha256": "3fa0faab35567e9e4627918aa8865033b9ac19c78e93f46040b5a73ae26d5fc4",
+      "published": "reference/2026-study/hardware/counter_retry_remote.py.txt",
+      "published_sha256": "3fa0faab35567e9e4627918aa8865033b9ac19c78e93f46040b5a73ae26d5fc4",
+      "transformed": false,
+      "imported_sha256": "3fa0faab35567e9e4627918aa8865033b9ac19c78e93f46040b5a73ae26d5fc4"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_extensions.py",
+      "source_sha256": "3e8858e55c375db8383e0c391e8f742de410a058cf7109b7eb48b181ac28b223",
+      "published": "reference/2026-study/hardware/test_extensions.py.txt",
+      "published_sha256": "3e8858e55c375db8383e0c391e8f742de410a058cf7109b7eb48b181ac28b223",
+      "transformed": false,
+      "imported_sha256": "3e8858e55c375db8383e0c391e8f742de410a058cf7109b7eb48b181ac28b223"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_thermal_backoff.py",
+      "source_sha256": "1f1aa8cd6e32187b20c7089ab67c155acfcc11916e0706eadeb00d47eda8a3de",
+      "published": "reference/2026-study/hardware/test_thermal_backoff.py.txt",
+      "published_sha256": "1f1aa8cd6e32187b20c7089ab67c155acfcc11916e0706eadeb00d47eda8a3de",
+      "transformed": false,
+      "imported_sha256": "1f1aa8cd6e32187b20c7089ab67c155acfcc11916e0706eadeb00d47eda8a3de"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_retry_policy.py",
+      "source_sha256": "4cc88b5b951288180a2f6ea13e1e39d8e72beebbd42ead6e24ddb5af51de0c39",
+      "published": "reference/2026-study/hardware/test_retry_policy.py.txt",
+      "published_sha256": "4cc88b5b951288180a2f6ea13e1e39d8e72beebbd42ead6e24ddb5af51de0c39",
+      "transformed": false,
+      "imported_sha256": "4cc88b5b951288180a2f6ea13e1e39d8e72beebbd42ead6e24ddb5af51de0c39"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/finalize.py",
+      "source_sha256": "99d86cf215c25a8a3188d219e57f6055e29bfe24837d4479d2ed2db0575332f5",
+      "published": "reference/2026-study/hardware/finalize.py.txt",
+      "published_sha256": "99d86cf215c25a8a3188d219e57f6055e29bfe24837d4479d2ed2db0575332f5",
+      "transformed": false,
+      "imported_sha256": "99d86cf215c25a8a3188d219e57f6055e29bfe24837d4479d2ed2db0575332f5"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_comparisons.py",
+      "source_sha256": "036ab0b18f21e609c96a1c61381e3b1868f912ac0d88dcc63a3f782b874a4fa1",
+      "published": "reference/2026-study/hardware/test_comparisons.py.txt",
+      "published_sha256": "036ab0b18f21e609c96a1c61381e3b1868f912ac0d88dcc63a3f782b874a4fa1",
+      "transformed": false,
+      "imported_sha256": "036ab0b18f21e609c96a1c61381e3b1868f912ac0d88dcc63a3f782b874a4fa1"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_extension_resume.py",
+      "source_sha256": "89f563e18620d5b10f88410f1c3a16c8cfd820a1327b524b9f086d098a782b8b",
+      "published": "reference/2026-study/hardware/test_extension_resume.py.txt",
+      "published_sha256": "89f563e18620d5b10f88410f1c3a16c8cfd820a1327b524b9f086d098a782b8b",
+      "transformed": false,
+      "imported_sha256": "89f563e18620d5b10f88410f1c3a16c8cfd820a1327b524b9f086d098a782b8b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_preflight.py",
+      "source_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c",
+      "published": "reference/2026-study/hardware/gpu_system_preflight.py.txt",
+      "published_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c",
+      "transformed": false,
+      "imported_sha256": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/test_resume.py",
+      "source_sha256": "a7e57875af35f8341e7cb85eb71a6f37bd92c167279c2358e52442493653f7f9",
+      "published": "reference/2026-study/hardware/test_resume.py.txt",
+      "published_sha256": "a7e57875af35f8341e7cb85eb71a6f37bd92c167279c2358e52442493653f7f9",
+      "transformed": false,
+      "imported_sha256": "a7e57875af35f8341e7cb85eb71a6f37bd92c167279c2358e52442493653f7f9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/overnight_finish.py",
+      "source_sha256": "148af2c86f28d65faad0f29f9dd5cd0d6106b3f6af0dadafc76269906db89aff",
+      "published": "reference/2026-study/hardware/overnight_finish.py.txt",
+      "published_sha256": "29b02b5e94658506b57208fc967b0e6d82dd1393c9be3339cb2b6b3309a5ef6f",
+      "transformed": true,
+      "imported_sha256": "86c83e97520a25d2de9ec79930529371d76869ad3b3894bc301f3c796c6fb99a"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/retry_policy.py",
+      "source_sha256": "8fa5fa31db499ccb3d57de6dc4c09eee5b824779f0b3d63e49d9f74da62effbd",
+      "published": "reference/2026-study/hardware/retry_policy.py.txt",
+      "published_sha256": "8fa5fa31db499ccb3d57de6dc4c09eee5b824779f0b3d63e49d9f74da62effbd",
+      "transformed": false,
+      "imported_sha256": "8fa5fa31db499ccb3d57de6dc4c09eee5b824779f0b3d63e49d9f74da62effbd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/thermal_backoff.py",
+      "source_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0",
+      "published": "reference/2026-study/hardware/thermal_backoff.py.txt",
+      "published_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0",
+      "transformed": false,
+      "imported_sha256": "85df02971e21af3c803756bde9a625d9b5681632bb31d64c298e355beace0ff0"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_remote.py",
+      "source_sha256": "10e8391bc7aa62257d306715ab5698cee42512e33facea8dfbc312c09944639b",
+      "published": "reference/2026-study/hardware/gpu_system_remote.py.txt",
+      "published_sha256": "b123f8f3df43fe9aeebe3a9d80b0dba59005bfd40a99a548f161ce07e0d062fd",
+      "transformed": true,
+      "imported_sha256": "b123f8f3df43fe9aeebe3a9d80b0dba59005bfd40a99a548f161ce07e0d062fd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_overlap.py",
+      "source_sha256": "2104eec675a464937ecb653b4ea3b762f34fd48d23ca5f3d848b10a69467a9b9",
+      "published": "reference/2026-study/hardware/gpu_overlap.py.txt",
+      "published_sha256": "2462b2bbdbcc520d085706f770b01c1b492487a121509f15f1370ed9d9a5fd13",
+      "transformed": true,
+      "imported_sha256": "2462b2bbdbcc520d085706f770b01c1b492487a121509f15f1370ed9d9a5fd13"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_extensions.py",
+      "source_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef",
+      "published": "reference/2026-study/hardware/gpu_extensions.py.txt",
+      "published_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef",
+      "transformed": false,
+      "imported_sha256": "2464f2740b7748b909bf3eec4b0734e5ff66e109883ab65255fe692f6cacdeef"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/gpu_system_control.py",
+      "source_sha256": "743093adc48076718e3106e3f56e0e3d10c2fe0038360b1a411716d6982c73d2",
+      "published": "reference/2026-study/hardware/gpu_system_control.py.txt",
+      "published_sha256": "ea689bc036e3fe9bf8d1f7bbd234dec96e0308761789bd89a9780ec05120be93",
+      "transformed": true,
+      "imported_sha256": "99013f176869fd90561f0e7a9caa19d584b63651449b638cef9ff11d17756acd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/analyze.py",
+      "source_sha256": "7ebf95684264b616ea86479a7b3186d23c959650494baf7872af117c907b0594",
+      "published": "reference/2026-study/hardware/analyze.py.txt",
+      "published_sha256": "7ebf95684264b616ea86479a7b3186d23c959650494baf7872af117c907b0594",
+      "transformed": false,
+      "imported_sha256": "7ebf95684264b616ea86479a7b3186d23c959650494baf7872af117c907b0594"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/hardware_unloaded_confirmed_20261016/kernels.cu",
+      "source_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd",
+      "published": "reference/2026-study/hardware/kernels.cu.txt",
+      "published_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd",
+      "transformed": false,
+      "imported_sha256": "4fb05ee44215671e9af546d83e0aac03daed1a3286a19be595e21c109979bddd"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/analyze_engine.py",
+      "source_sha256": "edbe68fdf33c3988b52dd7aa9c0efdc4e80ad2c67ae8392b24bb19224757ef1b",
+      "published": "reference/2026-study/engine/analyze_engine.py.txt",
+      "published_sha256": "edbe68fdf33c3988b52dd7aa9c0efdc4e80ad2c67ae8392b24bb19224757ef1b",
+      "transformed": false,
+      "imported_sha256": "edbe68fdf33c3988b52dd7aa9c0efdc4e80ad2c67ae8392b24bb19224757ef1b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/test_analysis.py",
+      "source_sha256": "1880dd6d786c76922777bc897c5eb6785c68e0dcd5b1901ba7fab19b8b60370c",
+      "published": "reference/2026-study/engine/test_analysis.py.txt",
+      "published_sha256": "1880dd6d786c76922777bc897c5eb6785c68e0dcd5b1901ba7fab19b8b60370c",
+      "transformed": false,
+      "imported_sha256": "1880dd6d786c76922777bc897c5eb6785c68e0dcd5b1901ba7fab19b8b60370c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/run_engine.py",
+      "source_sha256": "547969f461afe64c8ce7421c96aa4f6083a63ade2600c89e0689ec4223a871f6",
+      "published": "reference/2026-study/engine/run_engine.py.txt",
+      "published_sha256": "2cc6a4468da309ff782ae72c5e9d90f191b3aa55352b11cf4e8185af0ba58c73",
+      "transformed": true,
+      "imported_sha256": "8297cc45acf2f6308878d98be69fc19bdf91da5abc9fc1ff557b781c68150056"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/engine_split_20261016/engine_probe.py",
+      "source_sha256": "c2606efacec5a4abc847cae051b4c26bf4980c76bde9d2db0a91901247629dea",
+      "published": "reference/2026-study/engine/engine_probe.py.txt",
+      "published_sha256": "c2606efacec5a4abc847cae051b4c26bf4980c76bde9d2db0a91901247629dea",
+      "transformed": false,
+      "imported_sha256": "c2606efacec5a4abc847cae051b4c26bf4980c76bde9d2db0a91901247629dea"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/runner.frozen_budget.py",
+      "source_sha256": "cbd4f285dfed10bc440051856acf6250c02dc88ff71d7277cc8055e56b14654e",
+      "published": "reference/2026-study/completion/runner.frozen_budget.py.txt",
+      "published_sha256": "b2a047078e0253a61141232d8a0714d576a313b5cff7309676b280bc325fcbb1",
+      "transformed": true,
+      "imported_sha256": "cbd4f285dfed10bc440051856acf6250c02dc88ff71d7277cc8055e56b14654e"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/profile_completion.py",
+      "source_sha256": "ca1622019a02af220e3db402074648eaf0286329cb8254c33e7991b85c946a36",
+      "published": "reference/2026-study/completion/profile_completion.py.txt",
+      "published_sha256": "ca1622019a02af220e3db402074648eaf0286329cb8254c33e7991b85c946a36",
+      "transformed": false,
+      "imported_sha256": "ca1622019a02af220e3db402074648eaf0286329cb8254c33e7991b85c946a36"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/public_completion.py",
+      "source_sha256": "e104e9211221655cf2474e608636cfb6e65d74180a2163cb39ac12ae07eae170",
+      "published": "reference/2026-study/completion/public_completion.py.txt",
+      "published_sha256": "e104e9211221655cf2474e608636cfb6e65d74180a2163cb39ac12ae07eae170",
+      "transformed": false,
+      "imported_sha256": "e104e9211221655cf2474e608636cfb6e65d74180a2163cb39ac12ae07eae170"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/counter_workload.cu",
+      "source_sha256": "0ca13a40b7b191f869e7ea694bf6d166ac77fd0b0483af6706eebb803e34e03c",
+      "published": "reference/2026-study/completion/counter_workload.cu.txt",
+      "published_sha256": "0ca13a40b7b191f869e7ea694bf6d166ac77fd0b0483af6706eebb803e34e03c",
+      "transformed": false,
+      "imported_sha256": "0ca13a40b7b191f869e7ea694bf6d166ac77fd0b0483af6706eebb803e34e03c"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/fp64_completion.py",
+      "source_sha256": "4f9c3e855f7631c94d79bd8ec9bb3b2d982c1075f20ee63e6ada54c274c5c14b",
+      "published": "reference/2026-study/completion/fp64_completion.py.txt",
+      "published_sha256": "4f9c3e855f7631c94d79bd8ec9bb3b2d982c1075f20ee63e6ada54c274c5c14b",
+      "transformed": false,
+      "imported_sha256": "4f9c3e855f7631c94d79bd8ec9bb3b2d982c1075f20ee63e6ada54c274c5c14b"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/native_completion.py",
+      "source_sha256": "34b8c59c4eed6cf6e5b1206bcac8f89f2ab1cb454afd02ef9e9aa61c6d57a87f",
+      "published": "reference/2026-study/completion/native_completion.py.txt",
+      "published_sha256": "00bc51f81579a15866ed6f7d3656a6e6f1cad8b8af809512ec617c4398ac7b4c",
+      "transformed": true,
+      "imported_sha256": "deb8dbd616ec599e3cc6700e7cafee8fe03683827edd809538f9af32df8e1b58"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/figures.py",
+      "source_sha256": "6058b2aaf8f826c5d8c9277860aee319f13d31d4939a1792e5d58e9cac43f8ec",
+      "published": "reference/2026-study/completion/figures.py.txt",
+      "published_sha256": "6058b2aaf8f826c5d8c9277860aee319f13d31d4939a1792e5d58e9cac43f8ec",
+      "transformed": false,
+      "imported_sha256": "6058b2aaf8f826c5d8c9277860aee319f13d31d4939a1792e5d58e9cac43f8ec"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/native_completion.initial.py",
+      "source_sha256": "3e2a061f082ac1dde2552d1e42e2b4b8d45d2c0bb2ff70623764ca183bdeccae",
+      "published": "reference/2026-study/completion/native_completion.initial.py.txt",
+      "published_sha256": "ed009d9f165461a546fa138ad6d19664e6bf967ee4f038b819d51bfd23395718",
+      "transformed": true,
+      "imported_sha256": "d033797605c17d589a3844fe8bab010e9acbc895637a895088da54dd55f7dfe8"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/freeze.py",
+      "source_sha256": "60a33309162abc3a8649b1c02d8c84e71f9a791c0ca53523f5174d9c0dc7849e",
+      "published": "reference/2026-study/completion/freeze.py.txt",
+      "published_sha256": "3562bcfc55c63c6ee0fc6956745717bc1ee0ab95ef5f9a8480eefc451ecc2c41",
+      "transformed": true,
+      "imported_sha256": "3562bcfc55c63c6ee0fc6956745717bc1ee0ab95ef5f9a8480eefc451ecc2c41"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/freeze_public.py",
+      "source_sha256": "e955525f023370899407bc0c347c2e0ade040950adb1193ca4b9865b4614d558",
+      "published": "reference/2026-study/completion/freeze_public.py.txt",
+      "published_sha256": "e955525f023370899407bc0c347c2e0ade040950adb1193ca4b9865b4614d558",
+      "transformed": false,
+      "imported_sha256": "e955525f023370899407bc0c347c2e0ade040950adb1193ca4b9865b4614d558"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/refresh_report.py",
+      "source_sha256": "1fad08c5b3760db44913c9eb3e0e8b026fba123b76281e8dcd225b00e9c5afa9",
+      "published": "reference/2026-study/completion/refresh_report.py.txt",
+      "published_sha256": "1fad08c5b3760db44913c9eb3e0e8b026fba123b76281e8dcd225b00e9c5afa9",
+      "transformed": false,
+      "imported_sha256": "1fad08c5b3760db44913c9eb3e0e8b026fba123b76281e8dcd225b00e9c5afa9"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/native_stream_repair_watch.py",
+      "source_sha256": "15ed149100bfb9eca0c47e6c30a04de3d59be0cc11f86913027f4fedf0b9f433",
+      "published": "reference/2026-study/completion/native_stream_repair_watch.py.txt",
+      "published_sha256": "cc46d13ec000b88f965ce9b334602722c484e7482702c1e8858822e429dc83c2",
+      "transformed": true,
+      "imported_sha256": "cc46d13ec000b88f965ce9b334602722c484e7482702c1e8858822e429dc83c2"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/analyze_completion.py",
+      "source_sha256": "08d787410aab22e44d8ca236cd7f795f4d9a0d0b2a1ba9cb89ef4756d7d96228",
+      "published": "reference/2026-study/completion/analyze_completion.py.txt",
+      "published_sha256": "08d787410aab22e44d8ca236cd7f795f4d9a0d0b2a1ba9cb89ef4756d7d96228",
+      "transformed": false,
+      "imported_sha256": "08d787410aab22e44d8ca236cd7f795f4d9a0d0b2a1ba9cb89ef4756d7d96228"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/gap_completion_20261017/public_sample.py",
+      "source_sha256": "d878d16c05ec56ea43326184eaba6408dc249f0e9ed06b6ba37c3d3c199ee329",
+      "published": "reference/2026-study/completion/public_sample.py.txt",
+      "published_sha256": "18e7a65216c1635397fc8044613fb9a5a3044139a37bb937d1b80d5f0004b90a",
+      "transformed": true,
+      "imported_sha256": "18e7a65216c1635397fc8044613fb9a5a3044139a37bb937d1b80d5f0004b90a"
+    },
+    {
+      "source": "export/qwen38_abliterated_eval_20261014_mtp/sources/manifest.json",
+      "source_sha256": "c54af461a866e94c7569e72fa691f7aaa626e65efa8ebf926849866745ec8b78",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/sources.json",
+      "published_sha256": "c54af461a866e94c7569e72fa691f7aaa626e65efa8ebf926849866745ec8b78",
+      "transformed": false,
+      "imported_sha256": "c54af461a866e94c7569e72fa691f7aaa626e65efa8ebf926849866745ec8b78"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/comparison.json",
+      "source_sha256": "3d971cea0c7e34a28fb08701fbbaf487c206dfe4d8be7cb88de1d099377c9801",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/data/h200-comparison.json",
+      "published_sha256": "337ce22dd81938365f0a42b588ec9165a890a1860c19c80c11c25a40892af2a6",
+      "transformed": true,
+      "imported_sha256": "337ce22dd81938365f0a42b588ec9165a890a1860c19c80c11c25a40892af2a6"
+    },
+    {
+      "source": "export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/sources.json",
+      "source_sha256": "cca9db41dd8c10af14369c5676851a61ad2f0997a06393dd53e9fe4b3a8dd2bd",
+      "published": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/h200-sources.json",
+      "published_sha256": "8c912ca00d3ad489336d8a19eeabc067f74dea900b8b4e5a2438dfd320745170",
+      "transformed": true,
+      "imported_sha256": "8c912ca00d3ad489336d8a19eeabc067f74dea900b8b4e5a2438dfd320745170"
+    }
+  ]
+}

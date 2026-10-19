@@ -1,0 +1,1285 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="717.12pt" height="256.32pt" viewBox="0 0 717.12 256.32" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-10-17T09:06:43.155727</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 256.32 
+L 717.12 256.32 
+L 717.12 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 28.2168 141.36 
+L 165.1032 141.36 
+Q 173.484 141.36 173.484 133.44 
+L 173.484 70.08 
+Q 173.484 62.16 165.1032 62.16 
+L 28.2168 62.16 
+Q 19.836 62.16 19.836 70.08 
+L 19.836 133.44 
+Q 19.836 141.36 28.2168 141.36 
+z
+" clip-path="url(#p7885dc1afc)" style="fill: #e6f0ff; stroke: #bcc7d6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 202.8168 141.36 
+L 339.7032 141.36 
+Q 348.084 141.36 348.084 133.44 
+L 348.084 70.08 
+Q 348.084 62.16 339.7032 62.16 
+L 202.8168 62.16 
+Q 194.436 62.16 194.436 70.08 
+L 194.436 133.44 
+Q 194.436 141.36 202.8168 141.36 
+z
+" clip-path="url(#p7885dc1afc)" style="fill: #e6f0ff; stroke: #bcc7d6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 377.4168 141.36 
+L 514.3032 141.36 
+Q 522.684 141.36 522.684 133.44 
+L 522.684 70.08 
+Q 522.684 62.16 514.3032 62.16 
+L 377.4168 62.16 
+Q 369.036 62.16 369.036 70.08 
+L 369.036 133.44 
+Q 369.036 141.36 377.4168 141.36 
+z
+" clip-path="url(#p7885dc1afc)" style="fill: #e6f0ff; stroke: #bcc7d6; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 552.0168 141.36 
+L 688.9032 141.36 
+Q 697.284 141.36 697.284 133.44 
+L 697.284 70.08 
+Q 697.284 62.16 688.9032 62.16 
+L 552.0168 62.16 
+Q 543.636 62.16 543.636 70.08 
+L 543.636 133.44 
+Q 543.636 141.36 552.0168 141.36 
+z
+" clip-path="url(#p7885dc1afc)" style="fill: #e6f0ff; stroke: #bcc7d6; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <!-- Environment / checks -->
+    <g style="fill: #004ab9" transform="translate(52.382813 88.56) scale(0.09 -0.09)">
+     <defs>
+      <path id="GeneralSans-Regular-17" d="M 3277 416 
+L 998 416 
+L 998 2163 
+L 3040 2163 
+L 3040 2579 
+L 998 2579 
+L 998 4179 
+L 3232 4179 
+L 3232 4595 
+L 518 4595 
+L 518 0 
+L 3277 0 
+L 3277 416 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-a0" d="M 934 1965 
+C 934 2592 1357 3046 1882 3046 
+C 2432 3046 2726 2682 2726 2035 
+L 2726 0 
+L 3174 0 
+L 3174 2189 
+C 3174 2989 2720 3437 2016 3437 
+C 1530 3437 1120 3155 902 2739 
+L 902 3373 
+L 486 3373 
+L 486 0 
+L 934 0 
+L 934 1965 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-c9" d="M 3085 3373 
+L 2624 3373 
+L 1568 525 
+L 512 3373 
+L 32 3373 
+L 1318 0 
+L 1786 0 
+L 3085 3373 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-90" d="M 1069 4154 
+C 1069 4346 922 4486 704 4486 
+C 493 4486 346 4346 346 4154 
+C 346 3955 493 3814 704 3814 
+C 922 3814 1069 3955 1069 4154 
+z
+M 934 0 
+L 934 3373 
+L 486 3373 
+L 486 0 
+L 934 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-b2" d="M 934 1805 
+C 934 2541 1478 2982 2189 2957 
+L 2189 3424 
+C 1632 3424 1133 3104 902 2605 
+L 902 3373 
+L 486 3373 
+L 486 0 
+L 934 0 
+L 934 1805 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-a5" d="M 1837 -64 
+C 2771 -64 3443 672 3443 1690 
+C 3443 2701 2771 3430 1837 3430 
+C 909 3430 237 2701 237 1690 
+C 237 672 909 -64 1837 -64 
+z
+M 1837 326 
+C 1184 326 691 851 691 1690 
+C 691 2515 1184 3040 1837 3040 
+C 2496 3040 2989 2515 2989 1690 
+C 2989 851 2496 326 1837 326 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-9f" d="M 934 0 
+L 934 1978 
+C 934 2598 1344 3046 1862 3046 
+C 2406 3046 2701 2682 2701 2042 
+L 2701 0 
+L 3149 0 
+L 3149 1978 
+C 3149 2598 3565 3046 4077 3046 
+C 4621 3046 4915 2682 4915 2042 
+L 4915 0 
+L 5357 0 
+L 5357 2189 
+C 5357 2976 4922 3437 4224 3437 
+C 3693 3437 3270 3130 3059 2656 
+C 2918 3149 2528 3437 2003 3437 
+C 1523 3437 1126 3174 902 2739 
+L 902 3373 
+L 486 3373 
+L 486 0 
+L 934 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-82" d="M 1811 -64 
+C 2586 -64 3155 390 3309 1139 
+L 2867 1139 
+C 2758 602 2368 288 1805 288 
+C 1146 288 723 781 685 1581 
+L 3296 1581 
+C 3373 2662 2746 3437 1786 3437 
+C 890 3437 237 2701 237 1715 
+C 237 646 864 -64 1811 -64 
+z
+M 1779 3091 
+C 2400 3091 2790 2643 2829 1888 
+L 685 1888 
+C 742 2624 1171 3091 1779 3091 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-bc" d="M 2221 429 
+C 2080 371 1965 346 1824 346 
+C 1453 346 1197 525 1197 1050 
+L 1197 2995 
+L 2253 2995 
+L 2253 3373 
+L 1197 3373 
+L 1197 4371 
+L 749 4371 
+L 749 3373 
+L -45 3373 
+L -45 2995 
+L 749 2995 
+L 749 954 
+C 749 224 1178 -64 1734 -64 
+C 1901 -64 2048 -38 2221 32 
+L 2221 429 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-2" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-132" d="M 346 -1235 
+L 3187 4595 
+L 2746 4595 
+L -90 -1235 
+L 346 -1235 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-7a" d="M 1747 -70 
+C 2541 -70 3110 448 3232 1306 
+L 2778 1306 
+C 2675 678 2298 320 1747 320 
+C 1120 320 691 870 691 1690 
+C 691 2496 1120 3046 1747 3046 
+C 2291 3046 2675 2682 2778 2067 
+L 3232 2067 
+C 3098 2912 2534 3437 1747 3437 
+C 864 3437 237 2714 237 1690 
+C 237 653 858 -70 1747 -70 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-8f" d="M 934 1965 
+C 934 2592 1357 3046 1882 3046 
+C 2432 3046 2726 2682 2726 2035 
+L 2726 0 
+L 3174 0 
+L 3174 2189 
+C 3174 2989 2720 3437 2016 3437 
+C 1530 3437 1146 3155 934 2752 
+L 934 4595 
+L 486 4595 
+L 486 0 
+L 934 0 
+L 934 1965 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-98" d="M 934 0 
+L 934 1619 
+L 2650 0 
+L 3232 0 
+L 1389 1722 
+L 3091 3373 
+L 2560 3373 
+L 934 1805 
+L 934 4595 
+L 486 4595 
+L 486 0 
+L 934 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-b6" d="M 3008 941 
+C 3008 1421 2707 1702 2035 1830 
+L 1530 1926 
+C 1030 2022 826 2182 826 2515 
+C 826 2867 1152 3091 1626 3091 
+C 2157 3091 2496 2816 2541 2349 
+L 2963 2349 
+C 2912 3021 2400 3437 1626 3437 
+C 890 3437 390 3040 390 2477 
+C 390 1990 730 1677 1370 1555 
+L 1856 1459 
+C 2368 1357 2560 1203 2560 870 
+C 2560 486 2227 275 1677 275 
+C 1101 275 723 576 691 1056 
+L 262 1056 
+C 326 358 838 -64 1677 -64 
+C 2509 -64 3008 320 3008 941 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-17"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(57 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c9" transform="translate(111.703125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(160.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(182.609375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(217.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(275.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(331.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(422.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(478.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(534.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(573.03125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-132" transform="translate(593.9375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(642.234375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(663.140625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(717.34375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(774.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(828.546875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-98" transform="translate(882.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(932.34375 0)"/>
+    </g>
+   </g>
+   <g id="text_2">
+    <!-- 0.5–1 h -->
+    <g style="fill: #2a2e34" transform="translate(80.622344 120.24) scale(0.11 -0.11)">
+     <defs>
+      <path id="GeneralSans-Regular-e1" d="M 326 2157 
+C 326 723 864 -64 1862 -64 
+C 2854 -64 3398 723 3398 2157 
+C 3398 3590 2842 4390 1862 4390 
+C 877 4390 326 3590 326 2157 
+z
+M 787 2157 
+C 787 3366 1165 3994 1862 3994 
+C 2560 3994 2938 3360 2938 2157 
+C 2938 960 2560 333 1862 333 
+C 1152 333 787 966 787 2157 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-12c" d="M 1229 371 
+C 1229 614 1062 781 826 781 
+C 595 781 422 614 422 371 
+C 422 141 595 -32 826 -32 
+C 1062 -32 1229 141 1229 371 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-e6" d="M 1709 -64 
+C 2637 -64 3200 544 3200 1357 
+C 3200 2099 2662 2714 1779 2714 
+C 1446 2714 1152 2611 890 2374 
+L 1126 3936 
+L 2957 3936 
+L 2957 4326 
+L 806 4326 
+L 429 1920 
+L 774 1818 
+C 986 2150 1306 2330 1722 2330 
+C 2336 2330 2746 1894 2746 1350 
+C 2746 742 2368 333 1709 333 
+C 1165 333 768 672 730 1203 
+L 294 1203 
+C 320 467 922 -64 1709 -64 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-13b" d="M 3072 1574 
+L 3072 1965 
+L 128 1965 
+L 128 1574 
+L 3072 1574 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-e2" d="M 1408 0 
+L 1408 4326 
+L 115 4326 
+L 115 3942 
+L 966 3942 
+L 966 0 
+L 1408 0 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-e1"/>
+     <use xlink:href="#GeneralSans-Regular-12c" transform="translate(56.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e6" transform="translate(80.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-13b" transform="translate(135.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e2" transform="translate(183.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(213.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(234.890625 0)"/>
+    </g>
+   </g>
+   <g id="patch_6">
+    <path d="M 176.179899 101.76 
+Q 184.655282 101.76 192.012631 101.76 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+    <path d="M 188.412631 99.96 
+L 192.012631 101.76 
+L 188.412631 103.56 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+   </g>
+   <g id="text_3">
+    <!-- Single-node / key repeats -->
+    <g style="fill: #004ab9" transform="translate(219.239297 88.56) scale(0.09 -0.09)">
+     <defs>
+      <path id="GeneralSans-Regular-4c" d="M 3738 1274 
+C 3738 1965 3296 2285 2522 2445 
+L 1939 2566 
+C 1427 2669 966 2835 966 3379 
+C 966 3840 1344 4269 2048 4269 
+C 2707 4269 3155 3827 3187 3219 
+L 3680 3219 
+C 3629 4096 2938 4659 2042 4659 
+C 1126 4659 480 4090 480 3354 
+C 480 2554 1120 2272 1728 2150 
+L 2310 2035 
+C 2963 1901 3232 1683 3232 1210 
+C 3232 659 2720 326 2067 326 
+C 1274 326 864 749 819 1402 
+L 333 1402 
+C 378 531 1005 -64 2074 -64 
+C 3142 -64 3738 544 3738 1274 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-8c" d="M 1760 -1306 
+C 2682 -1306 3213 -794 3213 77 
+L 3213 3373 
+L 2797 3373 
+L 2797 2656 
+C 2579 3149 2157 3437 1651 3437 
+C 800 3437 237 2758 237 1734 
+C 237 710 806 26 1658 26 
+C 2157 26 2566 301 2771 774 
+L 2771 70 
+C 2771 -595 2419 -947 1754 -947 
+C 1152 -947 794 -653 755 -102 
+L 326 -102 
+C 365 -858 902 -1306 1760 -1306 
+z
+M 685 1734 
+C 685 2554 1082 3053 1722 3053 
+C 2362 3053 2778 2528 2778 1702 
+C 2778 922 2355 410 1722 410 
+C 1075 410 685 909 685 1734 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-9a" d="M 934 0 
+L 934 4595 
+L 486 4595 
+L 486 0 
+L 934 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-13c" d="M 2170 1568 
+L 2170 1965 
+L 147 1965 
+L 147 1568 
+L 2170 1568 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-7e" d="M 237 1690 
+C 237 653 813 -64 1722 -64 
+C 2240 -64 2675 218 2912 710 
+L 2912 0 
+L 3328 0 
+L 3328 4595 
+L 2880 4595 
+L 2880 2669 
+C 2656 3149 2227 3437 1722 3437 
+C 813 3437 237 2726 237 1690 
+z
+M 691 1690 
+C 691 2547 1126 3046 1786 3046 
+C 2426 3046 2886 2554 2886 1702 
+C 2886 858 2438 326 1786 326 
+C 1126 326 691 832 691 1690 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-d0" d="M 3085 3373 
+L 2630 3373 
+L 1600 582 
+L 512 3373 
+L 32 3373 
+L 1370 45 
+L 877 -1235 
+L 1357 -1235 
+L 3085 3373 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-af" d="M 3578 1690 
+C 3578 2720 2995 3437 2099 3437 
+C 1581 3437 1133 3142 902 2643 
+L 902 3373 
+L 486 3373 
+L 486 -1235 
+L 934 -1235 
+L 934 691 
+C 1165 211 1594 -64 2099 -64 
+C 2995 -64 3578 646 3578 1690 
+z
+M 3123 1690 
+C 3123 826 2682 326 2022 326 
+C 1382 326 928 851 928 1690 
+C 928 2547 1395 3046 2022 3046 
+C 2682 3046 3123 2541 3123 1690 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-6e" d="M 2560 0 
+L 2944 0 
+L 2944 2195 
+C 2944 2976 2483 3437 1696 3437 
+C 928 3437 410 2938 390 2189 
+L 800 2189 
+C 806 2739 1152 3078 1702 3078 
+C 2214 3078 2515 2746 2515 2182 
+L 2515 1901 
+C 2182 1926 2029 1939 1824 1939 
+C 800 1939 275 1594 275 934 
+C 275 326 730 -64 1427 -64 
+C 1952 -64 2362 192 2560 614 
+L 2560 0 
+z
+M 704 947 
+C 704 1414 1075 1638 1843 1638 
+C 2029 1638 2227 1632 2515 1606 
+L 2515 1306 
+C 2515 672 2118 262 1491 262 
+C 1018 262 704 538 704 947 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-4c"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(64.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(86.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8c" transform="translate(143.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(201 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(223.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-13c" transform="translate(280 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(316.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(372.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(430.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(489.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(545.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-132" transform="translate(566.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(614.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-98" transform="translate(635.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(684.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-d0" transform="translate(738.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(786.90625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(807.8125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(842.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(898.421875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(958.015625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1013.515625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(1066.3125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(1104.421875 0)"/>
+    </g>
+   </g>
+   <g id="text_4">
+    <!-- 3–4 h -->
+    <g style="fill: #2a2e34" transform="translate(257.966328 120.24) scale(0.11 -0.11)">
+     <defs>
+      <path id="GeneralSans-Regular-e4" d="M 1818 -58 
+C 2688 -58 3277 454 3277 1197 
+C 3277 1722 2931 2106 2336 2253 
+C 2810 2451 3078 2810 3078 3258 
+C 3078 3923 2560 4390 1792 4390 
+C 1056 4390 493 3885 474 3206 
+L 902 3206 
+C 928 3706 1267 4026 1779 4026 
+C 2272 4026 2618 3706 2618 3238 
+C 2618 2752 2246 2413 1715 2413 
+L 1299 2413 
+L 1299 2042 
+L 1728 2042 
+C 2394 2042 2816 1709 2816 1190 
+C 2816 646 2438 307 1818 307 
+C 1216 307 813 653 787 1197 
+L 352 1197 
+C 371 448 960 -58 1818 -58 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-e5" d="M 3315 1030 
+L 3315 1421 
+L 2733 1421 
+L 2733 4326 
+L 2419 4326 
+L 186 1331 
+L 186 1030 
+L 2291 1030 
+L 2291 0 
+L 2733 0 
+L 2733 1030 
+L 3315 1030 
+z
+M 704 1421 
+L 2291 3597 
+L 2291 1421 
+L 704 1421 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-e4"/>
+     <use xlink:href="#GeneralSans-Regular-13b" transform="translate(57.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e5" transform="translate(108 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(164.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(185 0)"/>
+    </g>
+   </g>
+   <g id="patch_7">
+    <path d="M 350.779899 101.76 
+Q 359.255282 101.76 366.612631 101.76 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+    <path d="M 363.012631 99.96 
+L 366.612631 101.76 
+L 363.012631 103.56 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+   </g>
+   <g id="text_5">
+    <!-- Two-node communication -->
+    <g style="fill: #004ab9" transform="translate(392.521641 88.56) scale(0.09 -0.09)">
+     <defs>
+      <path id="GeneralSans-Regular-51" d="M 2144 0 
+L 2144 4166 
+L 3686 4166 
+L 3686 4595 
+L 128 4595 
+L 128 4166 
+L 1670 4166 
+L 1670 0 
+L 2144 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-ca" d="M 3296 0 
+L 3744 0 
+L 4736 3373 
+L 4288 3373 
+L 3507 627 
+L 2637 3373 
+L 2195 3373 
+L 1318 634 
+L 538 3373 
+L 96 3373 
+L 1082 0 
+L 1536 0 
+L 2413 2778 
+L 3296 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-c0" d="M 2643 1363 
+C 2643 762 2253 326 1715 326 
+C 1242 326 902 589 902 1274 
+L 902 3373 
+L 454 3373 
+L 454 1178 
+C 454 326 909 -64 1594 -64 
+C 2086 -64 2496 218 2669 608 
+L 2669 0 
+L 3085 0 
+L 3085 3373 
+L 2643 3373 
+L 2643 1363 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-51"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(56.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(131.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-13c" transform="translate(190.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(226.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(282.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(340.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(399.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(455.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(476.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(529.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(587.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(678.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(768.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(824.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(881.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(903.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(957.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(1010.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(1048.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(1071.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1128.59375 0)"/>
+    </g>
+   </g>
+   <g id="text_6">
+    <!-- 1–2 h -->
+    <g style="fill: #2a2e34" transform="translate(434.568672 120.24) scale(0.11 -0.11)">
+     <defs>
+      <path id="GeneralSans-Regular-e3" d="M 2963 397 
+L 1011 397 
+L 2067 1626 
+C 2733 2368 2918 2720 2918 3187 
+C 2918 3885 2362 4390 1606 4390 
+C 813 4390 256 3846 256 3091 
+L 691 3091 
+C 691 3629 1062 3994 1587 3994 
+C 2093 3994 2451 3635 2451 3149 
+C 2451 2733 2259 2413 1734 1818 
+L 352 256 
+L 352 0 
+L 2963 0 
+L 2963 397 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-e2"/>
+     <use xlink:href="#GeneralSans-Regular-13b" transform="translate(30.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e3" transform="translate(76.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(127.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(148.59375 0)"/>
+    </g>
+   </g>
+   <g id="patch_8">
+    <path d="M 525.379899 101.76 
+Q 533.855282 101.76 541.212631 101.76 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+    <path d="M 537.612631 99.96 
+L 541.212631 101.76 
+L 537.612631 103.56 
+" style="fill: none; stroke: #004ab9; stroke-linecap: round"/>
+   </g>
+   <g id="text_7">
+    <!-- Sustained load -->
+    <g style="fill: #004ab9" transform="translate(590.428125 88.56) scale(0.09 -0.09)">
+     <use xlink:href="#GeneralSans-Regular-4c"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(62.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(118.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(169.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(207.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(261.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(283.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(339.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(394.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(454.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(474.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(497.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(554.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(607.78125 0)"/>
+    </g>
+   </g>
+   <g id="text_8">
+    <!-- 4 h -->
+    <g style="fill: #2a2e34" transform="translate(613.106328 120.24) scale(0.11 -0.11)">
+     <use xlink:href="#GeneralSans-Regular-e5"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(56.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(77 0)"/>
+    </g>
+   </g>
+   <g id="text_9">
+    <!-- Estimated exclusive window: 8.5–11 hours; adaptation and analysis additional -->
+    <g style="fill: #2a2e34" transform="translate(171.452578 35.76) scale(0.11 -0.11)">
+     <defs>
+      <path id="GeneralSans-Regular-cf" d="M 570 0 
+L 1587 1446 
+L 2618 0 
+L 3130 0 
+L 1901 1715 
+L 3053 3373 
+L 2573 3373 
+L 1613 2010 
+L 659 3373 
+L 147 3373 
+L 1312 1728 
+L 70 0 
+L 570 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-126" d="M 1229 2976 
+C 1229 3213 1062 3386 826 3386 
+C 595 3386 422 3213 422 2976 
+C 422 2739 595 2573 826 2573 
+C 1062 2573 1229 2739 1229 2976 
+z
+M 1229 371 
+C 1229 614 1062 781 826 781 
+C 595 781 422 614 422 371 
+C 422 141 595 -32 826 -32 
+C 1062 -32 1229 141 1229 371 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-e9" d="M 3418 1184 
+C 3418 1747 3027 2106 2541 2253 
+C 2925 2400 3232 2765 3232 3232 
+C 3232 3923 2656 4390 1901 4390 
+C 1146 4390 563 3923 563 3232 
+C 563 2765 870 2400 1261 2253 
+C 768 2106 384 1747 384 1184 
+C 384 435 1005 -58 1901 -58 
+C 2790 -58 3418 435 3418 1184 
+z
+M 1024 3219 
+C 1024 3718 1382 4026 1901 4026 
+C 2413 4026 2778 3718 2778 3219 
+C 2778 2720 2413 2419 1901 2419 
+C 1382 2419 1024 2720 1024 3219 
+z
+M 845 1197 
+C 845 1747 1286 2054 1901 2054 
+C 2509 2054 2957 1747 2957 1197 
+C 2957 640 2509 307 1901 307 
+C 1286 307 845 640 845 1197 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-131" d="M 1203 2976 
+C 1203 3213 1037 3386 806 3386 
+C 570 3386 397 3213 397 2976 
+C 397 2739 570 2573 806 2573 
+C 1037 2573 1203 2739 1203 2976 
+z
+M 1229 211 
+C 1229 550 1082 781 781 781 
+C 563 781 397 634 397 410 
+C 397 218 544 58 749 58 
+C 800 58 845 64 896 90 
+C 870 -205 621 -429 256 -454 
+L 256 -723 
+C 870 -704 1229 -262 1229 211 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-17"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(57 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(108.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(146.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(168.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(259.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(312.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(348.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(403.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(462.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(483.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-cf" transform="translate(537.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(585.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(639.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(661.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(717.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(769.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c9" transform="translate(791.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(838.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(893.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(914.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(990.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1012.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(1069.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(1128.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(1185.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-126" transform="translate(1260.703125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1286.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e9" transform="translate(1307.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-12c" transform="translate(1364.5 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e6" transform="translate(1389.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-13b" transform="translate(1444.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e2" transform="translate(1491.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e2" transform="translate(1522.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1552.875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(1573.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(1630.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(1687.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1743.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(1778.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-131" transform="translate(1830.578125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1856.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1877.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(1930.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1989.96875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(2043.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2101.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2139.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2192.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2230.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(2253.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2310.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2367.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2388.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2441.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(2498.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2557.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2578.5625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2631.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2688.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(2741.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-d0" transform="translate(2763.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(2811.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2862.859375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(2885.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2936.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2957.5625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(3010.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(3070.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3129.84375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(3152.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3190.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(3212.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3269.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3326.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(3379.75 0)"/>
+    </g>
+   </g>
+   <g id="text_10">
+    <!-- Each cell: validate → warm up → 5 screening rounds → ≥10 key rounds → raw records -->
+    <g style="fill: #2a2e34" transform="translate(192.775781 177.66) scale(0.09 -0.09)">
+     <defs>
+      <path id="ArialUnicodeMS-d7a" d="M 4306 1563 
+Q 3528 1278 3091 641 
+L 2869 641 
+Q 3019 1088 3372 1484 
+L 256 1484 
+L 256 1791 
+L 3372 1791 
+Q 3019 2188 2869 2638 
+L 3091 2638 
+Q 3528 2000 4306 1716 
+L 4306 1563 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-15c" d="M 3712 2266 
+L 3712 2624 
+L 512 4032 
+L 512 3642 
+L 3251 2445 
+L 512 1248 
+L 512 858 
+L 3712 2266 
+z
+M 3712 6 
+L 3712 384 
+L 512 384 
+L 512 6 
+L 3712 6 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-17"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(57 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(110.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(164.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(221 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(241.90625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(295.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(350.90625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(373.109375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-126" transform="translate(395.3125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(421.109375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c9" transform="translate(442.015625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(489.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(542.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(564.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(587.125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(646.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(699.515625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(736.015625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(791.515625 0)"/>
+     <use xlink:href="#ArialUnicodeMS-d7a" transform="translate(812.421875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(883.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(904.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(978.53125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1031.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(1066.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1157.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(1178.53125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(1234.328125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1293.921875 0)"/>
+     <use xlink:href="#ArialUnicodeMS-d7a" transform="translate(1314.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1386.125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e6" transform="translate(1407.03125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1461.125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(1482.03125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(1533.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1587.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1622.9375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1677.4375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1732.9375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(1789.640625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1811.84375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8c" transform="translate(1868.546875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1926.34375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1947.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(1982.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(2039.859375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2095.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(2152.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(2211.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2263.546875 0)"/>
+     <use xlink:href="#ArialUnicodeMS-d7a" transform="translate(2284.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2355.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-15c" transform="translate(2376.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e2" transform="translate(2442.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e1" transform="translate(2473.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2531.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-98" transform="translate(2552.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(2601.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-d0" transform="translate(2655.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2703.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(2724.671875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(2759.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(2817.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2873.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(2929.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(2989.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3040.96875 0)"/>
+     <use xlink:href="#ArialUnicodeMS-d7a" transform="translate(3061.875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3133.171875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(3154.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3189.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(3240.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3316.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(3337.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3372.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(3426.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(3480.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(3537.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(3572.90625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(3632.5 0)"/>
+    </g>
+   </g>
+   <g id="text_11">
+    <!-- Sustained stages: compute 60 min / bandwidth 60 min / mixed 120 min; separate baselines -->
+    <g style="fill: #2a2e34" transform="translate(195.76125 208.68) scale(0.08 -0.08)">
+     <defs>
+      <path id="GeneralSans-Regular-e7" d="M 1741 -58 
+C 2611 -58 3251 563 3251 1370 
+C 3251 2221 2637 2778 1830 2778 
+C 1670 2778 1498 2746 1318 2682 
+L 2618 4326 
+L 2112 4326 
+L 806 2682 
+C 467 2259 237 1920 237 1357 
+C 237 563 877 -58 1741 -58 
+z
+M 1747 314 
+C 1146 314 698 755 698 1370 
+C 698 2061 1146 2432 1747 2432 
+C 2342 2432 2790 2003 2790 1357 
+C 2790 755 2342 314 1747 314 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-79" d="M 3578 1690 
+C 3578 2726 2995 3437 2093 3437 
+C 1581 3437 1152 3155 934 2662 
+L 934 4595 
+L 486 4595 
+L 486 0 
+L 902 0 
+L 902 710 
+C 1139 218 1574 -64 2093 -64 
+C 2995 -64 3578 653 3578 1690 
+z
+M 3123 1690 
+C 3123 832 2682 326 2022 326 
+C 1376 326 928 858 928 1702 
+C 928 2554 1389 3046 2022 3046 
+C 2682 3046 3123 2547 3123 1690 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-4c"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(62.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(118.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(169.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(207.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(261.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(283.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(339.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(394.484375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(454.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(474.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(526.171875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(564.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8c" transform="translate(617.46875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(675.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(730.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-126" transform="translate(782.359375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(808.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(829.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(882.5625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(940.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(1030.859375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(1090.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(1146.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1182.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1238.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e7" transform="translate(1259.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e1" transform="translate(1313.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1371.859375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(1392.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(1483.5625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1505.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1562.46875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-132" transform="translate(1583.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1631.671875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-79" transform="translate(1652.578125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1712.171875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1765.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(1821.96875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(1881.5625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(1957.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(1979.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2038.859375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(2077.0625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2133.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e7" transform="translate(2154.671875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e1" transform="translate(2209.171875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2267.375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(2288.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2379.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2401.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2457.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-132" transform="translate(2478.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2527.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(2548.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2638.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-cf" transform="translate(2661.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(2709.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(2763.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2823.1875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e2" transform="translate(2844.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e3" transform="translate(2874.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-e1" transform="translate(2925.78125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2983.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(3004.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3095.6875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3117.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-131" transform="translate(3174.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3200.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(3221.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3272.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(3328.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3387.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(3441.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3476.28125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(3529.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3565.578125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3621.078125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-79" transform="translate(3641.984375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3701.578125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(3754.671875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3806.265625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(3861.765625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3883.96875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3906.171875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3962.875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(4018.375 0)"/>
+    </g>
+   </g>
+   <g id="text_12">
+    <!-- Prospective protocol; separate from serving load, with no automatic deadline extension -->
+    <g style="fill: #5e5e5e" transform="translate(202.29375 238.38) scale(0.08 -0.08)">
+     <defs>
+      <path id="GeneralSans-Regular-45" d="M 2029 1690 
+C 2976 1690 3622 2221 3622 3149 
+C 3622 4077 2976 4595 2029 4595 
+L 518 4595 
+L 518 0 
+L 998 0 
+L 998 1690 
+L 2029 1690 
+z
+M 2022 4186 
+C 2707 4186 3142 3814 3142 3149 
+C 3142 2477 2707 2099 2022 2099 
+L 998 2099 
+L 998 4186 
+L 2022 4186 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-8b" d="M 1229 0 
+L 1229 2995 
+L 2221 2995 
+L 2221 3373 
+L 1229 3373 
+L 1229 3680 
+C 1229 4077 1427 4256 1786 4256 
+C 1901 4256 2003 4250 2112 4205 
+L 2112 4576 
+C 1997 4621 1862 4646 1709 4646 
+C 1120 4646 781 4301 781 3680 
+L 781 3373 
+L -13 3373 
+L -13 2995 
+L 781 2995 
+L 781 0 
+L 1229 0 
+z
+" transform="scale(0.015625)"/>
+      <path id="GeneralSans-Regular-127" d="M 1229 211 
+C 1229 550 1082 781 781 781 
+C 563 781 397 634 397 410 
+C 397 218 544 58 749 58 
+C 800 58 845 64 896 90 
+C 870 -205 621 -429 256 -454 
+L 256 -723 
+C 870 -704 1229 -262 1229 211 
+z
+" transform="scale(0.015625)"/>
+     </defs>
+     <use xlink:href="#GeneralSans-Regular-45"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(60.09375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(95.203125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(152.703125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(204.296875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(263.890625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(318.390625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(372.59375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(410.796875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c9" transform="translate(433 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(480.109375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(535.609375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(556.515625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(616.109375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(651.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(707.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(744.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(801.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(855.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(912.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-131" transform="translate(934.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(960.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(981.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1033.21875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-af" transform="translate(1088.71875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1148.3125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1201.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(1236.609375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(1289.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1325.90625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1381.40625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8b" transform="translate(1402.3125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1437.515625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(1472.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(1530.125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1620.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(1641.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(1693.421875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b2" transform="translate(1748.921875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c9" transform="translate(1785.125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(1833.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(1856.03125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8c" transform="translate(1912.734375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(1970.53125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(1991.4375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(2013.640625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2071.140625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(2124.234375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-127" transform="translate(2183.828125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2209.625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-ca" transform="translate(2230.53125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2306.03125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2328.234375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-8f" transform="translate(2366.4375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2423.140625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(2444.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(2500.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(2558.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2579.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-c0" transform="translate(2632.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2688.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(2724.546875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9f" transform="translate(2782.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(2872.84375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(2925.640625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(2963.84375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7a" transform="translate(2986.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3040.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(3061.15625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3120.75 0)"/>
+     <use xlink:href="#GeneralSans-Regular-6e" transform="translate(3176.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-7e" transform="translate(3229.34375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-9a" transform="translate(3288.9375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3311.140625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3333.34375 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3390.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-2" transform="translate(3445.546875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3466.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-cf" transform="translate(3520.046875 0)"/>
+     <use xlink:href="#GeneralSans-Regular-bc" transform="translate(3569.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-82" transform="translate(3606.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3661.953125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-b6" transform="translate(3718.65625 0)"/>
+     <use xlink:href="#GeneralSans-Regular-90" transform="translate(3770.25 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a5" transform="translate(3792.453125 0)"/>
+     <use xlink:href="#GeneralSans-Regular-a0" transform="translate(3849.953125 0)"/>
+    </g>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p7885dc1afc">
+   <rect x="9.36" y="9.36" width="698.4" height="237.6"/>
+  </clipPath>
+ </defs>
+</svg>

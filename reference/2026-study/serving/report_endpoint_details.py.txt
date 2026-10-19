@@ -1,0 +1,41 @@
+"""Display archived process arguments separately from resolved engine settings."""
+import json,shlex
+from common import ROOT
+
+def details(lang):
+ from build_report import table
+ T=lambda z,e:z if lang=='zh' else e
+ d=json.loads((ROOT/'evidence/node0_initial.json').read_text());s=d['server_info']
+ pairs=[
+ ('SGLang版本','SGLang version',s['version']),
+ ('运行入口','Runtime entrypoint','/home/benchmark/Projects/qwen38/.sglang/bin/python3 -m sglang.launch_server'),
+ ('节点与服务名','Ranks and served name','tp_size=2; nnodes=2; node_rank=0 / 1; served_model_name=qwen38-flash'),
+ ('服务与分布式初始化','Listener and distributed initialization','host=0.0.0.0; port=8000; dist_init_addr=192.0.2.10:5000'),
+ ('预填充与并发','Prefill and running requests',f'chunked_prefill_size={s["chunked_prefill_size"]}; max_prefill_tokens={s["max_prefill_tokens"]}; max_running_requests={s["max_running_requests"]}'),
+ ('KV缓存页与回收策略','KV pages and eviction','page_size=64; kv_cache_dtype=auto; disable_radix_cache=false; radix_eviction_policy=lru'),
+ ('调度与CUDA Graph','Scheduling and CUDA Graph','schedule_policy=fcfs; schedule_conservativeness=1.0; disable_overlap_schedule=false; enable_mixed_chunk=false; disable_cuda_graph=false'),
+ ('计算后端','Compute backends','attention_backend=flashinfer; sampling_backend=flashinfer; moe_runner_backend=flashinfer_cutlass; moe_a2a_backend=none; --fp4-gemm-backend flashinfer_cutlass'),
+ ('MTP启动值／生效值','MTP launch / resolved value','--speculative-algorithm NEXTN → speculative_algorithm=EAGLE; num_steps=3; eagle_topk=1; num_draft_tokens=4'),
+ ('输出解析器','Output parsers','reasoning_parser=qwen3; tool_call_parser=qwen3_coder'),
+ ('指标与缓存字段','Metrics and cache reporting','enable_metrics=true; enable_cache_report=false'),
+ ('其他生效配置','Other resolved settings',f'trust_remote_code=true; random_seed={s["random_seed"]}')]
+ text='\n\n#### '+T('SGLang启动与生效参数','SGLang launch and resolved settings')+'\n\n'
+ text+=T('配置记录时间（UTC）：','Configuration recorded (UTC): ')+d['utc']+'。 '+T('下表区分进程启动参数与引擎解析后的生效值；未显式传入的值来自引擎配置快照。','Launch arguments and resolved engine values are distinguished below; values not explicitly passed come from the engine configuration snapshot.')
+ text+=table([T('项目','Item'),T('记录值','Recorded value')],[[T(z,e),'`'+str(v)+'`'] for z,e,v in pairs])
+ proc=next(p for p in d['processes'] if 'sglang.launch_server' in p['args']);args=proc['args'];model=args[args.index('--model-path')+1]
+ parts=model.split('/snapshots/');base=parts[0].rsplit('/',1);lines=['MODEL_PATH='+shlex.quote(base[0]+'/'),'MODEL_PATH+='+shlex.quote(base[1]+'/'),'MODEL_PATH+='+shlex.quote('snapshots/'+parts[1]),args[0]+' -m sglang.launch_server \\']
+ i=3
+ while i<len(args):
+  key=args[i];i+=1;value=None
+  if i<len(args) and not args[i].startswith('--'):value=args[i];i+=1
+  if key=='--model-path':value='"$MODEL_PATH"'
+  elif key=='--api-key':value="'[REDACTED]'"
+  elif value is not None:value=shlex.quote(value)
+  lines.append('  '+key+(' '+value if value is not None else '')+(' \\' if i<len(args) else ''))
+ text+='\n\n'+T('节点0启动命令（认证值已遮盖）；节点1使用相同参数，`--node-rank 1`。','Node 0 launch command (credential redacted); node 1 uses the same arguments with `--node-rank 1`.')+'\n\n```bash\n'+'\n'.join(lines)+'\n```'
+ text+='\n\n'+T('缓存复用开关与缓存用量字段开关是两个参数：`disable_radix_cache=false` 表示允许前缀复用，`enable_cache_report=false` 表示该配置未启用逐请求缓存用量字段。','Prefix reuse and per-request reporting are separate settings: `disable_radix_cache=false` permits reuse, while `enable_cache_report=false` means per-request cache usage reporting was not enabled in this configuration.')
+ proof=ROOT/'hardware_unloaded_20261016/evidence/restoration_verified.json'
+ if proof.exists():
+  text+='\n\n'+table([T('硬件测量窗口的控制网络','Control network for the hardware window'),T('生效值与结果范围','Effective values and scope')],[[T('节点间控制地址','Inter-node control address'),'SGLANG_HOST_IP=192.0.2.10 / 192.0.2.11'],[T('推理配置核验','Inference configuration verification'),T('恢复后的模型路径、版本、TP、MTP、上下文及缓存核心配置与停服前一致；公网与独立引擎性能数据均采集于此次网络绑定之前。','Restored model path, version, TP, MTP, context and core cache settings match the pre-stop configuration. Public-endpoint and independent-engine performance data were collected before this network binding.')]])
+ text+='\n\n'+T('[节点0配置与命令](../evidence/node0_initial.json) · [节点1命令](../evidence/node1_initial.json)','[Node 0 configuration and command](../evidence/node0_initial.json) · [Node 1 command](../evidence/node1_initial.json)')
+ return text

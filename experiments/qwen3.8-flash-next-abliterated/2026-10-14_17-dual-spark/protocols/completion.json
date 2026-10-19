@@ -1,0 +1,162 @@
+{
+  "created_utc": "2026-10-17T00:21:04.173404+00:00",
+  "authorization": "REDACTED_CREDENTIAL",
+  "deadline_epoch": 1792239664.165388,
+  "concurrency_cap": 8,
+  "api_ceiling_usd": 500,
+  "historical_reserved_usd": 202.62465799999984,
+  "historical_actual_usd": 8.561299,
+  "new_public_reservation_ceiling_usd": 15,
+  "native_api_cost_usd": 0,
+  "native_requests": [
+    {
+      "id": "calibration_i1024_o1024_r1",
+      "stage": "calibration",
+      "input": 1024,
+      "output": 1024,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o8192_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 8192,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o8192_r2",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 8192,
+      "repeat": 2,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o8192_r3",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 8192,
+      "repeat": 3,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o16384_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 16384,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o16384_r2",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 16384,
+      "repeat": 2,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o16384_r3",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 16384,
+      "repeat": 3,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o32768_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 32768,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o32768_r2",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 32768,
+      "repeat": 2,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o32768_r3",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 32768,
+      "repeat": 3,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o65536_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 65536,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o131072_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 131072,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "output_axis_i1024_o260096_r1",
+      "stage": "output_axis",
+      "input": 1024,
+      "output": 260096,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "balanced_i16384_o16384_r1",
+      "stage": "balanced",
+      "input": 16384,
+      "output": 16384,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "balanced_i32768_o32768_r1",
+      "stage": "balanced",
+      "input": 32768,
+      "output": 32768,
+      "repeat": 1,
+      "concurrency": 1
+    },
+    {
+      "id": "balanced_i65536_o65536_r1",
+      "stage": "balanced",
+      "input": 65536,
+      "output": 65536,
+      "repeat": 1,
+      "concurrency": 1
+    }
+  ],
+  "native_max_attempts_per_case": 3,
+  "native_stream_interval": 128,
+  "max_context": 262144,
+  "thermal": {
+    "pause_c": 85,
+    "resume_below_c": 75,
+    "stable_seconds": 30,
+    "max_backoff_seconds": 600
+  },
+  "retry": "Only after owned request abort is acknowledged and engine idle; preserve every attempt; no replay of unknown in-flight work",
+  "public": "Independent full blocks for affected historical conditions; one uninterrupted 3600 s run at 60% of the previously qualified rate, <=8 in flight",
+  "profile": "1K/C1, 32K/C1 and 8K/C4; three paired profiled/unprofiled blocks; preserve profile overhead separately",
+  "cache": "64K first/repeat, three independent prefixes; native cached_tokens and isolated counter deltas",
+  "hardware": "Both nodes: validated FP64 GEMM at 1024,4096,8192, five rounds; bounded representative kernel counters after unloading service with automatic restoration",
+  "non_executable_limits": [
+    "No H200 device supplied",
+    "No wall-outlet energy meter",
+    "No realized sales or production utilization data"
+  ],
+  "historical_data_policy": "Immutable; new results are independent dated evidence, not repairs to old success counts",
+  "completion": "All admitted finite cases terminal; complete means measured, expected boundary rejection, or explicitly evidenced unavailable. Unmeasured is never counted successful."
+}

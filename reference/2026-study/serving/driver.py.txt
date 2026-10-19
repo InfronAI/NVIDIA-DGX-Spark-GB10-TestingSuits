@@ -1,0 +1,165 @@
+"""Execute frozen P3 core blocks. No restarts, no replay, no capability scoring."""
+import argparse
+import asyncio
+import fcntl
+import json
+import os
+import resource
+import time
+import traceback
+from common import ROOT, PHASE_LIMITS, append, digest, dump, read_rows, utc
+from runner import Runner, client
+from collector import raw_sample, kv
+from reconcile import reconcile
+from continuation import validate_previous,settled_failures
+from cf_retry import is_cf_error,policy
+
+CORE={'P1','P2','P3','P4','P5'}
+
+def validate_plans():
+    schedule=json.loads((ROOT/'plans/schedule.json').read_text())
+    frozen=json.loads((ROOT/'plans/frozen.json').read_text())
+    counts={'P0':12};seen=set()
+    for block in schedule['blocks']:
+        path=ROOT/'plans'/block['file']
+        assert digest(path)==frozen[block['file']]['sha256'],str(path)
+        cases=read_rows(path)
+        assert len(cases)==frozen[block['file']]['count']
+        for case in cases:
+            assert case['id'] not in seen
+            seen.add(case['id'])
+            assert case['phase']==block['phase']
+            counts[case['phase']]=counts.get(case['phase'],0)+1
+    assert counts==PHASE_LIMITS,(counts,PHASE_LIMITS)
+    return schedule
+
+async def heartbeat(runner,done):
+    last=time.perf_counter()
+    while not done.is_set():
+        await asyncio.sleep(1)
+        now=time.perf_counter();usage=resource.getrusage(resource.RUSAGE_SELF)
+        append(ROOT/'monitor/client.jsonl',{'utc':utc(),'epoch':time.time(),'loop_lag_s':max(0,now-last-1),'active':runner.active,'max_active':runner.max_active,'cpu_user_s':usage.ru_utime,'cpu_system_s':usage.ru_stime,'max_rss_bytes':usage.ru_maxrss,'pid':os.getpid()})
+        last=now
+
+async def billing_watch(runner,done):
+    errors=0
+    while not done.is_set():
+        try:
+            receipt=await asyncio.to_thread(reconcile)
+            append(ROOT/'runs/billing_checks.jsonl',receipt);errors=0
+        except Exception as e:
+            errors+=1;append(ROOT/'runs/billing_checks.jsonl',{'utc':utc(),'error':str(e),'consecutive':errors})
+            if errors>=3:
+                (ROOT/'STOP').write_text('three consecutive billing reconciliation failures')
+        try:await asyncio.wait_for(done.wait(),120)
+        except TimeoutError:pass
+
+def capacity_reason(cases,block,sample):
+    if sample.get('telemetry_mode')=='public_dashboard':
+        from public_monitor import check
+        llm=check(sample['dashboard_nodes'])
+        info={'context_length':llm['contextLength'],'max_running_requests':llm['slotsTotal'],'max_total_num_tokens':json.loads((ROOT/'evidence/node0_initial.json').read_text())['server_info']['max_total_num_tokens']}
+        sample['capacity_check_note']='Context/slots from current dashboard; token-pool ceiling is historical planning limit, not current raw telemetry.'
+    else:info=json.loads(sample['server_info'])
+    c=block['concurrency']
+    if any(kv(n['meminfo']).get('MemAvailable',0)<2*1024*1024 for n in sample['nodes']):return 'available RAM below 2 GiB'
+    if c>info.get('max_running_requests',0):return 'request state slots insufficient'
+    if block['kind']=='boundary':return None
+    worst=max(x.get('local_prompt_tokens',0)+x['max_tokens'] for x in cases)
+    if worst>info.get('context_length',0):return 'input plus output reservation exceeds context'
+    if c*worst>info.get('max_total_num_tokens',0):return 'requested active token capacity exceeds frozen engine pool'
+    return None
+
+def check_results(results,block):
+    issues=[]
+    for r in results:
+        if r.get('state')=='received' and not r.get('usage_available'):issues.append('missing API usage '+r['id'])
+        expected=r.get('local_prompt_tokens');actual=(r.get('usage') or {}).get('prompt_tokens')
+        if block['kind'] in ['general','reference','uncached_prefill','long_decode'] and expected and actual and abs(expected-actual)>max(1,expected*.01):
+            issues.append('input tokenizer mismatch above 1 percent '+r['id'])
+        if block['kind']=='long_decode' and r.get('integrity_flags'):issues.append('long response integrity candidate requires review '+r['id'])
+        if block['kind']=='boundary' and not r.get('expected_context_rejection'):issues.append('boundary response requires review '+r['id'])
+    if issues:(ROOT/'STOP').write_text('; '.join(issues))
+
+async def core(runner,api,schedule):
+    for block in schedule['blocks']:
+        if block['phase'] not in CORE:continue
+        if runner.stopping():break
+        # Completed or partially sent blocks are never silently continued.
+        receipt=ROOT/'runs/blocks'/f'{block["id"]}.json'
+        previous=None
+        if receipt.exists():
+            old=json.loads(receipt.read_text())
+            if old.get('completed')==old.get('planned') or old.get('state')=='skipped':continue
+            if settled_failures(old,runner.ledger,ROOT):continue
+            resolutions=[json.loads(p.read_text()) for p in [ROOT/'evidence/usage_incident_resolution.json',ROOT/'evidence/transport_incident_resolution.json',ROOT/'evidence/cf_retry_resume_resolution.json',ROOT/'evidence/recovered_gateway_resolution.json',*sorted((ROOT/'evidence/auto_recovery').glob('*/resolution.json'))] if p.exists()]
+            matching=[r for r in resolutions if r.get('continue_unsent_block')==block['id'] and r.get('partial_block_sha256')==digest(receipt)]
+            assert len(matching)==1,'Review incomplete existing block before any continuation'
+            resolution=matching[0]
+            validate_previous(old,runner.ledger,resolution,digest(receipt),ROOT)
+            previous=old
+            segment_index=old.get('segment_count',1)
+            archive=ROOT/'runs/interrupted_blocks'/f'{block["id"]}.before_continuation{segment_index}.json'
+            if archive.exists():assert digest(archive)==digest(receipt),'Continuation archive differs from current receipt'
+            else:dump(archive,old)
+        cases=read_rows(ROOT/'plans'/block['file'])
+        def authorized_retry(c):
+            p=ROOT/'runs/requests'/c['id']/'result.json'
+            return runner.retry_policy.get('enabled') and p.exists() and is_cf_error(json.loads(p.read_text()))
+        if previous:cases=[c for c in cases if c['id'] not in runner.ledger['entries'] or authorized_retry(c)]
+        assert not any(c['id'] in runner.ledger['entries'] and not authorized_retry(c) for c in cases),'A prior send without a complete block requires review'
+        dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'pid':os.getpid(),'state':'running','stage':'core','block':block,'sent':len(runner.ledger['entries'])})
+        before=await asyncio.to_thread(raw_sample,True)
+        boundary_id=block['id']+(f'_continuation{segment_index}' if previous else '')
+        dump(ROOT/'runs/boundaries'/f'{boundary_id}.before.json',before)
+        why=capacity_reason(cases,block,before)
+        if why:
+            dump(receipt,{'id':block['id'],'state':'skipped','reason':why,'planned':len(cases),'sent':0,'completed':0,'utc':utc()})
+            continue
+        results=await runner.closed(api,cases,block['concurrency'],block['id'])
+        if previous:
+            current=json.loads(receipt.read_text());dump(ROOT/'runs/interrupted_blocks'/f'{block["id"]}.segment{segment_index}.json',current)
+            current.update(planned=previous['planned'],sent=previous['sent']+current['sent'],completed=previous['completed']+current['completed'],request_ids=previous['request_ids']+current['request_ids'],active_window_s=(previous['end_epoch']-previous['start_epoch'])+(current['end_epoch']-current['start_epoch']),interruption_s=current['start_epoch']-previous['end_epoch'],segment_count=2,start_epoch=previous['start_epoch'],started_utc=previous['started_utc'],interruption_note='Measurement audit: API completion normalization inflated reasoning tokens. No service/configuration change; only unsent cases continued. Full wall window retains the interruption; active-window values are separately labeled.')
+            if resolution.get('interruption_note'):current['interruption_note']=resolution['interruption_note']
+            current['segment_count']=segment_index+1
+            current['active_window_s']=previous.get('active_window_s',previous['end_epoch']-previous['start_epoch'])+(current['end_epoch']-(previous['end_epoch']+current['interruption_s']))
+            current['interruption_s']+=previous.get('interruption_s',0)
+            current['reviewed_failed_cases']=resolution.get('reviewed_failed_cases',[])
+            if current['sent']==current['planned'] and current['completed']<current['planned']:current['state']='completed_with_reviewed_failures'
+            dump(receipt,current)
+        check_results(results,block)
+        after=await asyncio.to_thread(raw_sample,False)
+        dump(ROOT/'runs/boundaries'/f'{boundary_id}.after.json',after)
+        append(ROOT/'runs/block_events.jsonl',{'utc':utc(),'id':block['id'],'completed':sum(r.get('state')=='received' for r in results),'stop':runner.stopping()})
+    return not runner.stopping()
+
+async def run(mode):
+    schedule=validate_plans();runner=Runner()
+    assert not runner.stopping(),runner.stopping()
+    done=asyncio.Event();tasks=[asyncio.create_task(heartbeat(runner,done)),asyncio.create_task(billing_watch(runner,done))]
+    started=utc()
+    try:
+        async with client() as api:
+            if mode=='core':await core(runner,api,schedule)
+            elif mode=='extended':
+                from extended import run_extended
+                await run_extended(runner,api,schedule)
+        receipt=await asyncio.to_thread(reconcile)
+        append(ROOT/'runs/billing_checks.jsonl',receipt)
+    except BaseException as e:
+        (ROOT/'STOP').write_text('supervisor exception: '+type(e).__name__+': '+str(e))
+        dump(ROOT/'runs/supervisor_exception.json',{'utc':utc(),'traceback':traceback.format_exc()})
+        raise
+    finally:
+        done.set();await asyncio.gather(*tasks,return_exceptions=True)
+        dump(ROOT/'runs/supervisor_status.json',{'utc':utc(),'pid':os.getpid(),'state':'stopped' if runner.stopping() else mode+'_complete','started_utc':started,'stage':mode,'sent':len(runner.ledger['entries']),'stop':runner.stopping()})
+
+def main():
+    ap=argparse.ArgumentParser();ap.add_argument('--mode',choices=['core','extended'],required=True);ap.add_argument('--validate-only',action='store_true');a=ap.parse_args()
+    if a.validate_only:print(json.dumps({'blocks':len(validate_plans()['blocks']),'model_calls':0}));return
+    locks=[]
+    for path in [ROOT/'runs/runner.lock',ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/runs/runner.lock']:
+        f=path.open('a');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
+    asyncio.run(run(a.mode))
+
+if __name__=='__main__':main()

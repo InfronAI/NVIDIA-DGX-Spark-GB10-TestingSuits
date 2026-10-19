@@ -1,0 +1,128 @@
+"""Offline, fixed-condition hardware comparison. H200 values are specifications, never measurements."""
+import json,statistics,hashlib
+from common import ROOT
+S=ROOT/'hardware_unloaded_confirmed_20261016'
+E=ROOT/'evidence/h200_comparison'
+SOURCES={
+ 'spark':'https://docs.nvidia.com/dgx/dgx-spark/hardware.html',
+ 'network':'https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html',
+ 'h200':'https://www.nvidia.com/en-us/data-center/h200/',
+ 'dgx':'https://docs.nvidia.com/dgx/dgxh100-user-guide/introduction-to-dgxh100.html',
+ 'hopper':'https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html',
+ 'nvfp4':'https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/',
+ 'nvfp4_emulation':'https://docs.nvidia.com/nim/large-language-models/_2.0.13/2.0.13/reference/advanced-configuration.html#nvfp4-emulation'}
+
+def select(d,node,**conditions):
+    rows=[g for g in d['groups'] if g['node']==node and all(g.get(k)==v for k,v in conditions.items())]
+    assert len(rows)==1,(node,conditions,len(rows))
+    return rows[0]
+
+def evidence(d):
+    compute=[]
+    for label,precision in [('FP32 GEMM','fp32'),('TF32 allowed','tf32_allowed'),('FP16','fp16'),('BF16','bf16'),('FP8 E4M3','fp8_e4m3'),('NVFP4','nvfp4'),('FP16 2:4','fp16_sparse_2of4'),('BF16 2:4','bf16_sparse_2of4')]:
+        compute.append({'label':label,'nodes':[select(d,n,precision=precision,shape=[8192]*3) for n in [0,1]]})
+    scalar=[select(d,n,kind='scalar_fma',threads=256,chains=8,sm_multiplier=4) for n in [0,1]]
+    memory=[]
+    for kind,mode in [('copy',None),('triad',None),('native_bandwidth','read'),('native_bandwidth','write')]:
+        nodes=[]
+        for n in [0,1]:
+            rr=[g for g in d['groups'] if g['node']==n and g['kind']==kind and abs(g.get('working_set_bytes',0)-2**33)<16 and (g.get('mode')==mode if mode else g.get('stride')==1)]
+            assert len(rr)==1,(kind,mode,n,len(rr));nodes.append(rr[0])
+        memory.append({'kind':kind,'mode':mode,'nodes':nodes})
+    raw=[json.loads(line) for name in ['rdma_results.jsonl','rdma_second_path.jsonl'] for line in (ROOT/'evidence'/name).read_text().splitlines() if line.strip()]
+    rdma=[]
+    for dev in sorted({x['device'] for x in raw}):
+        rr=[x for x in raw if x['device']==dev and x['tool']=='ib_write_bw' and x['client_returncode']==0 and x['server_returncode']==0]
+        values=[]
+        for x in rr:
+            assert '--report_gbits' in x['args'] and not any('use_cuda' in a for a in x['args'])
+            line=next(z for z in x['client_stdout'].splitlines() if z.strip().startswith('8388608'))
+            values.append(float(line.split()[3]))
+        if values:rdma.append({'device':dev,'n':len(values),'gbits_s_median':statistics.median(values),'gb_s_median':statistics.median(values)/8,'range_gbits_s':[min(values),max(values)]})
+    collectives=[x for x in d['collectives'] if x['message_bytes']==2**30]
+    assert len(collectives)==3
+    return {'compute':compute,'scalar':scalar,'memory':memory,'rdma':rdma,'collectives':collectives,'specification_scope':'H200 SXM per GPU; DGX H200 NIC configuration separately identified','summary_sha256':hashlib.sha256((S/'analysis/summary.json').read_bytes()).hexdigest(),'source_manifest':str(E/'sources.json')}
+
+def fmt(g,key):
+    s=g[key];return f"{s['median']:.2f} [{s['min']:.2f}–{s['max']:.2f}]; n={s['n']}"
+
+def hardware(lang,d):
+    from hardware_completion_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    e=evidence(d)
+    out='\n\n### '+T('GB10与H200：按资源功能对齐的架构参照','GB10 and H200: an architectural reference aligned by resource function')
+    out+='\n\n'+T('比较单位首先固定为单颗GB10（位于一台DGX Spark）与单颗H200 SXM；多设备协作另注明拓扑。指标按“存放数据、向计算核心供数、执行运算、交换分片、跨服务器扩展”的功能对齐，不要求底层技术同名。DGX Spark为完整计算机，H200 SXM为服务器加速器，容量归属、功耗边界与互连范围需随数值一起阅读。',
+      'The basic comparison is one GB10 in one DGX Spark versus one H200 SXM; multi-device topology is stated separately. Metrics align by function—holding data, supplying compute, executing arithmetic, exchanging shards and expanding across servers—rather than technology names. DGX Spark is a complete computer; H200 SXM is a server accelerator. Capacity ownership, power boundaries and fabric scope accompany every value.')
+    rows=[
+      [T('容纳权重、KV与工作空间','Hold weights, KV and workspace'),'128 GB LPDDR5x '+T('CPU/GPU共享统一内存','shared CPU/GPU unified memory'),'141 GB HBM3e '+T('GPU本地内存','GPU-local memory'),T('容量接近；Spark系统与CPU也占用同一内存池。双Spark的256 GB为分布式容量。','Similar nominal capacity; Spark CPU/system use shares the same pool. Two Sparks provide256 GB distributed capacity.')],
+      [T('向GPU供给本地数据','Supply local data to the GPU'),'273 GB/s '+T('LPDDR5x标称','LPDDR5x specified'),'4,800 GB/s '+T('HBM3e标称','HBM3e specified'),T('同属本地内存数据供给；H200规格比值17.58倍，仅是带宽比，不是推理加速比。','Both supply local memory data; the17.58×specification ratio is a bandwidth ratio, not inference speedup.')],
+      [T('CPU与GPU交换数据','Exchange data between CPU and GPU'),T('共享内存与芯片内NVLink-C2C；本报告不赋予未核验的C2C峰值。','Shared memory and on-chip NVLink-C2C; no unverified C2C peak is assigned.'),'PCIe Gen5:128 GB/s '+T('双向合计；主机与HBM分离','bidirectional aggregate; host memory and HBM are separate'),T('比较协同路径与迁移需求；C2C不充当两台Spark之间的互连。','Compare cooperation and migration needs; C2C is not the link between two Sparks.')],
+      [T('同一模型分片间协作','Coordinate shards of one model'),T('双Spark经RoCE；启用200 Gb/s端口＝25 GB/s单向标称。','Two Sparks use RoCE; the active200 Gb/s port specifies25 GB/s in one direction.'),T('H200 SXM经NVLink；每GPU900 GB/s双向合计，折算发送方向总和450 GB/s。','H200 SXM uses NVLink:900 GB/s bidirectional aggregate per GPU, equivalent to450 GB/s aggregate transmit direction.'),T('功能相同但拓扑不同：网卡端口对GPU全部链路；不是单链路或单对GPU性能比。','Same function, different topology: one NIC port versus all GPU links. This is not a single-link or GPU-pair performance ratio.')],
+      [T('向更多服务器扩展','Expand across more servers'),T('每台本次启用1×200 Gb/s＝25 GB/s；两个逻辑接口不相加。','One active200 Gb/s port per node=25 GB/s; logical interfaces are not additive.'),T('DGX H200示例：每网卡400 Gb/s＝50 GB/s；8 GPU整机8张，合计3.2 Tb/s。','DGX H200 example:400 Gb/s=50 GB/s per NIC; eight NICs in an eight-GPU system total3.2 Tb/s.'),T('归一到单网卡时规格为2倍；整机聚合依赖拓扑、并发与网络。','Per-NIC specified rate is2×; system aggregation depends on topology, concurrency and fabric.')],
+      [T('低精度矩阵加速','Low-precision matrix acceleration'),T('Blackwell支持FP8与NVFP4；本轮8192³稠密实测见下表。','Blackwell supports FP8 and NVFP4; fixed8192³dense measurements appear below.'),T('Hopper原生FP8；稠密约1,979 TFLOP/s、2:4稀疏3,958 TFLOP/s（规格）。','Hopper native FP8:about1,979dense and3,958with2:4sparsity TFLOP/s(specifications).'),T('FP4与FP8承担低精度加速功能，但数值格式、库路径与误差不同，不相除作加速倍数。','FP4 and FP8 serve low-precision acceleration, but formats, kernels and errors differ; their rates are not a speedup ratio.')],
+      [T('功率与供电约束','Power and provisioning'),T('GB10 SoC TDP140 W；Spark电源额定240 W。','GB10 SoC TDP140 W; Spark power supply rated240 W.'),T('H200 SXM最高700 W可配置TDP；主机功耗另计。','H200 SXM configurable TDP up to700 W; host-system power is additional.'),T('都是设计规格，边界不同；不用于直接计算词元/J或整机电费。','Design specifications with different boundaries; neither establishes tokens/J or wall-electricity cost.')],
+    ]
+    out+=table(lang,[('技术功能','Technical function'),('DGX Spark / GB10','DGX Spark / GB10'),('H200 SXM／指定服务器','H200 SXM / stated server'),('对齐方式与解释','Alignment and interpretation')],rows)
+    out+='\n\n'+f"[DGX Spark]({SOURCES['spark']}) · [H200 SXM]({SOURCES['h200']}) · [Spark ConnectX-7]({SOURCES['network']}) · [DGX H200]({SOURCES['dgx']}) · [Hopper NVLink]({SOURCES['hopper']})"
+    out+='\n\n'+T('表中H200全部为官方规格，未在本次执行H200实测。下文GB10为卸载模型后的测量。相同功能使架构对照有意义，但只有相同模型、精度、工作量及计时边界的双平台实测才能建立推理性能比。','All H200 values are official specifications; H200 was not benchmarked in this study. GB10 measurements below use unloaded-model conditions. Functional alignment supports architectural comparison; inference performance ratios require matched model, precision, work and timing on both platforms.')
+    out+='\n\n<!--REVIEW_FABRIC_MAP-->\n\n'+T('数据路径对照｜两种系统都要供给本地数据并交换模型分片，但使用不同内存与互连。连线表示功能路径，不按带宽缩放。','Data-path comparison | Both systems supply local data and exchange model shards through different memory and interconnects. Lines denote functional paths and are not scaled by bandwidth.')
+    out+='\n\n<!--HARDWARE_H200_MEMORY-->\n\n'+T('容量与数据供给｜均为单设备官方规格；相近容量不等于相近带宽。两个面板从零起轴。','Capacity and data supply | Per-device official specifications. Similar capacity does not imply similar bandwidth; both panels begin at zero.')
+    out+='\n\n#### '+T('本机内存速率：固定8 GiB工作集','Measured memory rates: fixed 8 GiB working set')
+    labels=[T('连续复制：读＋写','Contiguous copy: read + write'),T('三元运算：两读＋一写','Triad: two reads + one write'),T('原生读取','Native read'),T('原生写入','Native write')]
+    out+=table(lang,[('操作','Operation'),('节点0 GB/s：中位 [范围]；轮次','Node 0 GB/s: median [range]; rounds'),('节点1 GB/s：中位 [范围]；轮次','Node 1 GB/s: median [range]; rounds'),('H200 HBM3e参照','H200 HBM3e reference')],[[label]+[fmt(g,'effective_gb_s') for g in item['nodes']]+[T('4,800 GB/s标称；本操作未测','4,800 GB/s specified; this operation unmeasured')] for label,item in zip(labels,e['memory'])])
+    out+='\n\n'+T('工作集使用二进制GiB，速率使用十进制GB/s。数值按程序请求的逻辑字节计数，不能标为硬件计数器测得的物理DRAM带宽。原生读取包含线程内依赖累加，反映该访问内核而非理论读取上限；三元运算按元素对齐后的实际字节计数。','Working sets use binary GiB; rates use decimal GB/s. Values count logical bytes requested by the program, not counter-measured physical DRAM traffic. Native read includes dependent per-thread accumulation and describes that kernel rather than a theoretical read limit. Triad counts actual element-aligned bytes.')
+    out+='\n\n#### '+T('不同精度的核心计算速率','Core compute throughput by precision')
+    out+='\n\n'+T('TFLOP/s表示每秒10¹²次浮点运算，乘加计2次。下表GEMM固定M=N=K=8192，使用2MNK/时间，不从各规模中挑选最高值；FP32通用乘加单独列出。H200稠密Tensor Core值以官方带稀疏值除2近似换算，保留原表舍入；不是本研究实测。2:4稀疏指每4个权重中2个非零，表中稀疏速率采用稠密等效运算量。','TFLOP/s counts 10¹² floating-point operations per second, with FMA counting as two. GEMM fixes M=N=K=8192 and counts 2MNK/time rather than selecting the fastest size. Scalar FP32 FMA is separate. H200 dense Tensor Core figures are approximate halves of the rounded published sparse figures, not measurements. In 2:4 sparsity two of every four weights are nonzero; sparse rates use dense-equivalent work.')
+    out+='\n\n'+T('状态说明：**原生不支持**表示硬件没有该格式的原生运算路径；**不适用**表示该行运算不采用该列的稠密或2:4稀疏口径；**未测**表示本研究尚无有效实测结果。三者均不表示算力为零。','Status key: **No native support** means the hardware lacks a native arithmetic path for that format; **Not applicable** means the row does not use that column’s dense or 2:4 sparse convention; **Not measured** means this study has no valid measurement yet. None means zero throughput.')
+    na=T('不适用','Not applicable');unsupported=T('原生不支持','No native support')
+    peak={'FP32 GEMM':('67',na),'TF32 allowed':('≈494.5','989'),'FP16':('≈989.5','1,979'),'BF16':('≈989.5','1,979'),'FP8 E4M3':('≈1,979','3,958'),'NVFP4':(unsupported,unsupported),'FP16 2:4':(na,'1,979'),'BF16 2:4':(na,'1,979')}
+    rows=[[T('FP32通用乘加','Scalar FP32 FMA')]+[fmt(g,'effective_tflops') for g in e['scalar']]+['67',na]]
+    for x in e['compute']:rows.append([x['label']]+[fmt(g,'effective_tflops') for g in x['nodes']]+list(peak[x['label']]))
+    rows.append(['FP64',T('未测','Not measured'),T('未测','Not measured'),'34 '+T('通用；67 Tensor Core','scalar; 67 Tensor Core'),na])
+    out+=table(lang,[('运算／精度','Operation / precision'),('GB10节点0实测TFLOP/s','GB10 node 0 measured TFLOP/s'),('GB10节点1实测TFLOP/s','GB10 node 1 measured TFLOP/s'),('H200稠密理论TFLOP/s','H200 dense specified TFLOP/s'),('H200 2:4理论TFLOP/s','H200 2:4 specified TFLOP/s')],rows)
+    out+='\n\n'+T('GB10通用乘加条件为256线程/块、8条独立链、线程块数为SM数的4倍。TF32 allowed表示允许库使用TF32，不能仅凭该开关确认每次调用的实际指令。NVFP4使用受控、可精确表示的数据分布，不能代表生产权重误差或MoE内核性能。GB10官方“最高1 PFLOP/s”采用FP4稀疏口径，不与本表稠密NVFP4实测直接计算达成率。','Scalar GB10 FMA uses 256 threads/block, eight independent chains and four blocks per SM. TF32 allowed permits library selection; the flag alone does not establish executed instructions. NVFP4 uses controlled exactly representable operands, not production quantization errors or MoE kernels. GB10’s advertised up-to-1 PFLOP/s uses sparse FP4 and is not the denominator for a dense NVFP4 attainment rate.')
+    out+='\n\n'+T('**NVFP4的架构差异：**GB10属于Blackwell，具有原生FP4矩阵运算支持；H200属于Hopper，没有原生NVFP4 Tensor Core运算，因此没有可填入的原生稠密或稀疏峰值。软件可通过兼容内核把FP4权重反量化为BF16后计算，但这属于不同运算路径，不能用H200的FP8或INT8规格代填。本研究也未在H200上实测这种软件路径。','**NVFP4 architecture difference:** GB10 is Blackwell and supports native FP4 matrix arithmetic; H200 is Hopper and lacks native NVFP4 Tensor Core arithmetic, so no native dense or sparse peak applies. Compatible software kernels can dequantize FP4 weights to BF16 for computation, but that is a different arithmetic path; H200 FP8 or INT8 specifications cannot fill these cells. This software path was not benchmarked on H200 in this study.')+f" [NVIDIA NVFP4]({SOURCES['nvfp4']}) · [NVIDIA NIM NVFP4 Emulation]({SOURCES['nvfp4_emulation']})"
+    out+='\n\n<!--HARDWARE_H200_COMPUTE-->\n\n'+T('固定规模计算实测｜仅绘制两颗GB10实测，误差线为轮次观测范围。H200理论上限保留在表中，避免呈现为同场实测。','Fixed-size compute measurements | Only GB10 measurements are plotted, with observed round ranges. H200 specifications remain in the table and are not presented as a matched benchmark.')
+    out+='\n\n#### '+T('对部署选择的意义','Implications for deployment')
+    out+='\n\n'+T('本次8 GiB连续复制达到223–227 GB/s，两节点1 GiB AllReduce总线带宽约21.81 GB/s；跨节点同步与本地内存访问处于不同速率层级。H200的HBM和NVLink规格显示其具备更高的内存及GPU互连上限，但实际收益仍取决于模型分片、计算密度、批量与通信重叠。现有证据支持识别这些资源差异，不支持给出H200相对本机的词元速率、时延、能效或回本倍数。后续对照需要同一模型、量化/精度、输入输出、并发、缓存条件及墙上功耗测量。','The measured 8 GiB copy reaches 223–227 GB/s, while two-node 1 GiB AllReduce bus bandwidth is about 21.81 GB/s. Cross-node synchronization and local memory access operate at different rate scales. H200 specifications offer higher memory and GPU-interconnect ceilings, but benefits depend on sharding, arithmetic intensity, batching and overlap. These data identify resource differences; they do not establish H200 token throughput, latency, energy-efficiency or payback ratios. A matched comparison requires the same model, quantization/precision, input/output, concurrency and cache conditions, plus wall-power measurement.')
+    return out
+
+def communication(lang,d):
+    from hardware_completion_report import table
+    T=lambda z,e:z if lang=='zh' else e;e=evidence(d)
+    out='\n\n### '+T('设备间数据交换：端口、RDMA与集合通信','Device data exchange: port, RDMA and collectives')
+    out+='\n\n'+T('本实验每节点一个GPU通信进程（rank），双节点经ConnectX-7/RoCE连接。启用的物理端口标称200 Gb/s＝25 GB/s单向；两个逻辑接口共享该端口。RDMA记录测主机缓冲区，NCCL记录测GPU集合通信，两种实验按各自工作量统计。功能对应的H200互连参照统一见第09节。',
+      'One GPU communication process(rank)runs per node over ConnectX-7/RoCE. The active physical port specifies200 Gb/s=25 GB/s in one direction; two logical interfaces share it. RDMA measurements use host buffers; NCCL measurements use GPU collectives, each with its own work definition. Functionally aligned H200 interconnect references are consolidated in section09.')
+    rows=[]
+    for x in e['rdma']:
+        rows.append(['RDMA Write / '+x['device'],'8 MiB',x['n'],f"{x['gb_s_median']:.3f} GB/s ({x['gbits_s_median']:.2f} Gb/s)",T('2026-10-14；主机内存缓冲区，单逻辑路径','2026-10-14; host-memory buffers, one logical path')])
+    for x in e['collectives']:
+        rows.append([x['operation'],'1 GiB',x['bus_gb_s']['n'],f"{x['bus_gb_s']['median']:.3f} GB/s",T('2026-10-16；两GPU rank，总线口径','2026-10-16; two GPU ranks, bus metric')])
+    out+=table(lang,[('传输／操作','Transfer / operation'),('消息大小','Message size'),('轮次','Rounds'),('中位速率','Median rate'),('测量条件','Measurement conditions')],rows)
+    out+='\n\n'+T('RDMA Write以ib_write_bw、单QP、单向8 MiB消息测试，每逻辑路径3轮；输出使用--report_gbits，除8换算GB/s。它是独立历史主机缓冲区测量，不能替代GPU集合通信或与其相加。当前NCCL日志确认NET/IB上的RoCE，并明确记录GPU Direct RDMA Disabled；不声称GPU直接RDMA路径。','RDMA Write uses ib_write_bw, one QP and one-way 8 MiB messages, with three repeats per logical path. Its --report_gbits output is divided by eight for GB/s. This separate historical host-buffer test neither substitutes for nor adds to GPU collectives. Current NCCL logs confirm RoCE through NET/IB and explicitly report GPU Direct RDMA Disabled; a GPU-direct RDMA path is not claimed.')
+    out+='\n\n<!--HARDWARE_H200_NETWORK-->\n\n'+T('1 GiB集合通信｜算法带宽按完整输入/输出张量计数；总线带宽按NCCL规则校正。两rank时AllReduce系数为1，AllGather与ReduceScatter为1/2，因此算法GB/s可以高于25而不代表物理端口超过200 Gb/s。总线带宽也不是网卡硬件计数器读数；虚线只作标称端口线速参考。','1 GiB collectives | Algorithm bandwidth counts the defined full input/output tensor. NCCL bus factors for two ranks are 1 for AllReduce and 1/2 for AllGather/ReduceScatter. Algorithm GB/s may exceed 25 without exceeding a 200 Gb/s physical link. Bus bandwidth is not a NIC hardware-counter reading; the dashed line is only a nominal line-rate reference.')
+    out+='\n\n'+T('[RDMA第一路径](../evidence/rdma_results.jsonl) · [RDMA第二路径](../evidence/rdma_second_path.jsonl) · [本节固定条件与数据来源](../evidence/h200_comparison/comparison.json) · [官方规格快照索引](../evidence/h200_comparison/sources.json)。','[First RDMA path](../evidence/rdma_results.jsonl) · [Second RDMA path](../evidence/rdma_second_path.jsonl) · [Fixed conditions and provenance](../evidence/h200_comparison/comparison.json) · [Official-source snapshot index](../evidence/h200_comparison/sources.json).')
+    return out
+
+def draw(d):
+    from plots import plt,save
+    e=evidence(d);E.mkdir(exist_ok=True,parents=True)
+    (E/'comparison.json').write_text(json.dumps(e,ensure_ascii=False,indent=2))
+    for lang in ['zh','en']:
+        T=lambda z,en:z if lang=='zh' else en
+        fig,axes=plt.subplots(1,2,figsize=(10,3.5))
+        for ax,values,title,unit in zip(axes,[[128,141],[273,4800]],[T('单设备标称容量','Nominal capacity per device'),T('单设备理论内存带宽','Specified memory bandwidth per device')],['GB','GB/s']):
+            bars=ax.barh(['GB10','H200 SXM'],values,color=['#004AB9','#767F8D'],hatch='///',edgecolor='white');ax.bar_label(bars,padding=4,fmt='%g');ax.set_xlim(0,max(values)*1.22);ax.set_xlabel(unit);ax.set_title(title)
+        save(fig,'hardware_h200_memory',lang)
+        fig,ax=plt.subplots(figsize=(11,4))
+        rr=e['compute'][:6];xs=list(range(len(rr)))
+        for n,col in [(0,'#004AB9'),(1,'#70A6FF')]:
+            ss=[x['nodes'][n]['effective_tflops'] for x in rr];vs=[x['median'] for x in ss]
+            ax.bar([x+(n-.5)*.36 for x in xs],vs,width=.34,color=col,label=T('节点','Node ')+str(n),yerr=[[x['median']-x['min'] for x in ss],[x['max']-x['median'] for x in ss]],capsize=3)
+        ax.set_xticks(xs,[x['label'] for x in rr]);ax.set_ylabel(T('实测 TFLOP/s','Measured TFLOP/s'));ax.set_title(T('8192 × 8192 × 8192 稠密矩阵乘法','8192 × 8192 × 8192 dense GEMM'));ax.legend();save(fig,'hardware_h200_compute',lang)
+        fig,axes=plt.subplots(1,2,figsize=(10,3.6))
+        rr=e['collectives'];labels=[x['operation'] for x in rr]
+        for ax,key,title in zip(axes,['algorithm_gb_s','bus_gb_s'],[T('算法带宽','Algorithm bandwidth'),T('NCCL总线带宽','NCCL bus bandwidth')]):
+            bars=ax.bar(labels,[x[key]['median'] for x in rr],color='#004AB9');ax.bar_label(bars,fmt='%.2f',padding=3);ax.set_ylim(0,50 if key=='algorithm_gb_s' else 30);ax.set_ylabel('GB/s');ax.set_title(title)
+            if key=='bus_gb_s':ax.axhline(25,color='#6E7A8A',ls='--',label=T('端口标称25 GB/s','Nominal port 25 GB/s'));ax.legend(fontsize=8,loc='upper right')
+        save(fig,'hardware_h200_network',lang)

@@ -1,0 +1,32 @@
+"""Offline measured-data checks: resets, label changes, histogram bounds, usage mismatch."""
+import json
+import unittest
+from pathlib import Path
+from metrics import prometheus,delta,histogram
+from common import ROOT
+
+class Measurements(unittest.TestCase):
+    def test_reset_does_not_produce_negative_work(self):
+        a=prometheus('x_total{tp_rank="0"} 9');b=prometheus('x_total{tp_rank="0"} 2')
+        self.assertIsNone(delta(a,b,'x_total')['value'])
+        self.assertEqual(delta(a,b,'x_total')['reason'],'counter reset')
+    def test_rank_filter_and_new_stream_label(self):
+        a=prometheus('x_total{rank="0",stream="false"} 90\nx_total{rank="1",stream="false"} 90')
+        b=prometheus('x_total{rank="0",stream="false"} 90\nx_total{rank="1",stream="false"} 90\nx_total{rank="0",stream="true"} 10')
+        self.assertEqual(delta(a,b,'x_total',rank='0')['value'],10)
+    def test_histogram_uses_window_not_lifetime(self):
+        a=prometheus('h_bucket{le="1"} 90\nh_bucket{le="2"} 100\nh_bucket{le="+Inf"} 100\nh_sum 60\nh_count 100')
+        b=prometheus('h_bucket{le="1"} 90\nh_bucket{le="2"} 110\nh_bucket{le="+Inf"} 110\nh_sum 75\nh_count 110')
+        r=histogram(a,b,'h');self.assertEqual(r['count'],10);self.assertEqual(r['mean'],1.5);self.assertEqual(r['quantile_bounds']['0.5'],{'lower':1.0,'upper':2.0})
+    def test_observed_usage_inflation_changes_tpot(self):
+        r=json.loads((ROOT/'runs/requests/P3_r0_c1_HumanEval_147/result.json').read_text())
+        raw=json.loads((ROOT/'evidence/incident_log_contents.json').read_text())[0]['original_response_json']
+        u=[json.loads(l)['usage'] for l in raw.splitlines() if '"usage":{' in l][-1]
+        self.assertEqual(u['completion_tokens'],1024);self.assertEqual(u['reasoning_tokens'],1025)
+        # Replay of the observed fixed-source conditional, not an end-to-end gateway test.
+        normalized=u['completion_tokens']+u['reasoning_tokens'] if u['reasoning_tokens']>u['completion_tokens'] else u['completion_tokens']
+        self.assertEqual(normalized,r['usage']['completion_tokens']);self.assertEqual(normalized,2049)
+        elapsed=r['timing']['e2e_s']-r['timing']['first_generated_s']
+        self.assertGreater(elapsed/1023,1.99*r['timing']['tpot_compat_s'])
+
+if __name__=='__main__':unittest.main()

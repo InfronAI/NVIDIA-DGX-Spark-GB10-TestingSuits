@@ -1,0 +1,168 @@
+"""Publication figures from one saved snapshot; no new model or network calls."""
+import json
+import re
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+from common import ROOT
+from report_diagnostics import normalized_cost
+from report_labels import condition_name
+
+BLUE='#004AB9'; LIGHT='#70A6FF'; DARK='#1E324C'; MUTED='#A1B0C4'
+
+def draw(a,d,lang,save,empty):
+    T=lambda z,e:z if lang=='zh' else e
+    # Actual system and measurement boundaries. Links show observations, not spans.
+    fig,ax=plt.subplots(figsize=(9,3.9));ax.set_xlim(0,10);ax.set_ylim(0,4);ax.axis('off')
+    def box(x,y,w,h,text,color=BLUE):
+        ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.05',facecolor='#F1F6FF',edgecolor=color,lw=1.2))
+        ax.text(x+w/2,y+h/2,text,ha='center',va='center',fontsize=9,color=DARK)
+    def arrow(x,y,x2,y2,label='',dashed=False):
+        ax.annotate('',xy=(x2,y2),xytext=(x,y),arrowprops=dict(arrowstyle='->',color=BLUE,linestyle='--' if dashed else '-'))
+        if label:ax.text((x+x2)/2,(y+y2)/2+.12,label,ha='center',fontsize=8)
+    box(.1,2.3,2.2,1.05,T('测量客户端\n流式时延 · 实际词元','Measurement client\nStreaming time · Tokens'))
+    box(3.05,2.3,2.5,1.05,T('Infron 推理端点\n固定供应路由','Infron endpoint\nFixed provider route'))
+    box(6.45,2.3,3.35,1.05,T('两台 DGX Spark\n两路张量并行 · MTP 开启','Two DGX Spark nodes\nTensor parallelism = 2 · MTP on'))
+    box(6.45,.25,3.35,.95,T('SparkDash 认证监控\n资源 · 功率 · 服务状态','Authenticated SparkDash\nResources · Power · Service'))
+    box(.1,.25,5.45,.95,T('同一时间轴上的关联分析\n客户端观测 + 节点采样；不是请求级内部追踪','Time-aligned analysis\nClient observations + node samples; no internal per-request trace'))
+    arrow(2.35,2.83,3,2.83);arrow(5.6,2.83,6.4,2.83)
+    arrow(8.1,2.25,8.1,1.25,dashed=True);arrow(6.4,.72,5.6,.72,dashed=True);arrow(1.2,2.25,1.2,1.25,dashed=True)
+    save(fig,'system_map',lang)
+
+    bank=[json.loads(s) for s in (ROOT/'protocol/workloads.jsonl').read_text().splitlines() if s]
+    suites=[('mmlu_pro','MMLU-Pro'),('math500','MATH-500'),('gsm8k','GSM8K'),('ifeval','IFEval'),('humaneval_plus','HumanEval+'),('mbpp_plus','MBPP+')]
+    fig,ax=plt.subplots(figsize=(9,3.7))
+    for i,(key,label) in enumerate(suites):
+        vals=sorted(r['content_tokens'] for r in bank if r['suite']==key)
+        ax.scatter(vals,i+np.linspace(-.12,.12,len(vals)),s=27,color=BLUE,alpha=.7,zorder=3)
+        if vals:ax.plot([np.median(vals)]*2,[i-.23,i+.23],color=DARK,lw=2)
+    ax.set_yticks(range(6),[x[1]+' (n=10)' for x in suites]);ax.invert_yaxis()
+    ax.set_xlabel(T('输入材料的词元数（不含聊天模板）','Input-material tokens (chat template excluded)'));ax.grid(axis='y',visible=False)
+    save(fig,'dataset_profile',lang)
+
+    flow=d['sample_flow'];fig,axes=plt.subplots(1,2,figsize=(9,3.8),gridspec_kw={'width_ratios':[1.5,1]})
+    labels=[T('已发送尝试','Sent attempts'),T('完整响应','Complete responses'),T('剔除预热后的完整响应','Non-warmup complete responses'),T('连续完整区组内响应','Responses in eligible blocks')]
+    vals=[flow[k] for k in ['attempts','complete','measured_complete','eligible_responses']]
+    axes[0].barh(range(4),vals,color=[MUTED,LIGHT,BLUE,DARK]);axes[0].set_yticks(range(4),labels);axes[0].invert_yaxis();axes[0].set_xlim(0,max(vals)*1.22)
+    for i,v in enumerate(vals):axes[0].text(v+max(vals)*.02,i,f'{v:,}',va='center')
+    bvals=[flow[k] for k in ['recorded_blocks','eligible_blocks']]
+    axes[1].barh(range(2),bvals,color=[MUTED,BLUE]);axes[1].set_yticks(range(2),[T('已记录非预热区组','Recorded non-warmup blocks'),T('连续完整区组','Eligible complete blocks')]);axes[1].invert_yaxis();axes[1].set_xlim(0,max(bvals)*1.22)
+    for i,v in enumerate(bvals):axes[1].text(v+max(bvals)*.02,i,str(v),va='center')
+    axes[0].set_xlabel(T('请求数','Requests'));axes[1].set_xlabel(T('区组数','Blocks'))
+    save(fig,'sample_flow',lang)
+
+    gs=sorted(d['natural'],key=lambda g:int(re.search(r'_c(\d+)',g['key'])[1]))
+    fig,ax=plt.subplots(figsize=(9,3.7))
+    if gs:
+        ax.plot([g['tps'] for g in gs],[g['ttft']['p95'] for g in gs],color=BLUE,marker='o')
+        for g in gs:
+            c=int(re.search(r'_c(\d+)',g['key'])[1]);ax.annotate(T(f'并发 {c} · {g["n"]} 次',f'c={c} · n={g["n"]}'),(g['tps'],g['ttft']['p95']),xytext=(0,11),textcoords='offset points',ha='center',fontsize=9)
+        ax.margins(x=.16,y=.35)
+    else:empty(ax,T('尚无连续完整区组','No eligible blocks yet'))
+    ax.set_xlabel(T('合计实际生成吞吐（词元 / 秒；越右越高）','Aggregate generated tokens / s (higher to the right)'))
+    ax.set_ylabel(T('正文首字延迟第 95 百分位\n（秒；越下等待越短）','Visible-TTFT p95\n(s; less waiting downward)'))
+    save(fig,'pareto',lang)
+
+    bs=d['behavior'];fig,axes=plt.subplots(1,2,figsize=(9,3.8));ys=np.arange(len(bs))
+    labels=[condition_name(g['cell'],lang,False)+f' (n={g["n"]})' for g in bs]
+    axes[0].barh(ys,[g['output_mean'] if g['output_mean'] is not None else np.nan for g in bs],color=BLUE)
+    axes[0].set_yticks(ys,labels);axes[0].invert_yaxis();axes[0].set_xlabel(T('实际生成词元均值','Mean actual generated tokens'))
+    for i,g in enumerate(bs):
+        if g['output_mean'] is not None:axes[0].text(g['output_mean'],i,f' {g["output_mean"]:.0f}',va='center',fontsize=8)
+    axes[0].margins(x=.2)
+    for offset,key,label,color in [(-.17,'truncated',T('达到输出上限','Output limit reached'),BLUE),(.17,'no_visible',T('无可见正文','No visible content'),LIGHT)]:
+        vals=[100*g[key]/g['n'] for g in bs];axes[1].barh(ys+offset,vals,height=.3,label=label,color=color)
+        for i,v in enumerate(vals):axes[1].text(v+1,i+offset,f'{v:.1f}%',va='center',fontsize=8)
+    axes[1].set_yticks(ys,[condition_name(g['cell'],lang,False) for g in bs]);axes[1].invert_yaxis();axes[1].set_xlim(0,115);axes[1].set_xlabel(T('完整响应占比（%）','Share of complete responses (%)'));axes[1].legend(loc='lower right',fontsize=7)
+    save(fig,'generation_shape',lang)
+
+    for metric,name,title in [('ttft_median_s','length_wait',T('正文首字延迟中位数（秒）','Median visible-TTFT (s)')),('tps','length_throughput',T('合计实际生成吞吐（词元 / 秒）','Aggregate generated tokens / s'))]:
+        fig,axes=plt.subplots(2,2,figsize=(9,6.3),layout='constrained');items=d['lengths'];vmax=max([r[metric] for r in items if r[metric] is not None] or [1]);cmap=plt.get_cmap('Blues').copy();cmap.set_bad('#E8ECF2')
+        for ax,c in zip(axes.flat,[1,2,4,8]):
+            data=np.full((3,3),np.nan);ns={}
+            for i,inp in enumerate([512,8192,32768]):
+                for j,cap in enumerate([128,512,2048]):
+                    r=next((r for r in items if (r['concurrency'],r['input_target'],r['output_cap'])==(c,inp,cap)),None)
+                    if r and r[metric] is not None:data[i,j]=r[metric];ns[(i,j)]=r['n']
+            im=ax.imshow(data,cmap=cmap,vmin=0,vmax=vmax,aspect='auto');ax.grid(False)
+            ax.set_xticks(range(3),['128','512','2,048']);ax.set_yticks(range(3),['512','8,192','32,768']);ax.set_xlabel(T('输出预算（词元上限）','Output budget (token cap)'));ax.set_ylabel(T('目标输入词元','Target input tokens'));ax.set_title(T(f'并发 {c}',f'Concurrency {c}'))
+            for i in range(3):
+                for j in range(3):
+                    v=data[i,j];label=T('未测','Unmeasured') if np.isnan(v) else f'{v:.2f}\nn={ns[(i,j)]}'
+                    ax.text(j,i,label,ha='center',va='center',fontsize=9,color='white' if not np.isnan(v) and v>vmax*.58 else DARK)
+        fig.colorbar(im,ax=axes.ravel().tolist(),shrink=.8,label=title,pad=.035)
+        # Constrained layout owns colorbar positioning; avoid the generic tight_layout.
+        save(fig,name,lang,layout=False)
+
+    fig,axes=plt.subplots(1,3,figsize=(9,3.7))
+    for node,color in [(0,BLUE),(1,LIGHT)]:
+        rs=sorted([r for r in d['resources'] if r['node']==node],key=lambda r:r['concurrency'])
+        for ax,key,label in zip(axes,['gpu_mean_percent','sensor_power_mean_w','estimated_system_power_mean_w'],[T('GPU 活跃度（%）','GPU activity (%)'),T('GPU 传感器功率（W）','GPU sensor power (W)'),T('估算整机功率（W）','Estimated system power (W)')]):
+            ax.plot([r['concurrency'] for r in rs],[r[key] if r[key] is not None else np.nan for r in rs],color=color,marker='o',label=T(f'节点 {node}',f'Node {node}'));ax.set_ylabel(label);ax.set_xlabel(T('并发','Concurrency'));ax.set_xticks([1,2,4,8])
+    axes[0].legend(fontsize=8);save(fig,'resource_by_load',lang)
+
+    costs=[r for r in d['costs'] if r['cell'].startswith(('P1_','P3_'))];fig,axes=plt.subplots(1,2,figsize=(9,4))
+    for ax,key,label in zip(axes,['usd_per_1000_responses','usd_per_million_generated'],[T('每千次完整响应（美元）','US$ per 1,000 complete responses'),T('每百万实际生成词元的综合费用（美元）','Blended US$ per million generated tokens')]):
+        ax.barh(range(len(costs)),[r[key] if r[key] is not None else np.nan for r in costs],color=BLUE);ax.set_yticks(range(len(costs)),[condition_name(r['cell'],lang,False) for r in costs]);ax.invert_yaxis();ax.set_xlabel(label,fontsize=8)
+        vmax=max([r[key] for r in costs if r[key] is not None] or [1]);ax.set_xlim(0,vmax*1.25)
+        for i,r in enumerate(costs):ax.text((r[key] or 0)+vmax*.02,i,T('账单未齐','Bills pending') if r[key] is None else f'{r[key]:.3f}',va='center',fontsize=8)
+    save(fig,'cost_by_workload',lang)
+
+    fig,axes=plt.subplots(1,2,figsize=(9,3.8));ax=axes[0];u=np.linspace(.25,1,100)
+    for i,g in enumerate(gs):
+        rs=sorted([r for r in d['cost_scenarios'] if r['cell']==g['key'] and r['years']==3],key=lambda r:r['utilization'])
+        c=int(re.search(r'_c(\d+)',g['key'])[1]);ax.plot([r['utilization']*100 for r in rs],[r['usd_per_million_generated'] for r in rs],color=[BLUE,LIGHT,DARK,MUTED][i%4],marker='o',label=T(f'并发 {c}',f'Concurrency {c}'))
+    ax.set_xlabel(T('有效生产时段比例（%）','Productive fraction (%)'));ax.set_ylabel(T('每百万生成词元成本（美元）','US$ per million generated tokens'));ax.set_xticks([25,50,75,100]);ax.legend(fontsize=8);ax.set_title(T('三年折旧：利用率敏感性','Three-year depreciation: utilization'),fontsize=10)
+    best=max(gs,key=lambda g:g['tps']) if gs else None
+    if best:
+        rs=[r for r in d['cost_scenarios'] if r['cell']==best['key'] and r['utilization']==.75]
+        axes[1].bar(range(len(rs)),[r['depreciation_usd_year']/r['generated_million_year'] for r in rs],color=BLUE,label=T('设备折旧','Device depreciation'))
+        axes[1].bar(range(len(rs)),[r['energy_usd_year']/r['generated_million_year'] for r in rs],bottom=[r['depreciation_usd_year']/r['generated_million_year'] for r in rs],color=LIGHT,label=T('估算电费','Estimated electricity'))
+        axes[1].set_xticks(range(len(rs)),[T(f'{r["years"]} 年',f'{r["years"]} years') for r in rs]);axes[1].set_ylabel(T('每百万生成词元成本（美元）','US$ per million generated tokens'));axes[1].legend(fontsize=8)
+        axes[1].set_title(T('最高观测吞吐条件 · 75% 利用率','Highest observed rate · 75% utilization'),fontsize=9)
+    save(fig,'cost_sensitivity',lang)
+
+    investments=[r for r in d.get('investment_scenarios',[]) if best and r['cell']==best['key']]
+    fig,ax=plt.subplots(figsize=(9,3.6))
+    for i,u in enumerate([.25,.5,.75,1]):
+        row=next((r for r in investments if r['use']=='self_use' and r['utilization']==u and r['horizon_years']==5),None)
+        if row:
+            years=np.arange(6);cash=(years*row['net_operating_cash_usd_year']-row['capex_usd'])/1000
+            ax.plot(years,cash,marker='o',color=[MUTED,DARK,LIGHT,BLUE][i],label=f'{u:.0%}')
+            ax.annotate(f'{row["roi_fraction"]:+.1%}',(5,cash[-1]),xytext=(7,0),textcoords='offset points',va='center',fontsize=9)
+    ax.axhline(0,color=DARK,lw=1,ls='--');ax.set_xticks(range(6));ax.set_xlim(0,5.65)
+    ax.set_xlabel(T('持有年数；0 表示刚完成采购','Years held; 0 is immediately after purchase'))
+    ax.set_ylabel(T('累计净现金收益（千美元）','Cumulative net cash (US$ thousands)'))
+    if investments:ax.legend(title=T('有效生产比例','Productive fraction'),ncol=4,fontsize=8,loc='upper left')
+    else:empty(ax,T('等待完整成本依据','Awaiting complete cost evidence'))
+    save(fig,'investment_self',lang)
+
+    fig,axes=plt.subplots(1,3,figsize=(9,4.3),layout='constrained')
+    values=[100*r['roi_fraction'] for r in investments if r['use']=='sale']
+    vmax=max([abs(v) for v in values] or [100])
+    from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+    cmap=LinearSegmentedColormap.from_list('infron_returns',['#93A2B8','#F5F8FF',BLUE])
+    norm=TwoSlopeNorm(vmin=-vmax,vcenter=0,vmax=vmax)
+    for ax,years in zip(axes,[1,3,5]):
+        grid=np.full((4,3),np.nan)
+        for i,u in enumerate([.25,.5,.75,1]):
+            for j,factor in enumerate([.5,1,2]):
+                row=next((r for r in investments if (r['use'],r['horizon_years'],r['utilization'],r['price_multiple'])==('sale',years,u,factor)),None)
+                if row:grid[i,j]=row['roi_fraction']*100
+        im=ax.imshow(grid,cmap=cmap,norm=norm,aspect='auto');ax.grid(False)
+        ax.set_title(T(f'{years} 年累计 ROI',f'Year {years} cumulative ROI'))
+        ax.set_xticks(range(3),['0.5×','1×','2×']);ax.set_yticks(range(4),['25%','50%','75%','100%'])
+        ax.set_xlabel(T('售价 / 参考价','Sale / reference price'))
+        for i in range(4):
+            for j in range(3):
+                v=grid[i,j];ax.text(j,i,'—' if np.isnan(v) else f'{v:+.1f}%',ha='center',va='center',fontsize=8,color='white' if abs(v)>vmax*.55 else DARK)
+    axes[0].set_ylabel(T('有效售出利用率','Effective sold utilization'))
+    fig.colorbar(im,ax=axes.ravel().tolist(),shrink=.85,label=T('累计 ROI（%）','Cumulative ROI (%)'),pad=.02)
+    save(fig,'investment_sales',lang,layout=False)
+
+    fig,axes=plt.subplots(2,1,figsize=(9,3.8),sharex=True)
+    for ax,starts,durations,title in [(axes[0],[0,3,8],[3,5,3],T('闭环示意：上个完成后再发下个','Closed loop: send the next after completion')),(axes[1],[0,2,4],[3,5,3],T('开放到达示意：新请求按独立时刻进入','Open arrivals: independently scheduled requests'))]:
+        for i,(s,dur) in enumerate(zip(starts,durations)):
+            ax.broken_barh([(s,dur)],(i-.27,.54),facecolors=[BLUE,LIGHT,DARK][i]);ax.scatter(s,i,marker='|',s=110,color=DARK,zorder=3)
+        ax.set_yticks(range(3),[T('请求 1','Request 1'),T('请求 2','Request 2'),T('请求 3','Request 3')]);ax.invert_yaxis();ax.set_title(title,loc='left',fontsize=10);ax.set_xlim(-.3,11.5)
+    axes[-1].set_xlabel(T('任意时间单位；方法示意，不是实测时序','Arbitrary time units; method schematic, not measured timing'));save(fig,'arrival_design',lang)

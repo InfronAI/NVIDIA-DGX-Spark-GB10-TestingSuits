@@ -1,0 +1,132 @@
+"""Bounded native SGLang experiments; credentials are discovered in memory only."""
+import asyncio
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import random
+import re
+import subprocess
+import time
+
+import httpx
+
+ROOT = Path(__file__).resolve().parent
+BASE = 'http://127.0.0.1:8000'
+
+
+def utc():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def save(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + '.tmp')
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    tmp.replace(path)
+
+
+def headers():
+    for p in Path('/proc').glob('[0-9]*/cmdline'):
+        try:
+            a = p.read_bytes().decode().split('\0')
+            if 'sglang.launch_server' in a and '--api-key' in a:
+                return {'Authorization': 'Bearer '+a[a.index('--api-key')+1],
+                        'User-Agent': 'Infron-Engine-Evaluation/1.0',
+                        'Accept': 'application/json, text/event-stream', 'Connection': 'keep-alive'}
+        except (OSError, UnicodeError):
+            pass
+    raise RuntimeError('No engine credential available')
+
+
+def metric_rows(text):
+    rows = []
+    for line in text.splitlines():
+        if not line or line.startswith('#'): continue
+        m = re.fullmatch(r'([^ {]+)(\{.*\})?\s+([^ ]+)(?:\s+.*)?', line)
+        if m:
+            rows.append((m[1], dict(re.findall(r'(\w+)="([^"]*)"', m[2] or '')), float(m[3])))
+    return rows
+
+
+async def idle(client):
+    response = await client.get(BASE+'/metrics'); response.raise_for_status()
+    rows = metric_rows(response.text)
+    values = {name: sum(v for n, _, v in rows if n == name)
+              for name in ['sglang:num_running_reqs', 'sglang:num_queue_reqs']}
+    for name in values:
+        if not any(n == name for n, _, _ in rows): raise RuntimeError('Missing idle metric')
+    return all(v == 0 for v in values.values()), response.text
+
+
+def inputs(tokenizer, length, seed):
+    rng = random.Random(seed)
+    text = f'Experiment {seed}: Analyze the following inventory records and produce a detailed numbered reconciliation.\n'
+    records = []
+    # Unique early prefix and varying records avoid intentional cross-request cache reuse.
+    for i in range(max(100, length // 12)):
+        records.append(f'Order {rng.randrange(10000000,99999999)}: item {rng.randrange(100,999)}, quantity {rng.randrange(1,100)}, unit price {rng.randrange(1,9999)} cents, region {rng.choice(["north","south","east","west"])}.\n')
+    ids = tokenizer.encode(text+''.join(records), add_special_tokens=False)
+    assert len(ids) >= length
+    return ids[:length]
+
+
+async def generate(client, rid, ids, output, directory):
+    directory.mkdir(parents=True, exist_ok=False)
+    payload = {'rid':rid, 'input_ids':ids, 'stream':True,
+               'sampling_params':{'temperature':0, 'max_new_tokens':output, 'ignore_eos':True}}
+    save(directory/'request.json', payload)
+    start = time.perf_counter()
+    result = {'rid':rid, 'started_utc':utc(), 'state':'started', 'requested_input':len(ids), 'requested_output':output}
+    save(directory/'status.json', result)
+    try:
+        final = None
+        with (directory/'events.jsonl').open('w') as f:
+            async with client.stream('POST', BASE+'/generate', json=payload) as response:
+                result['http_status'] = response.status_code
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith('data:'): continue
+                    data = line[5:].strip()
+                    f.write(json.dumps({'elapsed_s':time.perf_counter()-start, 'data':data})+'\n')
+                    f.flush()
+                    if data == '[DONE]': continue
+                    obj = json.loads(data)
+                    if 'meta_info' in obj: final = obj
+        if not final: raise RuntimeError('No native response metadata')
+        save(directory/'response.json', final)
+        meta = final['meta_info']
+        if meta.get('id') != rid: raise RuntimeError('Request identity mismatch')
+        if meta.get('prompt_tokens') != len(ids): raise RuntimeError('Input token count mismatch')
+        if meta.get('completion_tokens') != output: raise RuntimeError('Output token count mismatch')
+        if not meta.get('finish_reason'): raise RuntimeError('No terminal finish reason')
+        result.update(state='complete', meta=meta)
+    except BaseException as exc:
+        result.update(state='failed', error=type(exc).__name__+': '+str(exc)[:400])
+        try:
+            r = await asyncio.shield(client.post(BASE+'/abort_request', json={'rid':rid,'abort_all':False}, timeout=10))
+            result['abort_status'] = r.status_code
+        except BaseException:
+            result['abort_status'] = 'unconfirmed'
+        raise
+    finally:
+        result.update(ended_utc=utc(), loopback_elapsed_s=time.perf_counter()-start)
+        save(directory/'status.json', result)
+    return result
+
+
+async def pilot():
+    from transformers import AutoTokenizer
+    async with httpx.AsyncClient(headers=headers(), trust_env=False, timeout=180) as client:
+        is_idle, metrics = await idle(client)
+        if not is_idle: raise RuntimeError('Engine is busy')
+        model = (await client.get(BASE+'/get_model_info')).json()
+        tokenizer = AutoTokenizer.from_pretrained(model['tokenizer_path'], local_files_only=True)
+        result = await generate(client, 'engine_split_pilot_20261016', inputs(tokenizer,1024,20261016),64,ROOT/'pilot')
+        print(json.dumps(result,ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    asyncio.run(pilot())

@@ -1,0 +1,23 @@
+"""Review explicit CF errors without assigning an invented gateway receipt."""
+import json
+from common import dump,digest,utc
+from cf_retry import is_cf_error,logical_id
+
+def review(root,results,rows):
+    by_id={r['id']:r for r in results};verified={}
+    for r in results:
+        if not is_cf_error(r) or r.get('request_id') or r.get('response_request_id'):continue
+        p=root/'runs/logical_outcomes'/f'{logical_id(r)}.json'
+        if not p.exists():continue
+        outcome=json.loads(p.read_text());final=by_id.get(outcome.get('final_attempt_id'),{})
+        rid=final.get('response_request_id') or final.get('request_id')
+        if outcome.get('state')!='received' or final.get('state')!='received' or not rid:continue
+        if final.get('retry_of')!=logical_id(r) or r['id'] not in outcome.get('attempt_ids',[]):continue
+        bills=[b for b in rows if b['request_id']==rid]
+        if len([b for b in bills if b['type']==2])!=1:continue
+        if any(b['model_provider_id']!=2084 or b['channel_id']!=2538 for b in bills):continue
+        request=root/'runs/requests'/r['id']/'request.json';last=root/'runs/requests'/final['id']/'request.json'
+        if json.loads(request.read_text())!=json.loads(last.read_text()):continue
+        verified[r['id']]={'utc':utc(),'request_sha256':digest(request),'result_sha256':digest(request.with_name('result.json')),'verified_retry_id':final['id'],'verified_retry_request_id':rid,'verified_retry_result_sha256':digest(last.with_name('result.json')),'matched_retry_log_ids':[b['id'] for b in bills],'basis':'Explicit Cloudflare HTTP error; user-authorized identical-payload retry completed and reconciled on the fixed route. Original failed attempt remains unattributed, fully reserved, and is not replayed or assigned zero cost.','original_failure_receipt_known':False,'original_reservation_retained':True}
+    dump(root/'evidence/cf_edge_reviews.json',{'utc':utc(),'cases':verified})
+    return verified

@@ -1,0 +1,147 @@
+"""Reader-facing benchmark inventory, derived from the frozen performance bank."""
+import hashlib
+import json
+import statistics
+
+from common import ROOT, read_rows
+
+
+SUITES = [
+    ('mmlu_pro', 'MMLU-Pro',
+     'https://github.com/TIGER-AI-Lab/MMLU-Pro',
+     'https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro/tree/b189ec765aa7ed75c8acfea42df31fdae71f97be',
+     'b189ec765aa7',
+     ('跨学科知识与推理选择题，原始测试集覆盖 14 个学科；通常按选项正确率评价。',
+      'Multiple-choice knowledge and reasoning across 14 subjects; normally evaluated by answer accuracy.'),
+     ('使用问题及原始选项，去除少样本解题示范。提供含专业术语和选项列表的短输入。',
+      'Question and original choices, without few-shot worked examples. Supplies short inputs with specialist terms and option lists.'),
+     ('直流电机需要哪种绕组；从给定选项中选择。',
+      'Choose the winding required by DC machines from the supplied options.'), 'mmlu_11888'),
+    ('math500', 'MATH-500',
+     'https://huggingface.co/datasets/HuggingFaceH4/MATH-500/blob/6e4ed1a2a79af7d8630a6b768ec859cb5af4d3be/README.md',
+     'https://huggingface.co/datasets/HuggingFaceH4/MATH-500/tree/6e4ed1a2a79af7d8630a6b768ec859cb5af4d3be',
+     '6e4ed1a2a79a',
+     ('由 MATH 基准选取的 500 道数学题，涵盖代数、几何、数论等；原任务评估数学答案正确性。',
+      'A 500-problem subset of MATH covering algebra, geometry, number theory and other topics; the original task evaluates mathematical correctness.'),
+     ('保留题干和数学表达式，要求把最终答案放入 \\boxed{}。用于观察数学文本生成时的长度与等待。',
+      'Keeps problem text and mathematical notation, requesting a final answer in \\boxed{}. Probes output length and waiting for mathematical generation.'),
+     ('求一个绝对值不等式的整数解个数。',
+      'Count integer solutions of an absolute-value inequality.'), 'math_386'),
+    ('gsm8k', 'GSM8K',
+     'https://github.com/openai/grade-school-math',
+     'https://huggingface.co/datasets/openai/gsm8k/tree/740312add88f781978c0658806c59bc2815b9866',
+     '740312add88f',
+     ('小学数学应用题，通常需多步四则运算；原任务核对最终数值答案。使用 main/test 分割。',
+      'Grade-school word problems involving multi-step arithmetic; normally evaluated by the final numeric answer. Uses main/test.'),
+     ('保留应用题，要求写出解答并以 #### 标记最终数值。提供自然语言叙述与运算步骤混合的负载。',
+      'Keeps the word problem and asks for a solution ending with a ####-marked answer. Combines narrative text with arithmetic steps.'),
+     ('根据三人的年龄倍数关系计算其中一人的年龄。',
+      'Calculate a person’s age from multiplicative relationships among three ages.'), 'gsm_1104'),
+    ('ifeval', 'IFEval',
+     'https://arxiv.org/abs/2311.07911',
+     'https://github.com/google-research/google-research/blob/0a1b0fe7298a58bca6dcb47112379d829bc0c0a5/instruction_following_eval/data/input_data.jsonl',
+     '0a1b0fe7298a',
+     ('指令遵循评测，使用可程序检查的语言、格式、字数或关键词约束；原任务检查这些约束是否满足。',
+      'Instruction-Following Evaluation uses verifiable language, format, length and keyword constraints; the original task checks compliance.'),
+     ('直接使用原始指令，保留其中的语言与格式约束。观察受约束请求的响应形态和实际生成量。',
+      'Uses the original instructions, retaining language and format constraints. Observes response shape and actual generation volume.'),
+     ('仅用波斯语写一首关于尤达进入另一宇宙的诗。',
+      'Write a poem about Yoda entering another universe, using Persian only.'), 'ifeval_1477'),
+    ('humaneval_plus', 'HumanEval+',
+     'https://github.com/evalplus/evalplus/blob/v0.3.1/README.md',
+     'https://github.com/evalplus/evalplus/releases/tag/v0.3.1',
+     '42526ec0e7d5',
+     ('Python 函数级程序生成；“+”表示 EvalPlus 扩充了正确性测试输入。原任务通过执行测试检验程序。',
+      'Python function generation; “+” denotes additional EvalPlus correctness-test inputs. The original task checks generated programs by execution.'),
+     ('保留函数签名、说明和题内示例，要求返回完整 Python 代码块。用于测量函数生成的流式输出。',
+      'Keeps signatures, documentation and in-prompt examples; requests a complete Python code block. Measures streamed function generation.'),
+     ('实现 largest_divisor(n)，返回小于 n 的最大约数。',
+      'Implement largest_divisor(n), returning the largest divisor smaller than n.'), 'HumanEval_24'),
+    ('mbpp_plus', 'MBPP+',
+     'https://github.com/evalplus/evalplus/blob/v0.3.1/README.md',
+     'https://github.com/evalplus/evalplus/releases/tag/v0.3.1',
+     'b54e76275524',
+     ('基础 Python 编程任务；采用 EvalPlus 整理并扩展测试的 378 题版本。原任务检查程序功能正确性。',
+      'Basic Python programming tasks, using the 378-task EvalPlus version with expanded tests. The original task checks functional correctness.'),
+     ('保留任务描述及题内断言示例，要求返回完整 Python 代码块。提供较短的代码生成输入。',
+      'Keeps task descriptions and in-prompt assertion examples; requests a complete Python code block. Supplies shorter code-generation inputs.'),
+     ('实现返回两个数中较小值的函数，并满足题内断言。',
+      'Implement a function returning the smaller of two numbers, matching the supplied assertion.'), 'Mbpp_404'),
+]
+
+
+def overview(lang):
+    from build_report import table
+    T = lambda z, e: z if lang == 'zh' else e
+    heading = lambda z, e: '\n\n### ' + T(z, e) + '\n\n'
+    bank_path = ROOT / 'protocol/workloads.jsonl'
+    bank = read_rows(bank_path)
+    selection = json.loads((ROOT / 'protocol/workload_manifest.json').read_text())
+    inventory = json.loads((ROOT / 'evidence/benchmark_documentation/inventory.json').read_text())
+    assert hashlib.sha256(bank_path.read_bytes()).hexdigest() == selection['workloads_sha256']
+    text = heading('评测基准：来源、任务形式与本次用途', 'Benchmarks: sources, task forms and use in this study')
+    text += T(
+        '本次以六套公开基准构成固定题库，并用长度、业务和缓存负载补充系统压力条件。公开基准原本用于评价模型回答；本研究使用其中的题目作为可重复的请求输入，记录等待时间、实际生成量、吞吐与节点资源。基准名称标识输入来源，不代表本次执行了该基准的完整能力评测。',
+        'Six public benchmarks form the fixed prompt bank; length, business and cache workloads add controlled system conditions. The original benchmarks evaluate model answers. This study uses their prompts as repeatable inputs and measures waiting time, actual generation, throughput and node resources. Benchmark names identify input provenance, not completion of their full capability evaluations.')
+    text += table(
+        [T('基准与原始用途', 'Benchmark and original purpose'), T('本次输入构造与性能用途', 'Input construction and performance use'), T('实际选中任务示例', 'Example of a selected task')],
+        [[f'[{name}]({reference})<br>' + T(*purpose), T(*form), T(*example) + f'<br>`{example_id}`']
+         for key, name, reference, source, revision, purpose, form, example, example_id in SUITES])
+    text += T(
+        '\n\n示例是已选任务的简短转述；发送时使用固定题库中的原始提示。参考解答和隐藏测试不加入请求，题目自带的示例或断言保留。HumanEval+、MBPP+ 的扩展测试未执行，“+”不会在本次转化为更多生成请求；不计算准确率、指令通过率或代码测试通过率。',
+        '\n\nExamples paraphrase selected tasks; requests use the exact frozen prompts. Reference solutions and hidden tests are excluded, while examples and assertions already in the prompt remain. HumanEval+ and MBPP+ extended tests are not executed, and “+” adds no generation requests here. Accuracy, instruction-compliance rates and code-test pass rates are not calculated.')
+    text += heading('数据版本、样本规模与长度分布', 'Data versions, sample sizes and length distributions')
+    text += T(
+        '“来源规模”指本次读取的固定版本或测试分割，“候选数”指参与抽样的题目数，“选用数”指最终独立提示数。词元是分词器的计数单位，不等同于单词或汉字。下表长度按本模型分词器计算，仅计提示正文；实际接口输入还包含聊天模板和角色标记。',
+        'Source size refers to the archived version or test split; the candidate frame contains prompts eligible for selection; selected counts are unique prompts. Tokens are tokenizer units, not words or characters. Lengths below use this model’s tokenizer and count prompt content only; actual API input also includes the chat template and role markers.')
+    rows = []
+    for key, name, reference, source, revision, purpose, form, example, example_id in SUITES:
+        meta = inventory['suites'][key]
+        values = [x['content_tokens'] for x in bank if x['suite'] == key]
+        assert len(values) == meta['selected_count'] == 10
+        version = ('EvalPlus 0.3.1<br>SHA-256: ' if key.endswith('_plus') else T('版本：', 'Revision: ')) + f'`{revision}`'
+        rows.append([f'[{name}]({source})<br>{version}',
+                     f'{meta["source_split_count"]:,} → {meta["candidate_frame_count"]:,} → {len(values)}',
+                     f'{min(values)} / {statistics.median(values):g} / {max(values)}'])
+    text += table([T('固定数据来源与版本', 'Pinned data source and version'), T('来源规模 → 候选数 → 选用数', 'Source → candidates → selected'), T('正文词元：最短／中位／最长', 'Content tokens: min / median / max')], rows)
+    text += T(
+        '\n\n版本栏展示提交标识或数据文件 SHA-256 的前 12 位；链接指向对应来源，完整标识与本地文件散列见[来源清单](../../qwen38_abliterated_eval_20261014_mtp/sources/manifest.json)。EvalPlus 0.3.1 是取数工具版本，两个数据文件另以各自散列固定。',
+        '\n\nVersion cells show the first 12 characters of a commit or data-file SHA-256. Links identify the source; complete revisions and local file hashes are in the [source manifest](../../qwen38_abliterated_eval_20261014_mtp/sources/manifest.json). EvalPlus 0.3.1 identifies the retrieval package; each dataset file is separately pinned by its hash.')
+    text += '\n\n<!--DATASET_PROFILE-->\n\n' + T(
+        '题库长度分布｜每个点是一条固定提示，每套 10 条；竖线表示中位数。60 条正文长度合计覆盖 24–386 词元，因此这部分测量主要对应短输入，长输入性能由独立长度负载测量。',
+        'Prompt-bank lengths | Each point is one fixed prompt, ten per suite; vertical marks show medians. The 60 prompts span 24–386 content tokens and primarily characterize short inputs. Separate length workloads measure long-input behavior.')
+    text += heading('抽样方法与可比较范围', 'Sampling method and comparison scope')
+    text += T(
+        '候选池共 4,302 条。MMLU-Pro 先从 12,032 道测试题中按 14 个学科各取 100 条，形成 1,400 条候选；其余五套使用表中完整版本或测试分割。随后，每套候选按提示正文词元数排序，分成十个数量尽量相等的长度层；每层按固定种子 `20261014-performance-v2` 与题目编号生成 SHA-256 排序，取最小者。最终每套 10 条，共 60 条；选择过程不使用模型输出。',
+        'The candidate pool contains 4,302 items. MMLU-Pro contributes 100 items from each of 14 subjects, selected from its 12,032-item test split, yielding 1,400 candidates. The other five suites use the full versions or test splits listed above. Within each suite, candidates are sorted by content-token length and divided into ten nearly equal-count strata. A SHA-256 ranking of the fixed seed `20261014-performance-v2`, suite and item ID selects one per stratum. The result is ten per suite, 60 total, without using model outputs.')
+    text += T(
+        '\n\n最终 MMLU-Pro 样本覆盖工程、数学、物理、化学、健康、经济、计算机科学和法律八个学科，其中物理与经济各两条，其余各一条；MATH-500 样本覆盖七个原始主题中的五个。长度分层有助于保留提示长度差异，但每套 10 条不足以支持学科排名或完整题集的性能泛化。六套等量混合也不等于真实业务的流量占比。',
+        '\n\nThe selected MMLU-Pro items cover engineering, math, physics, chemistry, health, economics, computer science and law: two each for physics and economics, one each for the others. MATH-500 selections cover five of its seven source topics. Length stratification preserves variation in prompt size, but ten items per suite do not support subject rankings or generalization to the full suites. Equal suite counts also do not represent production traffic shares.')
+    text += T(
+        '\n\n同一组 60 条提示在并发 1／2／4／8 下各重复三轮，形成 720 次计划测量；低思考预算补充在并发 1／4 下各重复三轮，增加 360 次计划测量。这些重复用于比较性能，不增加独立题目数。自然题库输出上限为 1,024 词元，实际输出可提前结束；分题集比较时须同时查看实际输出长度和触顶比例。题目内容、输出量与缓存状态同时变化时，不能把延迟差异单独归因于题目“难度”。',
+        '\n\nThe same 60 prompts run for three rounds at each concurrency level 1/2/4/8, giving 720 planned measurements. Low-reasoning-budget arms add three rounds at concurrency 1/4, or 360 planned measurements. Repetitions compare performance without increasing unique prompts. The natural-bank output cap is 1,024 tokens; generation may stop earlier. Suite comparisons therefore include actual output lengths and cap-hit fractions. When content, output volume and cache state vary together, latency differences cannot be attributed solely to question difficulty.')
+    text += '\n\n' + T(
+        '[固定 60 条提示](../protocol/workloads.jsonl) · [抽样规则](../protocol/workload_manifest.json) · [规模与样本核对记录](../evidence/benchmark_documentation/inventory.json)',
+        '[Fixed 60 prompts](../protocol/workloads.jsonl) · [Selection rules](../protocol/workload_manifest.json) · [Source-size and sample audit](../evidence/benchmark_documentation/inventory.json)')
+    text += heading('补充基准：长度、业务与缓存负载', 'Complementary workloads: length, business and caching')
+    text += T(
+        '短题库无法独立覆盖长上下文、长输出与缓存保留行为，因此另设以下受控负载。表中数量均为计划调用量，包含相应预热、校准或对照；实际完成量见第 04 节及结果章节。这里的 1K = 1,024 词元，输出长度参数表示生成上限。',
+        'The short-prompt bank does not cover long contexts, long generation or cache retention by itself. The controlled workloads below add these conditions. Counts are planned calls, including the relevant warmups, calibration or controls; Section 04 and the results report actual completion. Here 1K = 1,024 tokens and output length is a generation cap.')
+    text += table([T('负载与材料来源', 'Workload and material source'), T('构造方式与计划规模', 'Construction and planned scale'), T('补充的性能范围', 'Added performance scope')], [
+        [T('长度与长输出：Project Gutenberg《战争与和平》普通文本，以及本地生成的业务记录', 'Length and long output: Project Gutenberg’s War and Peace prose and locally generated business records'),
+         T('输入与输出各设 1／2／4／8／16／32／64／128／256K 九档。81 个组合中，63 个有安全余量、1 个恰达边界、17 个越界；选取轴线、对角线及近边界条件等，共 299 次扩展调用。', 'Nine input/output tiers: 1/2/4/8/16/32/64/128/256K. Of 81 combinations, 63 retain safety margin, one is exactly on the boundary and 17 exceed it. Selected axes, diagonals, near-limit and related conditions total 299 extension calls.'),
+         T('区分输入处理等待与持续生成压力；同时记录输出达成率。256K 为输入与输出共享上限，不代表两者可同时达到 256K。', 'Separates input-processing wait from sustained generation, recording output attainment. The 256K context is shared by input and output; both cannot simultaneously reach 256K.')],
+        [T('八类业务：本地生成的工单、订单、运维记录、代码及多轮消息', 'Eight business shapes: generated tickets, orders, operations records, code and multi-turn messages'),
+         T('分类、改写、起草、摘要、分析、抽取、代码修改、多轮问答。每类在并发 1／4 下各 12 次测量＋1 次预热，共 192 次测量＋16 次预热＝208 次。', 'Triage, rewriting, drafting, summarization, analysis, extraction, code patching and dialogue. Each has 12 measurements plus one warmup at concurrency 1/4: 192 measurements + 16 warmups = 208 calls.'),
+         T('比较不同输入／输出比例下的响应与处理能力。材料为合成场景，场景比例不代表线上流量。', 'Compares response and capacity across input/output ratios. Synthetic scenario proportions do not represent production traffic.')],
+        [T('前缀比例：具有共同开头和不同后缀的合成记录', 'Prefix ratios: synthetic records with shared beginnings and varied suffixes'),
+         T('8K／32K 输入 × 0%／25%／50%／75%／90%／100% 共享前缀 × 6 个独立前缀对；每对预热和复测各一次，共 144 次。与业务负载合计 352 次。', '8K/32K inputs × 0/25/50/75/90/100% shared prefixes × six independent pairs; one warmup and one probe per pair = 144 calls. Together with business shapes: 352 calls.'),
+         T('目标比例控制输入的公共前缀；实际缓存命中由服务计数器核验，二者分别报告。', 'Target overlap controls the shared input prefix; service counters establish actual cache reuse. These are reported separately.')],
+        [T('缓存保留与稳定性：独立生成的业务前缀与竞争请求', 'Cache retention and stability: independently generated business prefixes and competing requests'),
+         T('业务交叉 72 次、间隔保留 36 次、竞争与恢复 24 次、周期复用 28 次，共 160 次；与上述 144 次前缀比例实验分别统计。', 'Business cross-cases: 72; idle retention: 36; competition/recovery: 24; periodic reuse: 28; 160 calls, accounted separately from the 144 prefix-ratio calls.'),
+         T('观察空闲间隔、其他请求和重复访问后的复用变化；结合缓存计数窗口与延迟。短时诊断不等于长期稳定性证明。', 'Observes reuse after idle gaps, other requests and repeated access using counter windows and latency. Short diagnostics do not establish long-term stability.')],
+    ])
+    text += T(
+        '\n\n长文本来源：[Project Gutenberg](https://www.gutenberg.org/ebooks/2600.txt.utf-8)及[固定语料散列](../plans/corpus_provenance.json)。具体长度组合、业务输入／输出示例、缓存间隔和并发控制见第 02 节；全部代码与数据路径见附录 C。GPU 计算、内存和双机通信采用第 05–06 节的独立系统基准，与这里的模型请求题库分开统计。',
+        '\n\nLong-text source: [Project Gutenberg](https://www.gutenberg.org/ebooks/2600.txt.utf-8), with [archived corpus hash](../plans/corpus_provenance.json). Section 02 gives selected length pairs, business input/output examples, cache intervals and concurrency controls. Appendix C lists all code and data paths. GPU compute, memory and communication use the separate system benchmarks in Sections 05–06 and are counted separately from these model-request workloads.')
+    return text

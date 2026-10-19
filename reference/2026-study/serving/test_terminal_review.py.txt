@@ -1,0 +1,112 @@
+import copy
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from common import dump, digest
+from continuation import validate_previous, settled_failures
+from terminal_review import verify_evidence, review_pending, verified_case, compact_request, payload_evidence
+
+class TerminalReview(unittest.TestCase):
+    def setUp(self):
+        t=tempfile.TemporaryDirectory();self.addCleanup(t.cleanup);self.root=Path(t.name)
+        self.result={'id':'case','state':'transport_error','request_id':'rid','start_epoch':100,'done':False}
+        self.payload={'max_tokens':100,'messages':[{'role':'user','content':'fixed prompt'}]}
+        self.logs=[{'id':7,'request_id':'rid','type':2,'created_at':110,'model_provider_id':2084,'channel_id':2538}]
+        self.events=[{'choices':[{'finish_reason':'stop'}]},{'usage':{'prompt_tokens':10,'completion_tokens':20,'total_tokens':30}}]
+        self.contents=[{'id':7,'original_request_json':json.dumps(self.payload),'original_response_json':'\n'.join(json.dumps(x) for x in self.events)}]
+        dump(self.root/'runs/requests/case/result.json',self.result)
+        dump(self.root/'runs/requests/case/request.json',self.payload)
+        self.ledger={'entries':{'case':{'state':'transport_error','request_id':'rid'}}}
+        dump(self.root/'runs/ledger.json',self.ledger)
+        self.calls=[]
+        def query(sql):
+            self.assertTrue(sql.startswith('SELECT '));self.calls.append(sql)
+            return SimpleNamespace(rows=self.contents if 'FROM log_contents' in sql else self.logs)
+        self.client=SimpleNamespace(query=query)
+
+    def test_terminal_review_keeps_failure_and_does_not_query_twice(self):
+        before=digest(self.root/'runs/requests/case/result.json')
+        self.assertEqual(review_pending(self.root,self.client)['unresolved'],[])
+        self.assertTrue(verified_case(self.root,'case'))
+        self.assertEqual(review_pending(self.root,self.client)['reviewed'],['case'])
+        self.assertEqual(len(self.calls),2)
+        self.assertEqual(before,digest(self.root/'runs/requests/case/result.json'))
+        self.assertEqual(json.loads((self.root/'runs/ledger.json').read_text()),self.ledger)
+
+    def test_payload_or_route_mismatch_rejected(self):
+        changed=copy.deepcopy(self.payload);changed['max_tokens']=101
+        with self.assertRaisesRegex(AssertionError,'payload'):verify_evidence(self.result,changed,self.logs,self.contents)
+        self.logs[0]['channel_id']=1
+        with self.assertRaisesRegex(AssertionError,'route'):verify_evidence(self.result,self.payload,self.logs,self.contents)
+
+    def test_billing_success_without_terminal_stream_is_insufficient(self):
+        self.contents[0]['original_response_json']=json.dumps(self.events[-1])
+        review=review_pending(self.root,self.client)
+        self.assertTrue(review['unresolved']);self.assertFalse(verified_case(self.root,'case'))
+
+    def test_known_middle_omission_preserves_terminal_evidence_only(self):
+        self.contents[0]['original_response_json']='[...truncated 96 items...]\n'+self.contents[0]['original_response_json']
+        proof=verify_evidence(self.result,self.payload,self.logs,self.contents)
+        self.assertEqual(proof['omitted_middle_items'],96)
+        self.contents[0]['original_response_json']='unknown corruption\n'+self.contents[0]['original_response_json']
+        with self.assertRaises(ValueError):verify_evidence(self.result,self.payload,self.logs,self.contents)
+
+    def test_unknown_send_stays_unresolved_without_database_query(self):
+        self.ledger['entries']['case']['state']='started';dump(self.root/'runs/ledger.json',self.ledger)
+        self.assertTrue(review_pending(self.root,self.client)['unresolved']);self.assertEqual(self.calls,[])
+
+    def test_changed_client_or_source_invalidates_saved_review(self):
+        review_pending(self.root,self.client)
+        self.result['done']=True;dump(self.root/'runs/requests/case/result.json',self.result)
+        with self.assertRaisesRegex(AssertionError,'client evidence'):verified_case(self.root,'case')
+
+    def test_only_unsent_continuation_and_fully_sent_skip(self):
+        review_pending(self.root,self.client)
+        block={'id':'block','sent':1,'completed':0,'planned':2,'request_ids':['case']}
+        resolution={'continue_unsent_block':'block','partial_block_sha256':'sha','user_authorized_observability_change':True,'no_replay':True,'reviewed_failed_cases':['case']}
+        self.assertTrue(validate_previous(block,self.ledger,resolution,'sha',self.root))
+        with self.assertRaises(AssertionError):validate_previous(block,self.ledger,resolution,'changed',self.root)
+        block.update(planned=1)
+        self.assertTrue(settled_failures(block,self.ledger,self.root))
+        with self.assertRaisesRegex(AssertionError,'Fully sent'):validate_previous(block,self.ledger,resolution,'sha',self.root)
+
+    def test_unreviewed_transport_error_does_not_continue(self):
+        block={'id':'block','sent':1,'completed':0,'planned':2,'request_ids':['case']}
+        resolution={'continue_unsent_block':'block','partial_block_sha256':'sha','service_unchanged':True,'no_replay':True,'reviewed_failed_cases':['case']}
+        with self.assertRaisesRegex(AssertionError,'Unreviewed'):validate_previous(block,self.ledger,resolution,'sha',self.root)
+
+    def test_long_payload_compaction_and_tamper_rejection(self):
+        self.payload['messages'][0]['content'] = 'Record 0123456789abcdef01234567. ' + '中文 <tag> & data ' * 15000
+        raw = compact_request(self.payload)
+        facts = payload_evidence(self.payload, raw)
+        self.assertEqual(facts['payload_match'], 'pinned_compact_transform')
+        self.assertGreater(facts['omitted_request_bytes'], 0)
+        for changed in [raw.replace('Record', 'record', 1), raw.replace('data', 'DATA', 1), raw.replace('bytes for log content', 'bytes for stream'), raw[:-10]+'invalid']:
+            with self.assertRaises((AssertionError, ValueError)): payload_evidence(self.payload, changed)
+        altered = copy.deepcopy(self.payload); altered['max_tokens'] = 99
+        with self.assertRaises(AssertionError): payload_evidence(altered, raw)
+
+    def test_missing_header_uses_unique_payload_and_retains_failure(self):
+        self.result['request_id'] = None
+        self.payload['messages'][0]['content'] = 'Record 0123456789abcdef01234567. ' + 'x' * 150000
+        self.contents[0]['original_request_json'] = compact_request(self.payload)
+        dump(self.root/'runs/requests/case/result.json', self.result)
+        dump(self.root/'runs/requests/case/request.json', self.payload)
+        before = digest(self.root/'runs/requests/case/result.json')
+        self.assertEqual(review_pending(self.root, self.client)['unresolved'], [])
+        self.assertTrue(verified_case(self.root, 'case'))
+        self.assertEqual(before, digest(self.root/'runs/requests/case/result.json'))
+
+    def test_duplicate_terminal_candidate_is_rejected(self):
+        self.result['request_id'] = None
+        self.payload['messages'][0]['content'] = 'Record 0123456789abcdef01234567. ' + 'x' * 150000
+        self.contents[0]['original_request_json'] = compact_request(self.payload)
+        self.contents.append({**self.contents[0], 'id': 8})
+        self.logs.append({**self.logs[0], 'id': 8, 'request_id': 'rid2'})
+        dump(self.root/'runs/requests/case/result.json', self.result)
+        dump(self.root/'runs/requests/case/request.json', self.payload)
+        self.assertTrue(review_pending(self.root, self.client)['unresolved'])
+
+if __name__=='__main__':unittest.main()

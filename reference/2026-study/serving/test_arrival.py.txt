@@ -1,0 +1,70 @@
+"""Offline tests for coordinated-omission and bounded queue behavior."""
+import asyncio
+import json
+import tempfile
+import time
+import unittest
+from pathlib import Path
+from arrival import execute, poisson_offsets
+from common import read_rows
+
+class Fake:
+    def __init__(self,root,delay=.03):
+        self.root=root;self.delay=delay;self.active=0;self.max_active=0;self.calls=[]
+        (root/'runs').mkdir()
+    def stopping(self):return None
+    async def case(self,client,c,schedule):
+        self.active+=1;self.max_active=max(self.max_active,self.active);self.calls.append(c['id'])
+        start=time.time();await asyncio.sleep(self.delay);self.active-=1
+        return {'id':c['id'],'start_epoch':start,'state':'received'}
+
+class OpenArrival(unittest.IsolatedAsyncioTestCase):
+    async def test_producer_independent_and_queue_bound(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);r=Fake(root,.08)
+            cases=[(.001*i,{'id':str(i)}) for i in range(20)]
+            rs,b=await execute(r,None,cases,'test',workers={'default':1},max_queue=2,max_wait=1)
+            rows=read_rows(root/'runs/arrivals/test.jsonl');offered=[x for x in rows if x['state']=='offered']
+            self.assertEqual(len(offered),20);self.assertLess(offered[-1]['actual_offset_s'],.07)
+            self.assertEqual(b['sent'],3);self.assertEqual(b['local_rejections'],17);self.assertEqual(r.max_active,1)
+            with self.assertRaises(AssertionError):await execute(r,None,cases,'test')
+    async def test_expired_queue_not_sent(self):
+        with tempfile.TemporaryDirectory() as d:
+            r=Fake(Path(d),.05)
+            _,b=await execute(r,None,[(0,{'id':str(i)}) for i in range(5)],'expired',workers={'default':1},max_wait=.01)
+            self.assertEqual(b['sent'],1);self.assertEqual(b['local_rejections'],4)
+    async def test_partition_and_global_cap(self):
+        with tempfile.TemporaryDirectory() as d:
+            r=Fake(Path(d))
+            cases=[(0,{'id':str(i),'stream_kind':'long' if i%3==0 else 'short'}) for i in range(15)]
+            _,b=await execute(r,None,cases,'partition',workers={'short':4,'long':1})
+            self.assertLessEqual(r.max_active,5);self.assertEqual(b['completed'],15)
+    def test_poisson_reproducible_bounded(self):
+        a=poisson_offsets(1,100,4,42)
+        self.assertEqual(a,poisson_offsets(1,100,4,42));self.assertTrue(all(x<=4 for x in a));self.assertEqual(a,sorted(a))
+
+if __name__=='__main__':unittest.main()
+
+class ArrivalRecovery(unittest.IsolatedAsyncioTestCase):
+    async def test_resume_only_unoffered_and_never_replay_completed(self):
+        from common import dump,append
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);r=Fake(root,0);r.ledger={'entries':{'old':{'state':'received'}}}
+            dump(root/'protocol/auto_recovery_policy.json',{'enabled':True})
+            dump(root/'runs/arrival_plans/resume.json',{'events':[]})
+            (root/'runs/arrivals').mkdir()
+            append(root/'runs/arrivals/resume.jsonl',{'id':'old','state':'offered'})
+            old={'id':'old','state':'received','start_epoch':time.time()-10}
+            dump(root/'runs/requests/old/result.json',old)
+            dump(root/'runs/blocks/resume.json',{'id':'resume','kind':'open','start_epoch':time.time()-10,'end_epoch':time.time()-5,'planned':2,'offered':1,'sent':1,'completed':1,'local_rejections':0,'request_ids':['old'],'stop':'monitor not healthy/fresh'})
+            original=r.case
+            async def persist(client,case,schedule):
+                result=await original(client,case,schedule)
+                dump(root/'runs/requests'/case['id']/'result.json',result)
+                return result
+            r.case=persist
+            events=[(0,{'id':'old'}),(2,{'id':'new'})]
+            rs,b=await execute(r,None,events,'resume')
+            self.assertEqual(r.calls,['new']);self.assertTrue(b['interrupted']);self.assertEqual(b['completed'],2)
+            await execute(r,None,events,'resume')
+            self.assertEqual(r.calls,['new'])

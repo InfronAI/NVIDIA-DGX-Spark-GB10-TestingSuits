@@ -1,0 +1,168 @@
+"""Clear reader-facing report assembled from saved measurements, without model calls."""
+import json,re
+from common import ROOT
+from report_labels import phase_name,condition_name
+from report_model import presentation
+
+def serving_report_md(a,lang):
+    from build_report import fmt,table
+    from report_foundations import foundations,workloads
+    from report_measurements import metrics,statistics
+    from report_narrative import legacy_results_md
+    from report_results_expansion import chart,lengths,resources
+    from report_returns import section as returns
+    from report_appendix import appendix
+    from business_results import result_text,summarize
+    from report_cost_model import ELECTRICITY_URL
+    from report_cache import results as cache_results,definitions as cache_definitions,conclusion as cache_conclusion
+    from report_length import methods as length_methods,results as length_results,conclusion as length_conclusion
+    T=lambda z,e:z if lang=='zh' else e
+    d=json.loads((ROOT/'reports/diagnostics.json').read_text());assert d['generated_utc']==a['generated_utc']
+    f=foundations(a,lang);v=presentation(a);business=summarize()
+    parts=re.split(r'\n\n## (\d{2}) · [^\n]+\n\n',legacy_results_md(a,lang));legacy={int(parts[i]):parts[i+1] for i in range(1,len(parts),2)}
+    gs=sorted(d['natural'],key=lambda g:int(re.search(r'_c(\d+)',g['key'])[1]));best=max(gs,key=lambda g:g['tps']) if gs else None
+    tables=lambda text:re.findall(r'(?m)^\|[^\n]+\n\|[^\n]+\n(?:\|[^\n]+\n)+',text)
+    md=[T('# Qwen3.8 Flash Next Abliterated：双节点推理服务性能评估','# Qwen3.8 Flash Next Abliterated: Two-Node Inference Serving Performance Evaluation'),T('**阶段性报告；结论以已完成的测试为准。**','**Interim report; findings reflect completed tests.**'),T('数据快照（UTC）：','Data snapshot (UTC): ')+a['generated_utc']]
+    def section(n,z,e,text):md.extend([f'## {n:02d} · '+T(z,e),text])
+    intro=T('推理性能取决于输入长度、生成量、并发和缓存状态。本研究测量 Infron 上的 `qwen/qwen3.8-flash-next-abliterated`，观察双 DGX Spark 在不同负载下的响应时间、处理能力和资源消耗。六套公开题集只提供输入材料，不评价答案正确率。','Inference performance depends on input length, generation, concurrency and cache state. This study measures `qwen/qwen3.8-flash-next-abliterated` on Infron, examining response time, capacity and resource use on two DGX Spark nodes. Six public datasets provide input material; answer correctness is not scored.')
+    intro+='\n\n'+T('方法采用固定负载和重复测量，将客户端响应记录与双节点监控按时间对齐。首字等待、完成时间和系统吞吐分别报告；年度成本及投资回报另列为情景估算。指标划分参考 [NVIDIA 的推理测量说明](https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/)，独立到达的负载方式参考 [MLPerf 的场景定义](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc)。本实验使用自有采集程序。','Fixed workloads and repeated measurements align client responses with node telemetry. First-content waiting, completion time and aggregate throughput are reported separately; annual cost and return are modeled scenarios. Metric distinctions follow [NVIDIA inference measurement guidance](https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/), and independent arrivals follow the scenario concept in [MLPerf](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc). The experiment uses its own collector.')
+    identity=f[1][f[1].index('### '):]
+    section(1,'研究概览与部署信息','Study overview and deployment',intro+'\n\n'+identity)
+    method=T('每个测试条件固定输入、输出上限、思考档位和并发。自然题库重复三轮，长度矩阵分四个区组；请求和区组顺序按固定种子生成。输出保留自然结束行为，所有速度使用实际生成量。','Each condition fixes input, output cap, reasoning effort and concurrency. The natural bank has three rounds and the length matrix four blocks per cell; seeded orders are saved before execution. Generation stops naturally and rates use actual generated output.')
+    method+='\n\n'+T('固定并发测试在请求结束后补充新请求，用于比较处理能力；独立到达测试按预定随机时刻发起请求，用于观察排队和拒绝。两者全局在途上限均为 8。完整的执行数量、顺序和停止条件见 [测试计划](../test_plan/test-plan.zh.html)。','Fixed-concurrency tests replenish completed requests to compare capacity. Independent-arrival tests schedule requests at predetermined random times to observe queues and rejections. Both keep at most eight requests in flight. Counts, order and stop conditions are in the [test plan](../test_plan/test-plan.en.html).')
+    method+=chart('SYSTEM_MAP','测量路径｜客户端经 Infron 到双节点服务；监控按时间对齐。客户端延迟包含网络和服务等待。','Measurement path | The client reaches the two-node service through Infron; telemetry is time-aligned. Client latency includes network and service waiting.',lang)
+    work=workloads(lang)
+    method=method.replace('输出保留自然结束行为，所有速度使用实际生成量。','基础与扩展负载均保留自然结束行为；长度达成按源站实际生成量核验，所有速度使用实际工作量。').replace('Generation stops naturally and rates use actual generated output.','Baseline and expanded loads retain natural stopping; realized lengths are verified against upstream counts and rates use actual work.')
+    method+='\n\n'+length_methods(lang)
+    # Keep provenance, scenario definitions and examples; remove repeated reading instructions.
+    work=re.sub(r'\n\n'+re.escape(T('分别报告三个量：','Report three distinct quantities:'))+r'.*$', '\n\n'+T('共享前缀比例描述输入相似程度；实际缓存命中比例来自服务字段，字段缺失时不估算。','Prefix overlap describes input similarity; actual cache hits require service fields and are not imputed when missing.'),work,flags=re.S)
+    section(2,'测试方法与工作负载','Test method and workloads',method+'\n\n'+work)
+    defs=table([T('指标','Metric'),T('含义与口径','Meaning and scope')],[
+      [T('正文首字延迟','Visible-content TTFT'),T('从发送请求到第一个正文片段，单位秒；主要反映用户开始看到答案前的等待。','Seconds from sending to the first visible content fragment; the user’s initial wait.')],
+      [T('首个生成片段延迟','First-generated latency'),T('从发送到第一段思考、正文或工具内容；思考开启时可能早于正文。','Send to the first reasoning, content or tool fragment; may precede visible content.')],
+      [T('完成时间','End-to-end latency'),T('从发送到完整响应流结束，单位秒。','Seconds from sending to the end of the complete response stream.')],
+      [T('平均每词元耗时（估算）','Estimated time per output token'),T('（完成时间 − 首个生成片段延迟）÷（实际生成词元 − 1）；含流结束开销，不是逐词元间隔实测。','(Completion time − first-generated latency) / (generated tokens − 1); includes stream-finalization overhead, not exact inter-token timing.')],
+      [T('系统生成吞吐','Aggregate generation throughput'),T('同一条件全部有效区组的生成词元总数 ÷ 区组总时长，词元/s。','Generated tokens in eligible blocks / total block duration, in tokens/s.')],
+      [T('达标吞吐','Goodput'),T('同时满足等待和生成速度门槛的完整请求数 ÷ 测量窗口。等待从计划到达起算，包含客户端排队；拒绝保留在到达分母。','Complete requests meeting wait and generation-speed thresholds / measurement duration. Waiting includes client queuing from planned arrival; rejected arrivals remain in the denominator.')],
+      [T('长度与缓存','Length and cache'),T('分别记录输入、实际输出、输出上限、实际前缀重合及服务报告缓存量；输出上限不是输出量。','Record input, actual output, output cap, token-prefix overlap and reported cached tokens separately; a cap is not realized output.')],
+      [T('节点资源','Node resources'),T('GPU 活跃度、内存、温度、功率及运行状态按相同负载窗口统计；估算整机功率不是插座电表读数。','GPU activity, memory, temperature, power and service state aligned to the same load windows; estimated system power is not outlet-metered power.')]
+    ])
+    defs+=chart('MEASUREMENT','时间边界｜首个生成片段和首个正文片段可能不同；示意距离不代表实测耗时。','Timing boundaries | First generated and first visible content can differ; distances are not measured durations.',lang)
+    defs+='\n\n'+T('中位数表示典型响应；95分位表示约95%的样本不超过该值。吞吐和延迟比较使用同一批连续完整区组，预热单列；失败记录保留在可靠性统计。每组同时给出请求数和区组数，重复同一题不增加独立题目数量。业务每格12次、缓存每格6对，只作诊断，不报告稳健99分位。','The median describes a typical response; roughly 95% of samples fall at or below p95. Throughput and latency comparisons use the same uninterrupted complete blocks, with warmups separate; failures remain in reliability statistics. Request and block counts are both reported. Repeated prompts do not increase the unique-prompt count. Business cells with 12 calls and cache cells with six pairs are diagnostic, not robust p99 estimates.')
+    defs+='\n\n'+T('词元速度以核对后的源站生成计数为准；费用使用对应请求的实际账单。缺失计数、缓存或监控不补零。详细字段、公式和统计说明见附录A。','Token rates use verified upstream generation counts; costs use matched actual bills. Missing counts, cache fields and telemetry remain missing. Appendix A provides the complete metric dictionary and statistical details.')
+    defs+='\n\n'+T('流式传输使用服务端发送事件（SSE）。一个事件可以包含多个词元，多词元预测时尤需注意：事件间隔反映客户端接收节奏，不能直接称为引擎逐词元延迟。长度扩展另报实际生成／上限的达成率、完整输入误差、长度合格数及每个区组的实际工作量。','Streaming uses server-sent events (SSE). An event can contain several tokens, particularly with multi-token prediction: event spacing describes client delivery, not exact engine inter-token latency. The length extension additionally reports actual-output/cap attainment, full-input error, qualified counts and actual work per block.')
+    defs+='\n\n#### '+T('缓存指标：输入结构、实际复用和稳定性','Cache metrics: input structure, observed reuse and stability')+'\n\n'+cache_definitions(lang)
+    section(3,'主要指标与统计口径','Primary metrics and statistical scope',defs)
+    from report_coverage import historical_table
+    cover=T('本轮执行已结束，证据覆盖仍有明确缺口。固定实验的有效完成量、未执行条件及不完整观测分别统计；不计算一个合并全部实验的“总完成率”。完成响应不等于答案正确、达到指定输出长度或满足生产服务目标。','Execution has ended, with explicit evidence gaps. Valid completion of fixed experiments, unexecuted conditions and incomplete observations are counted separately; no single overall completion percentage is calculated. A complete response does not establish answer correctness, target-length attainment or a production service objective.')
+    cover+=chart('WORKFLOW','最终证据覆盖｜左侧为已完成的固定清单；右侧分别保留公网长度缺口和不完整干扰配对。各行使用自己的样本单位与分母；公网完整响应不等于达到设定的输入与输出长度。','Final evidence coverage | Left: completed fixed lists. Right: public-length gaps and incomplete interference pairs. Each row retains its own sample unit and denominator; a complete public response does not establish target input/output length attainment.',lang)
+    cover+='\n\n### '+T('初始公网批次：请求结果与数量口径','Initial public batches: outcomes and count definitions')
+    cover+=historical_table(a,lang)
+    cover+='\n\n'+T('逻辑请求按预定样本去重，重试尝试另存；表中保留初始批次的原始结果，后续补测不回填其成功数。开放到达的2,000次与长度／持续阶段的3,000次为条件调用上限，不是必须发满的样本量。长度扩展本身另有299次固定清单，其未发送与未完整记录见下表；独立补测的一小时运行已结束。','Logical requests are deduplicated by planned sample; retry attempts are retained separately. Original batch outcomes are preserved rather than backfilled with later successes. The 2,000-call open-arrival and 3,000-call length/soak counts are conditional ceilings, not mandatory sample totals. The separate public-length list fixes 299 calls, with unsent/incomplete records below. The independent additional one-hour run has ended.')
+    section(4,'测试覆盖','Test coverage',cover)
+    perf='### '+T('并发：吞吐与等待','Concurrency: throughput and waiting')+'\n\n'
+    perf+=table([T('并发','Concurrency'),T('区组／请求','Blocks / requests'),T('生成词元/s','Generated tokens/s'),T('正文首字 中位／95分位 s','Visible TTFT median / p95 s'),T('完成时间95分位 s','Completion p95 s')],[[int(re.search(r'_c(\d+)',g['key'])[1]),f'{g["blocks"]} / {g["n"]}',fmt(g['tps'],1),fmt(g['ttft']['p50'],2)+' / '+fmt(g['ttft']['p95'],2),fmt(g['e2e']['p95'],2)] for g in gs])
+    perf+=chart('CAPACITY','并发比较｜同组的合计吞吐与正文首字延迟；提高并发时同时观察等待代价。','Concurrency comparison | Same-cohort throughput and visible-content latency; consider the waiting cost of additional concurrency.',lang)
+    if best:perf+='\n\n'+T(f'在本次短提示题库中，并发8的合计吞吐为 {fmt(best["tps"],1)} 词元/s。该结果对应平均输出 {fmt(best["output"]["mean"],1)} 词元，不能直接用于长文档业务的容量规划。','For this short-prompt bank, concurrency eight gives '+fmt(best['tps'],1)+' tokens/s with mean output '+fmt(best['output']['mean'],1)+' tokens. Use workload-matched results for long-document capacity planning.')
+    perf+='\n\n### '+T('长度：输入处理与生成压力','Length: input processing and generation')+'\n\n'+lengths(a,d,lang)
+    perf+='\n\n### '+T('思考预算：正文等待与输出形态','Reasoning budget: visible waiting and output shape')
+    perf+='\n\n'+T('同题、同轮次、同并发比较 low 与 none，差值为 low 减 none。只分析性能变化，保留正文缺失和输出触顶情况。','Compare low versus none for the same prompt, round and concurrency; differences are low minus none. Performance analysis retains missing visible content and output-limit events.')
+    perf+=chart('REASONING','思考档位的配对延迟差｜点为均值差，线为按题目重采样的95%区间；配对数和轮次敏感性见附录B。','Paired reasoning delay | Points are mean differences; lines are 95% prompt-cluster intervals. Pair counts and round sensitivity are in Appendix B.',lang)
+    perf+=chart('GENERATION_SHAPE','输出形态｜实际输出量与触顶、无正文比例一起阅读；后两项可重叠，不能相加。','Output shape | Read generated volume with output-limit and no-visible-content fractions; the latter two can overlap.',lang)
+    perf+=result_text(lang)
+    controlled=[g for g in a['groups'] if g['key'].startswith(('P2_prefill','P4_','P5_'))]
+    perf+='\n\n### '+T('上下文边界与请求复用','Context boundaries and request reuse')+'\n\n'+T('单词元输出探针观察输入处理等待，长上下文与越界请求检查可用范围，首次／重复／追加文本检查请求复用。各条件的实际长度、延迟与终态见附录B；配置上限不等于已经验证的可用容量。','One-token output probes observe input-processing waits; long and oversized contexts check the usable range; first, repeated and appended prompts check request reuse. Appendix B gives actual lengths, latency and outcomes. A configured limit is not a validated usable capacity.')
+    if not controlled:perf+='\n\n'+T('本快照尚无上述探针的正式结果。','No formal results for these probes are available in this snapshot.')
+    perf+=cache_results(lang)
+    perf+=length_results(lang)
+    section(5,'性能结果','Performance results',perf)
+    serv='### '+T('独立到达与持续运行','Independent arrivals and sustained operation')+'\n\n'+legacy[9].partition('\n\n')[2]
+    if a['goodput']:
+        selected=[(1,.02),(2,.05),(5,.1)];qualified=[]
+        for block in sorted({x['block'] for x in a['goodput']}):
+            rows=[]
+            for wait,token in selected:
+                x=next((x for x in a['goodput'] if x['block']==block and x['ttft_visible_target_s']==wait and x['tpot_estimate_target_s']==token),None)
+                rows.append(fmt(x['goodput_requests_s'],3)+' / '+fmt(100*x['qualifying_per_offered'],1)+'%' if x and x['qualifying_per_offered'] is not None else '—')
+            qualified.append([condition_name(block,lang),*rows])
+        serv+='\n\n'+T('下表选取三组分析阈值；每格为达标请求/s及其占全部正式到达的比例。其余阈值组合见逐条件数据表。混合负载只统计配对短请求。','The table selects three analytical threshold pairs; cells show qualified requests/s and their fraction of all measured arrivals. The data table contains the remaining pairs. Mixed-load results evaluate matched short requests only.')
+        serv+=table([T('条件','Condition'),'1 s / 20 ms','2 s / 50 ms','5 s / 100 ms'],qualified)
+    serv+='\n\n### '+T('节点资源','Node resources')+'\n\n'+T('先查看与同一并发区组对齐的均值，再看整个观测时段的变化。监控有空档时不插值。','Compare means aligned to the same concurrency blocks, then inspect changes over the observation period. Telemetry gaps are not interpolated.')
+    serv+=resources(d,lang)
+    serv+=chart('HARDWARE','双节点资源时序｜包含预热和空闲；负载比较采用上表对齐后的统计。','Node timelines | Includes warmups and idle time; load comparisons use the aligned table above.',lang)
+    serv+='\n\n'+T('原始引擎与内存时序见附录B。独立网络微基准约109 Gb/s，只反映该传输测试；现有证据不足以把模型瓶颈归因于互联、内存或计算中的单一因素。','Raw engine and memory timelines are in Appendix B. The separate network microbenchmark is about 109 Gb/s for that transfer test; current evidence does not isolate networking, memory or compute as the sole model bottleneck.')
+    if (ROOT/'evidence/continuation_20261016/quarantine.json').exists():
+        serv+='\n\n'+T('持续运行样本中有1次客户端传输失败，其服务端终态和实际费用无法关联确认；该请求保留为失败及未知终态，不重发、不计入成功延迟或生成吞吐，预算仍保留完整预留金额。续测仅发送尚未执行的样本，分段观测不作为连续运行稳定性的证明。', 'One sustained-run attempt has a client transport failure with no confirmed upstream terminal outcome or attributable charge. It remains failed with an unknown upstream outcome, is never replayed, contributes no successful latency or generated throughput, and retains its full budget reservation. Continuation sends only previously unexecuted samples; segmented observations do not establish uninterrupted stability.')
+    section(6,'服务表现与节点资源','Serving behavior and node resources',serv)
+    costs=[r for r in d['costs'] if r['cell'].startswith('P1_')]
+    econ='### '+T('实际 API 费用','Observed API charges')+'\n\n'+T('费用按同组请求标识核对到账单。下表的每百万生成词元费用包含输入收费，适用于本次输入／输出组合，不是单独的输出目录价格。','Charges are reconciled by the same cohort’s request IDs. Blended cost per million generated tokens includes input charges for this input/output mix; it is not a catalog output-token price.')
+    econ+=table([T('并发条件','Concurrency condition'),T('账单覆盖','Bill coverage'),T('实付 USD','Paid USD'),T('USD/千次响应','USD/1k responses'),T('USD/百万生成词元','USD/1M generated')],[[condition_name(r['cell'],lang,False),f'{r["matched"]}/{r["requests"]}',fmt(r['cost_usd'],4),fmt(r['usd_per_1000_responses'],3),fmt(r['usd_per_million_generated'],3)] for r in costs])
+    econ+=chart('COST_BY_WORKLOAD','费用归一化｜按响应次数和生成词元分别计价；两种口径都含该组输入费用。','Cost normalization | Charges per response and per generated token both include cohort input fees.',lang)
+    econ+='\n\n<div id="ownership-cost"></div>\n\n### '+T('双机持有成本：采购与电费','Two-node ownership: purchase and electricity')
+    econ+='\n\n'+T('采购价按每台 US$5,000，双机合计 **US$10,000**。电价采用中国商业用电公开参考 **US$0.109/kWh（2026年第三季度）**，作为可复算代理值，并非部署地点合同电价或官方用电量加权均价。','The supplied purchase price is US$5,000 per device, **US$10,000** for the pair. Electricity uses the public China business reference **US$0.109/kWh (2026 Q3)** as a reproducible proxy, not a site contract or an official consumption-weighted national average.')+' [GlobalPetrolPrices]('+ELECTRICITY_URL+')'
+    econ+='\n\n'+T('单位成本按直线折旧加估算电费计算：年费用 = 采购价 ÷ 折旧年限 + 双机功率(kW) × 8,760小时 × 电价；再除以年有效生成量。功率采用对应负载采样的估算整机功率之和，并假设全年保持该水平。有效生产比例表示有用任务产出时间，不是GPU活跃度。未计人工、机房、冷却、维修及融资。','Unit cost uses straight-line depreciation and estimated electricity: annual expense = purchase price / depreciation life + pair kW × 8,760 hours × tariff, divided by useful annual generation. Power uses the matched-condition estimated system sum, assumed constant year-round. Productive fraction is time producing useful work, not GPU activity. Staff, space, cooling, repairs and financing are excluded.')
+    rows=[]
+    for g in gs:
+        ss=[r for r in d['cost_scenarios'] if r['cell']==g['key'] and r['years']==3]
+        if ss:rows.append([int(re.search(r'_c(\d+)',g['key'])[1]),fmt(ss[0]['power_w'],1),fmt(ss[0]['energy_usd_year'],0),*[fmt(next(r['usd_per_million_generated'] for r in ss if r['utilization']==u),3) for u in [.5,.75,1]]])
+    econ+=table([T('并发','Concurrency'),T('双机估算 W','Estimated pair W'),T('年电费 USD','Energy USD/year'),'50% · USD/1M','75% · USD/1M','100% · USD/1M'],rows)
+    econ+='\n\n'+T('上表统一按三年折旧；后三列是对应有效生产比例下的每百万生成词元成本。','The table uses three-year depreciation; the final columns give cost per million generated tokens at each productive fraction.')
+    econ+=chart('COST_SENSITIVITY','成本敏感性｜左：三年折旧下的利用率变化；右：75%利用率下不同折旧年限。','Cost sensitivity | Left: utilization with three-year depreciation. Right: depreciation life at 75% utilization.',lang)
+    econ+=returns(d,lang)
+    econ+='\n\n['+T('按负载核对的账单数据','Reconciled billing by workload')+'](cohort-costs.csv) · ['+T('全部设备成本情景','All ownership-cost scenarios')+'](cost-scenarios.csv)'
+    section(7,'费用、持有成本与投资回报','API cost, ownership and investment return',econ)
+    findings=[]
+    if best:
+        r=next((r for r in d['investment_scenarios'] if r['cell']==best['key'] and r['use']=='self_use' and r['utilization']==.75 and r['horizon_years']==5),None)
+        findings.append([T('短提示并发','Short-prompt concurrency'),T(f'并发8观测 {fmt(best["tps"],1)} 词元/s，正文首字95分位 {fmt(best["ttft"]["p95"],2)} s。',f'Concurrency eight: {fmt(best["tps"],1)} tokens/s, visible-TTFT p95 {fmt(best["ttft"]["p95"],2)} s.'),T('作为相同输入与输出分布的参考；业务需匹配长度和等待目标。','A reference for the same input/output distribution; match business lengths and waiting targets.')])
+        if r:findings.append([T('自用经济性','Self-use economics'),T(f'75%生产比例的简单回本 {fmt(r["payback_years"],2)} 年，五年ROI {r["roi_fraction"]:+.1%}。',f'At 75% productive utilization, simple payback {fmt(r["payback_years"],2)} years and five-year ROI {r["roi_fraction"]:+.1%}.'),T('依赖固定需求和价格；加入运维费用会降低回报。','Conditional on steady demand and price; operating expenses reduce return.')])
+    short=next((x for x in d['lengths'] if x['input_target']==512 and x['output_cap']==512 and x['concurrency']==4 and x['blocks']==4),None)
+    long=next((x for x in d['lengths'] if x['input_target']==32768 and x['output_cap']==512 and x['concurrency']==4 and x['blocks']==4),None)
+    if short and long:
+        findings.insert(1,[T('长输入等待','Long-input waiting'),T(f'并发4、输出上限512时，输入512 → 32,768，正文首字中位数 {fmt(short["ttft_median_s"],2)} → {fmt(long["ttft_median_s"],2)} s。',f'At concurrency four and output cap 512, input 512 → 32,768 gives visible-TTFT medians {fmt(short["ttft_median_s"],2)} → {fmt(long["ttft_median_s"],2)} s.'),T('每格4区组、32次；长文档应单独设置等待目标。','Four blocks and 32 requests per cell; set separate waiting targets for long documents.')])
+    reasoning=next((x for x in a['paired_reasoning'] if x['concurrency']==4 and x['metric']=='first_visible_s'),None)
+    if reasoning:
+        findings.insert(2,[T('思考档位','Reasoning effort'),T(f'并发4的 {reasoning["pairs"]} 个正文有效配对中，low较none平均多等待 {fmt(reasoning["difference_s"]["mean"],2)} s。',f'Across {reasoning["pairs"]} valid visible-content pairs at concurrency four, low adds {fmt(reasoning["difference_s"]["mean"],2)} s of mean visible waiting versus none.'),T('只表示延迟变化；没有进行质量评分，无正文样本另计。','A latency result only; quality is not scored and missing visible content is counted separately.')])
+    if best:
+        resource=[x for x in d['resources'] if x['cell']==best['key'] and x['estimated_system_power_mean_w'] is not None]
+        if len(resource)==2:
+            findings.insert(3,[T('资源与能耗','Resources and energy'),T(f'同一并发8窗口内，双机估算整机功率合计 {fmt(sum(x["estimated_system_power_mean_w"] for x in resource),1)} W，最高温度 {fmt(max(x["temperature_peak_c"] for x in resource),0)} °C。',f'In the same concurrency-eight windows, combined estimated system power is {fmt(sum(x["estimated_system_power_mean_w"] for x in resource),1)} W and peak temperature {fmt(max(x["temperature_peak_c"] for x in resource),0)} °C.'),T('用于该负载的成本估算；需插座电表验证总能耗。','Supports this workload’s cost estimate; outlet metering is needed to verify total energy.')])
+        sale=next((x for x in d['investment_scenarios'] if x['cell']==best['key'] and x['use']=='sale' and x['utilization']==.75 and x['horizon_years']==5 and x['price_multiple']==2),None)
+        if sale:
+            findings.append([T('售卖经济性','Sales economics'),T(f'75%售出比例、参考API综合价的2倍售价情景：回本 {fmt(sale["payback_years"],2)} 年，五年ROI {sale["roi_fraction"]:+.1%}。',f'At 75% sold utilization and twice the blended API reference price: payback {fmt(sale["payback_years"],2)} years and five-year ROI {sale["roi_fraction"]:+.1%}.'),T('是假设情景；未计渠道扣费及其他运营费，不代表实际收入。','A scenario with no channel deductions or other operating costs, not realized revenue.')])
+    findings.append([T('服务与机制','Serving and mechanisms'),T('独立到达、持续运行和缓存结果以各阶段实际完成量为准。','Independent-arrival, sustained-service and cache findings depend on actual stage coverage.'),T('已完成区组的吞吐不等于长期服务承诺。','Complete-block throughput is not a long-term service commitment.')])
+    findings.append([T('缓存命中与稳定性','Cache reuse and stability'),cache_conclusion(lang),T('字段缺失不记零；成本模型不加入未经验证的缓存收益。','Missing fields are not zero-filled; cost models include no unverified cache benefit.')])
+    findings.append([T('1K–256K长度空间','1K–256K length space'),length_conclusion(lang),T('输入与输出合计受256K约束；单次边界结果不等于长期容量。','Input and output share the 256K context; a boundary probe is not long-term capacity.')])
+    end=table([T('维度','Dimension'),T('结论','Finding'),T('适用条件','Condition')],findings)
+    end+='\n\n### '+T('后续工作','Next work')+'\n\n'+T('优先完成长度轴线、长输出与长前缀覆盖，再完成独立到达和压缩后的持续运行；按实际完成量更新结论。随后补充突发到达、多轮轨迹及不同生成内容复杂度的控制实验；用脱敏真实流量验证输入／输出与到达分布，用插座电表校准能耗，并补齐真实利用率、渠道费用与运维成本。若需判断极端尾延迟或长期收益，再安排更多独立时段和更大样本。','Prioritize length axes, long outputs and long prefixes, followed by arrivals and the shortened soak; update findings from actual coverage. Then add controlled bursty arrivals, multi-turn traces and varied generation complexity; validate lengths and arrivals with anonymized real traffic, meter outlet energy, and collect realized utilization, channel fees and operating costs. Extreme-tail or long-term-return claims require larger samples across independent periods.')
+    section(8,'整体结论与后续工作','Overall conclusions and next work',end)
+    full=metrics(lang);full=re.sub(r'\n\n<!--MEASUREMENT-->\n\n[^\n]+','',full)
+    full+='\n\n'+cache_definitions(lang)+'\n\n'+statistics(lang)
+    section(9,'附录A：完整指标与统计定义','Appendix A: complete metric and statistical definitions',full)
+    diag=T('以下补充图表用于检查分布、区组变化与采样覆盖；主结果的定义和结论见正文。','These supplementary figures document distributions, block variation and sampling coverage; primary definitions and findings are in the main text.')
+    for token,z,e in [
+      ('SAMPLE_FLOW','样本纳入｜从全部尝试到连续完整区组；请求和区组分开计数。','Sample inclusion | All attempts through eligible complete blocks; requests and blocks are separate units.'),
+      ('LATENCY','响应分布｜全部非预热完整响应，可能包含未完成区组；与主容量曲线的分母不同。','Response distributions | All non-warmup complete responses, including partial blocks; the population differs from the main capacity curve.'),
+      ('EVOLUTION','区组变化｜实心点为连续区组，叉号仅保留中断区组的完整墙钟值。','Block variation | Solid points are uninterrupted blocks; crosses retain interrupted wall-clock values.'),
+      ('PARETO','吞吐与等待｜每点一个并发条件，连线仅引导阅读。','Throughput and waiting | One point per concurrency condition; lines only guide reading.'),
+      ('ENGINE','原始引擎与内存采样｜缺失区间保留为空白，接受率为采样窗口字段。','Raw engine and memory samples | Missing intervals remain blank; acceptance is a sampled-window field.'),
+      ('ARRIVAL_DESIGN','到达方式示意｜独立到达可形成排队；图示不表示测试已完成。','Arrival schematic | Independent arrivals can queue; this diagram does not establish test completion.')]:diag+=chart(token,z,e,lang)
+    diag+='\n\n### '+T('思考预算的完整配对统计','Full paired reasoning statistics')+'\n\n'+'\n\n'.join(tables(legacy[7]))
+    diag+='\n\n### '+T('输入处理、上下文与请求复用明细','Input processing, context and reuse details')
+    if controlled:
+        diag+=table([T('条件','Condition'),T('尝试数','Attempts'),T('输入／输出均值','Mean input / output'),T('首生成中位数 s','Median first-generated s'),T('完整流／其他终态','Complete stream / other terminal')],[[condition_name(g['key'],lang),g['n'],fmt(g['input_tokens']['mean'],1)+' / '+fmt(g['output_tokens']['mean'],1),fmt(g['ttft_generated_s']['p50'],2),f'{g["complete"]} / {g["failed"]}'] for g in controlled])
+        diag+='\n\n'+T('长度和延迟只统计完整流；其他终态包括预期越界拒绝，不能统一解释为正常请求失败。缓存字段明细保存在逐请求数据，响应加快本身不证明实际命中或保留时间。','Lengths and latency use complete streams. Other terminal states include expected boundary rejections and are not all ordinary request failures. Cache fields remain in per-request data; faster responses alone do not prove cache hits or retention.')
+    else:diag+='\n\n'+T('本快照尚无正式结果。','No formal results in this snapshot.')
+    section(10,'附录B：补充图表与统计明细','Appendix B: supplementary figures and statistics',diag)
+    section(11,'附录C：测试代码与数据磁盘路径','Appendix C: test code and data disk paths',appendix(a,lang))
+    text='\n\n'.join(md);n=0
+    def caption(m):
+        nonlocal n
+        n+=1;return m[1]+T(f'图 {n}｜',f'Figure {n} | ')+re.sub(r'^(?:图 \d+｜|Figure \d+ \| )','',m[2])
+    text=re.sub(r'(<!--[A-Z_]+-->\n\n)([^\n]+)',caption,text)
+    text=text.replace('见第 05 节','见第 03 节').replace('section 05','section 03').replace('第 04–05 节','第 02–03 节').replace('sections 04–05','sections 02–03')
+    return text
+
+def report_md(a,lang):
+    from report_gpu_system import integrated_report
+    return integrated_report(a,lang,serving_report_md(a,lang))

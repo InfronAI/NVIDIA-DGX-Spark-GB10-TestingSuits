@@ -1,0 +1,69 @@
+"""Prepare a bounded prospective amendment; never sends or activates requests."""
+import copy,hashlib,json,random,shutil
+from pathlib import Path
+from common import ROOT,dump,digest,read_rows,utc
+from business_plan import full_ids
+
+def prepare():
+    folder=ROOT/'plans/business';manifest=json.loads((folder/'manifest.json').read_text())
+    ledger=json.loads((ROOT/'runs/ledger.json').read_text())
+    assert not any(v['phase']=='P6' for v in ledger['entries'].values()),'Business execution has begun'
+    root=ROOT/'evidence/structure_review/business_candidate';dest=root/'plans/business'
+    assert not dest.exists(),'Candidate already prepared'
+    dest.mkdir(parents=True);new=copy.deepcopy(manifest);blocks=[];cases_all=[]
+    def emit(name,cases,c,kind):
+        for row in cases:row['block']=name
+        path=dest/(name+'.jsonl');path.write_text(''.join(json.dumps(row,ensure_ascii=False)+'\n' for row in cases))
+        blocks.append({'id':name,'file':path.name,'sha256':digest(path),'count':len(cases),'concurrency':c,'kind':kind,'phase':'P6'})
+        cases_all.extend(cases)
+    source={}
+    for b in manifest['blocks']:
+        cs=read_rows(folder/b['file'])
+        if b['kind']=='business' and not cs[0]['warmup']:source[(cs[0]['shape'],b['concurrency'])]=cs
+    rng=random.Random(manifest['seed']+2)
+    # Warm once per condition, then three separately scheduled four-request blocks.
+    for b in manifest['blocks']:
+        cs=read_rows(folder/b['file'])
+        if b['kind']=='business' and cs[0]['warmup']:emit(b['id'],cs,b['concurrency'],b['kind'])
+    rounds=[]
+    for s in manifest['shapes']:
+        shape=s['id'];base=source[(shape,1)]
+        for c in [1,4]:
+            originals=source[(shape,c)]
+            for group in range(3):
+                name=originals[0]['cell']+f'_round{group+1}';cs=[]
+                for i in range(group*4,group*4+4):
+                    row=copy.deepcopy(originals[i]);row['messages']=copy.deepcopy(base[i]['messages'])
+                    # An early unique identifier avoids exact prefix carryover between arms.
+                    first=row['messages'][0]['content'];rest=first.split('. Synthetic business records;',1)[1]
+                    for nonce in range(64):
+                        tag=hashlib.sha256(('review:'+row['id']+':'+str(nonce)).encode()).hexdigest()[:24]
+                        row['messages'][0]['content']='Case '+tag+'. Synthetic business records;'+rest
+                        row['local_prompt_tokens']=len(full_ids(row['messages']))
+                        if abs(row['local_prompt_tokens']-row['target_input_tokens'])<=max(1,.01*row['target_input_tokens']):break
+                    assert abs(row['local_prompt_tokens']-row['target_input_tokens'])<=max(1,.01*row['target_input_tokens'])
+                    row['material_pair_id']=f'{shape}_material{i:02d}';row['measurement_round']=group+1
+                    row['source_material_sha256']=hashlib.sha256(json.dumps(base[i]['messages'],sort_keys=True).encode()).hexdigest()
+                    cs.append(row)
+                rounds.append((name,cs,c,'business'))
+    rng.shuffle(rounds)
+    for args in rounds:emit(*args)
+    for b in manifest['blocks']:
+        if b['kind']=='cache_ratio':
+            cs=read_rows(folder/b['file']);cs[0]['max_tokens']=cs[1]['max_tokens']
+            emit(b['id'],cs,b['concurrency'],b['kind'])
+    assert len(cases_all)==352 and len({x['id'] for x in cases_all})==352
+    new.update(utc=utc(),blocks=blocks,protocol_revision='2026-10-15-clarity-review',
+        previous_manifest_sha256=digest(folder/'manifest.json'),
+        measured_blocks_per_business_condition=3,measurements_per_business_block=4,
+        cache_warm_output_cap=256,cache_measure_output_cap=256,
+        material_matching='Same source material across concurrency arms; unique early identifiers; no exact-prefix carryover guarantee and no forced cache flush.',
+        execution_order='All 16 warmups, then 48 measurement blocks shuffled with seed+2, then original shuffled cache pairs.',
+        cache_definition='Serial pairs with identical generation parameters: none, temperature0, max_tokens256. Target and tokenized prefix overlap are distinct from measured cache hits.',
+        amendment_source_sha256=digest(__file__))
+    dump(dest/'manifest.json',new);dump(dest/'request_index.json',{x['id']:{k:v for k,v in x.items() if k!='messages'} for x in cases_all})
+    from business_runner import validate
+    validate(root)
+    dump(ROOT/'evidence/structure_review/business_candidate_receipt.json',{'utc':utc(),'candidate':str(root),'prior_manifest_sha256':digest(folder/'manifest.json'),'candidate_manifest_sha256':digest(dest/'manifest.json'),'planned_calls':352,'warmups':88,'measurements':264,'business_blocks':48,'activation':'not yet activated'})
+    print(json.dumps({'candidate':str(root),'blocks':len(blocks),'calls':352}))
+if __name__=='__main__':prepare()

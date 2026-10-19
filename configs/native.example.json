@@ -1,0 +1,14 @@
+{
+  "model": "qwen38-flash",
+  "base_url": "http://127.0.0.1:8000",
+  "protocol": "sglang",
+  "context_tokens": 262144,
+  "concurrency": 1,
+  "max_requests": 1,
+  "max_tokens": 1024,
+  "ignore_eos": true,
+  "request_timeout_s": 600,
+  "duration_limit_s": 1800,
+  "cf_retries": 0,
+  "api_key_env": "SPARKBENCH_API_KEY"
+}

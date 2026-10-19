@@ -1,0 +1,177 @@
+"""Persistent, single-run recovery supervisor. Never changes remote services."""
+import fcntl,json,os,shutil,subprocess,sys,time,traceback
+from pathlib import Path
+from common import ROOT,utc,dump,append,digest
+import collector
+
+RETRYABLE=['supervisor exception: RuntimeError: ClickHouse connection error:', 'supervisor exception: RuntimeError: ClickHouse query timed out', 'reviewed local atomic-write collision; unique temporary files verified', 'supervisor exception: ReadTimeout','supervisor exception: ConnectTimeout','supervisor exception: ConnectError','supervisor exception: ReadError','supervisor exception: RemoteProtocolError','monitor not healthy/fresh','three consecutive monitoring failures','gateway internal failed attempts require review','three consecutive billing reconciliation failures','supervisor exception: TimeoutExpired','supervisor exception: RuntimeError: dashboard','supervisor exception: AssertionError: monitor']
+
+def alive(pid):
+    if not pid:return False
+    try:
+        try:
+            if os.waitpid(pid,os.WNOHANG)[0]:return False
+        except ChildProcessError:pass
+        os.kill(pid,0);return True
+    except ProcessLookupError:return False
+
+def read(path,default=None):
+    return json.loads(path.read_text()) if path.exists() else default
+
+def emit(state,**extra):
+    record={'utc':utc(),'epoch':time.time(),'pid':os.getpid(),'state':state,**extra}
+    dump(ROOT/'runs/recovery_status.json',record)
+    append(ROOT/'runs/recovery_events.jsonl',record)
+
+def fresh(sample,dash):
+    from public_monitor import enabled,check
+    if enabled():check(dash);return
+    baseline=[read(ROOT/f'evidence/node{i}_initial.json') for i in range(2)]
+    assert len(sample['nodes'])==2 and len(dash)==2
+    for i,n in enumerate(sample['nodes']):
+        assert collector.process_fingerprint(n['processes'])==collector.process_fingerprint(baseline[i]['processes']),'deployment changed'
+        assert collector.kv(n['vmstat'])['oom_kill']==collector.kv(baseline[i]['vmstat'])['oom_kill'],'new OOM'
+        assert collector.kv(n['meminfo'])['MemAvailable']>=2*1024*1024,'RAM below 2 GiB'
+        assert dash[i].get('online') and 'metrics' in dash[i],'dashboard offline'
+        initial=read(ROOT/f'evidence/monitor_{collector.NODE_IDS[i]}.json')['data']
+        now=dash[i]['metrics']['gpu']['kernelErrors'].get('xid');old=initial['metrics']['gpu']['kernelErrors'].get('xid')
+        assert now is None or old is None or now<=old,'new Xid'
+    info=json.loads(sample['server_info']);old=baseline[0]['server_info']
+    fields=['model_path','context_length','tp_size','nnodes','quantization','speculative_algorithm','speculative_num_steps','speculative_num_draft_tokens','mem_fraction_static','disable_overlap_schedule','enable_metrics']
+    assert all(info.get(k)==old.get(k) for k in fields),'effective configuration changed'
+
+def reconnect():
+    """Own dedicated control socket; password stays only in inherited memory."""
+    import pexpect
+    socket=collector.SOCKET
+    subprocess.run(['ssh','-S',socket,'-O','exit',collector.HOST],capture_output=True,timeout=5)
+    args=['-M','-S',socket,'-o','ControlPersist=14400','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=3','-o','ConnectTimeout=10','-f','-N',collector.HOST]
+    child=pexpect.spawn('ssh',args,encoding='utf-8',timeout=45)
+    try:
+        index=child.expect(['[Pp]assword:',pexpect.EOF,pexpect.TIMEOUT])
+        if index==0:
+            child.sendline(os.environ['QWEN_PERF_SSH_PASSWORD']);child.expect(pexpect.EOF,timeout=45)
+        elif index==2:raise RuntimeError('SSH authentication connection timeout')
+        child.close()
+        if child.exitstatus not in [0,None]:raise RuntimeError('SSH connection failed')
+    finally:
+        if child.isalive():child.close(force=True)
+
+def launch(script,args,log):
+    env=os.environ.copy();env['PYTHONUNBUFFERED']='1'
+    env.pop('QWEN_PERF_SSH_PASSWORD',None)
+    with (ROOT/'runs'/log).open('ab') as f:
+        p=subprocess.Popen([sys.executable,str(ROOT/script),*args],stdin=subprocess.DEVNULL,stdout=f,stderr=subprocess.STDOUT,env=env,start_new_session=True)
+    return p.pid
+
+def review_partial(folder):
+    from continuation import validate_previous,settled_failures
+    from terminal_review import verified_case
+    from driver import validate_plans,CORE
+    ledger=read(ROOT/'runs/ledger.json')
+    assert not any(e['state']=='started' for e in ledger['entries'].values()),'unknown in-flight receipt'
+    from cf_retry import is_cf_error
+    for block in validate_plans()['blocks']:
+        if block['phase'] not in CORE:continue
+        p=ROOT/'runs/blocks'/f"{block['id']}.json"
+        if not p.exists():continue
+        b=read(p)
+        if b.get('completed')==b.get('planned') or b.get('state')=='skipped':continue
+        if settled_failures(b,ledger,ROOT):continue
+        failed=[]
+        for ident in b['request_ids']:
+            if ledger['entries'][ident]['state']=='received':continue
+            result=read(ROOT/'runs/requests'/ident/'result.json',{})
+            assert is_cf_error(result) or verified_case(ROOT,ident),'non-CF or unknown incomplete request'
+            failed.append(ident)
+        review={'utc':utc(),'continue_unsent_block':b['id'],'partial_block_sha256':digest(p),'service_unchanged':not (ROOT/'protocol/public_monitor_policy.json').exists(),'user_authorized_observability_change':(ROOT/'protocol/public_monitor_policy.json').exists(),'no_replay':not failed,'user_authorized_cf_retry':True,'reviewed_failed_cases':failed,'interruption_note':'Automatic recovery; public-dashboard mode when enabled cannot reverify complete launch configuration or raw counters. After transport/monitoring interruption; original attempts and wall-clock gaps retained. Only unsent cases and explicitly failed CF attempts continue; no completed request replay.'}
+        review['no_replay']=all(verified_case(ROOT,i) for i in failed) if failed else True
+        if failed and review['no_replay']:
+            review['interruption_note']='Client streams interrupted; exact platform receipts and original upstream terminal events verified. Failures and wall-clock gaps remain in evidence. Only unsent cases continue; interrupted cases are never replayed.'
+        validate_previous(b,ledger,review,digest(p),ROOT)
+        existing=[read(p) for p in (ROOT/'evidence/auto_recovery').glob('*/resolution.json')]
+        if any(x.get('continue_unsent_block')==b['id'] and x.get('partial_block_sha256')==digest(p) for x in existing):continue
+        dest=folder/b['id'];dest.mkdir();dump(dest/'resolution.json',review)
+        # Driver reads one directory level below auto_recovery.
+        dump(ROOT/'evidence/auto_recovery'/f"{folder.name}_{b['id']}"/'resolution.json',review)
+
+def main():
+    # The reconciliation step still requires a completed, billed, identical retry.
+    RETRYABLE.append('CF failure receipts unmatched after 180 seconds')
+    from boundary_review import verified as boundary_verified
+    if boundary_verified(ROOT,'P4_boundary'):RETRYABLE.append('boundary response requires review P4_boundary')
+    lock=(ROOT/'runs/recovery.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    config=read(ROOT/'run.json');failures=0;next_reconnect=0
+    while True:
+        try:
+            ledger=read(ROOT/'runs/ledger.json');reserved=ledger['prior_reserved_usd']+sum(x['reserved_usd'] for x in ledger['entries'].values())
+            if time.time()>=config['deadline_epoch'] or reserved>=500 or len(ledger['entries'])>=8171:
+                if not (ROOT/'STOP').exists():(ROOT/'STOP').write_text('original deadline/budget/attempt ceiling reached')
+                emit('limit_reached',attempts=len(ledger['entries']),reserved_usd=reserved);return
+            if (ROOT/'PAUSE_RECOVERY').exists():emit('user_paused');time.sleep(30);continue
+            life=read(ROOT/'runs/lifecycle.json',{})
+            if life.get('state')=='complete':emit('complete',attempts=len(ledger['entries']));return
+            if any([alive(read(ROOT/p,{}).get('pid')) for p in ['runs/lifecycle.json','runs/supervisor_status.json','runs/core_resume_launch.json']]):
+                emit('testing' if not (ROOT/'STOP').exists() else 'draining',attempts=len(ledger['entries']),reserved_usd=reserved)
+                time.sleep(15);continue
+            reason=(ROOT/'STOP').read_text() if (ROOT/'STOP').exists() else ''
+            terminal_reason = reason=='unknown or incomplete request outcome requires receipt review'
+            if reason and not terminal_reason and not any(reason.startswith(s) for s in RETRYABLE):
+                emit('waiting_review',reason=reason,attempts=len(ledger['entries']));time.sleep(60);continue
+            # Final reconciliation can overwrite a stream interruption with a network
+            # error. Review ledger outcomes independently of that last STOP message.
+            needs_review = terminal_reason or any(e['state'] in {'transport_error','timeout','incomplete','started','unknown'} for e in ledger['entries'].values())
+            if needs_review:
+                emit('reviewing_terminal_receipts',reason=reason,attempts=len(ledger['entries']))
+                from terminal_review import review_pending
+                review=review_pending(ROOT)
+                if review['unresolved']:
+                    emit('waiting_review',reason=reason,unresolved=review['unresolved'],attempts=len(ledger['entries']));time.sleep(60);continue
+                emit('terminal_review_complete',cases=review['reviewed'],quarantined_unknown_outcomes=review.get('quarantined_unknown_outcomes',[]),no_replay=True)
+            if alive(read(ROOT/'monitor/status.json',{}).get('pid')):
+                emit('waiting_collector_exit');time.sleep(5);continue
+            emit('checking_health',attempts=len(ledger['entries']),recovery_failures=failures)
+            try:
+                sample=collector.raw_sample(True)
+                dash=sample.get('dashboard_nodes') or collector.dashboard_sample(os.environ['QWEN_PERF_MONITOR_TOKEN']);fresh(sample,dash)
+            except Exception:
+                from public_monitor import enabled
+                if not enabled() and time.time()>=next_reconnect:
+                    emit('reconnecting_ssh');reconnect();next_reconnect=time.time()+300
+                raise
+            from reconcile import reconcile
+            emit('reconciling_billing',attempts=len(ledger['entries']))
+            billing=reconcile()
+            guard=read(ROOT/'evidence/reconciliation_guard.json')
+            if guard['reasons']:raise RuntimeError('unresolved reconciliation: '+', '.join(guard['reasons']))
+            folder=ROOT/'evidence/auto_recovery'/str(time.time_ns());folder.mkdir(parents=True)
+            dump(folder/'health.json',sample);dump(folder/'dashboard.json',dash);dump(folder/'billing.json',billing)
+            review_partial(folder)
+            for name in ['STOP','runs/ALL_DONE','runs/lifecycle.json','runs/supervisor_status.json','runs/core_resume_launch.json','monitor/status.json']:
+                p=ROOT/name
+                if p.exists():shutil.copy2(p,folder/p.name)
+            for name in ['STOP','runs/ALL_DONE']:(ROOT/name).unlink(missing_ok=True)
+            monitor_pid=launch('collector.py',[],'collector_recovery.log')
+            emit('starting_monitor',monitor_pid=monitor_pid,archive=str(folder))
+            ready=0
+            for _ in range(45):
+                time.sleep(2);m=read(ROOT/'monitor/status.json',{})
+                good=m.get('pid')==monitor_pid and m.get('status')=='running' and ((ROOT/'protocol/public_monitor_policy.json').exists() or time.time()-m.get('raw_ok_epoch',0)<20) and time.time()-m.get('dashboard_ok_epoch',0)<10
+                ready=ready+1 if good else 0
+                if (ROOT/'STOP').exists():break
+                if ready>=3:break
+            if ready<3:
+                if not (ROOT/'STOP').exists():(ROOT/'STOP').write_text('monitor not healthy/fresh')
+                raise RuntimeError('collector recovery not fresh')
+            # Driver takes the existing exclusive runner locks. Parent supervises extensions.
+            pid=launch('driver.py',['--mode','core'],'core_recovery.log')
+            dump(ROOT/'runs/core_resume_launch.json',{'utc':utc(),'pid':pid,'recovery_archive':str(folder),'monitor_pid':monitor_pid})
+            parent=launch('supervise.py',[],'lifecycle_recovery.log')
+            dump(folder/'launch.json',{'utc':utc(),'core_pid':pid,'parent_pid':parent,'monitor_pid':monitor_pid})
+            failures=0;emit('launched',core_pid=pid,parent_pid=parent,monitor_pid=monitor_pid);time.sleep(15)
+        except Exception as e:
+            failures+=1;delay=min(300,15*2**min(failures-1,5))
+            emit('retry_wait',error=type(e).__name__+': '+str(e)[:300],retry_in_s=delay,recovery_failures=failures)
+            time.sleep(delay)
+
+if __name__=='__main__':main()

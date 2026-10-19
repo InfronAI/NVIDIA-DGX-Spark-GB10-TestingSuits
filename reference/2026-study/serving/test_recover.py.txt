@@ -1,0 +1,28 @@
+import json,subprocess,sys,tempfile,time,unittest
+from pathlib import Path
+from unittest.mock import patch
+import recover
+from common import dump
+
+class RecoveryTests(unittest.TestCase):
+    def test_dead_child_not_treated_as_live(self):
+        p=subprocess.Popen([sys.executable,'-c','pass'])
+        time.sleep(.15)
+        self.assertFalse(recover.alive(p.pid))
+        p.wait()
+
+    def test_partial_review_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as t:
+            r=Path(t);dump(r/'runs/ledger.json',{'entries':{'a':{'state':'received'}}})
+            dump(r/'runs/blocks/b.json',{'id':'b','planned':2,'sent':1,'completed':1,'request_ids':['a']})
+            for i in range(2):
+                folder=r/'evidence/auto_recovery'/str(i);folder.mkdir(parents=True)
+                with patch.object(recover,'ROOT',r),patch('driver.validate_plans',return_value={'blocks':[{'id':'b','phase':'P1'}]}):recover.review_partial(folder)
+            self.assertEqual(len(list((r/'evidence/auto_recovery').glob('*/resolution.json'))),1)
+
+    def test_unknown_send_blocks_resume(self):
+        with tempfile.TemporaryDirectory() as t:
+            r=Path(t);dump(r/'runs/ledger.json',{'entries':{'a':{'state':'started'}}})
+            with patch.object(recover,'ROOT',r),self.assertRaisesRegex(AssertionError,'unknown'):recover.review_partial(r)
+
+if __name__=='__main__':unittest.main()

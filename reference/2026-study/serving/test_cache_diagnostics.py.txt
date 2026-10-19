@@ -1,0 +1,41 @@
+import unittest,json,tempfile,asyncio,time
+from pathlib import Path
+from cache_counters import parse,window
+from cache_runner import validate,wait_until
+from common import ROOT,read_rows
+class CacheDiagnosticsTest(unittest.TestCase):
+ def setUp(self):
+  self.a=dict(valid=True,identity={'endpoint':'same'},collector_epoch=1,prompt=100,cached=20,output=10)
+  self.b=dict(self.a,collector_epoch=2,prompt=200,cached=70,output=30)
+ def test_gateway_zero_is_not_upstream_evidence(self):
+  from cache_analysis import observed_cache
+  row=dict(cached_tokens='0',prompt_tokens='100',usage_source='API usage; none reasoning, awaiting upstream cross-check')
+  self.assertFalse(observed_cache(row));row['usage_source']='original upstream SSE usage';self.assertTrue(observed_cache(row))
+  for value in ['',None,'-1','101']:
+   self.assertFalse(observed_cache(dict(row,cached_tokens=value)))
+ def test_delta(self):self.assertEqual(window(self.a,self.b,100,20)['token_fraction'],.5)
+ def test_missing(self):self.assertIsNone(window(dict(self.a,valid=False),self.b)['token_fraction'])
+ def test_reset(self):self.assertFalse(window(self.a,dict(self.b,cached=1))['valid'])
+ def test_bad_denominator(self):self.assertFalse(window(self.a,dict(self.b,cached=121))['valid'])
+ def test_identity(self):self.assertFalse(window(self.a,dict(self.b,identity={'endpoint':'other'}))['valid'])
+ def test_stale(self):self.assertFalse(window(self.a,dict(self.b,collector_epoch=1))['valid'])
+ def test_attribution(self):self.assertFalse(window(self.a,self.b,150,20)['valid'])
+ def test_missing_prometheus(self):self.assertFalse(parse('',time.time())['valid'])
+ def test_real_scrape(self):
+  text=(ROOT/'evidence/cache_evaluation/_metrics.txt').read_text();p=parse(text,1792046987);self.assertTrue(p['valid']);self.assertEqual(p['cached'],25152)
+ def test_old_scrape(self):self.assertFalse(parse((ROOT/'evidence/cache_evaluation/_metrics.txt').read_text(),time.time())['valid'])
+ def test_manifest(self):self.assertEqual(validate()['planned_calls'],160)
+ def test_identical_retention_pressure_periodic(self):
+  m=validate();groups={}
+  for b in m['blocks']:
+   for c in read_rows(ROOT/'plans/cache_diagnostics'/b['file']):groups.setdefault(c['group'],[]).append(c)
+  for g,cs in groups.items():
+   anchor=next(c for c in cs if c['cache_role']=='seed')
+   for c in cs:
+    if c['cache_role'] in ['probe','repeat100','baseline','post','recovery']:
+     self.assertEqual(c['messages'],anchor['messages']);self.assertEqual(c['max_tokens'],anchor['max_tokens'])
+ def test_stop_interrupts_wait(self):
+  class R:
+   def stopping(self):return 'stop'
+  asyncio.run(wait_until(time.time()+300,R()))
+if __name__=='__main__':unittest.main()

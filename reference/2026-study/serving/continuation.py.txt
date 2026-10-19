@@ -1,0 +1,35 @@
+"""Strict, reviewed continuation of this run's interrupted block; no replay."""
+
+def validate_previous(old, ledger, resolution, receipt_sha256, root=None):
+    assert resolution.get('continue_unsent_block')==old['id']
+    assert resolution.get('partial_block_sha256')==receipt_sha256
+    assert (resolution.get('service_unchanged') or resolution.get('user_authorized_observability_change')) and (resolution.get('no_replay') or resolution.get('user_authorized_cf_retry'))
+    ids=old['request_ids'];assert len(ids)==len(set(ids))==old['sent']
+    reviewed=set(resolution.get('reviewed_failed_cases',[]))
+    failed=set()
+    for ident in ids:
+        state=ledger['entries'][ident]['state']
+        if state=='received':continue
+        if state=='http_error':
+            assert ident in reviewed,'Unreviewed or uncertain prior outcome'
+        else:
+            from terminal_review import STATES, verified_case
+            assert state in STATES and root is not None and ident in reviewed,'Unreviewed or uncertain prior outcome'
+            assert verified_case(root,ident),'Unreviewed or uncertain prior outcome'
+        failed.add(ident)
+    assert failed==reviewed
+    assert old['completed']==old['sent']-len(failed)
+    assert old['sent']<old['planned'],'Fully sent blocks must not be continued'
+    return True
+
+def settled_failures(old, ledger, root):
+    if old.get('sent')!=old.get('planned'):return False
+    assert old['sent']==old['planned']==len(set(old['request_ids']))
+    from terminal_review import verified_case
+    failed=[i for i in old['request_ids'] if ledger['entries'][i]['state']!='received']
+    if not failed:return False
+    assert old['completed']==old['sent']-len(failed)
+    if 'reviewed_failed_cases' in old:assert set(failed)==set(old['reviewed_failed_cases'])
+    from boundary_review import verified as boundary_verified
+    assert all(verified_case(root,i) or boundary_verified(root,i) for i in failed),'Unresolved failure in fully sent block'
+    return True

@@ -1,0 +1,195 @@
+"""Public endpoint completion arm; finite workload, live telemetry and SELECT receipts."""
+import asyncio
+import hashlib
+import json
+import re
+from pathlib import Path
+import sys
+import time
+
+HERE=Path(__file__).resolve().parent;PARENT=HERE.parent;ROOT=HERE/'public'
+sys.path.insert(0,str(PARENT));sys.path.insert(0,str(PARENT.parents[1]/'src'))
+from runner import Runner,client
+from common import dump,append,utc,read_rows
+from arrival import execute,poisson_offsets
+from origin import collect as origin_usage
+from insightloop.config.loader import load_settings
+from insightloop.runtime.clickhouse import build_clickhouse_client
+sys.path.insert(0,str(HERE));from local_transport import remote
+
+
+class MonitoredRunner(Runner):
+    def __init__(self):super().__init__(root=ROOT,require_monitor=False)
+    def stopping(self):
+        if (HERE/'STOP').exists():return 'user stop'
+        why=super().stopping()
+        if why:return why
+        path=ROOT/'monitor/status.json'
+        if not path.exists():return 'waiting for node telemetry'
+        row=json.loads(path.read_text())
+        if row['state']!='running' or time.time()-row['local_epoch']>20:return 'node telemetry stale or in thermal backoff'
+        return None
+
+
+async def sample_loop(done):
+    script=(HERE/'public_sample.py').read_text()
+    cooling=False;stable=None
+    while not done.is_set():
+        try:
+            row=json.loads(await asyncio.to_thread(remote,script,25));now=time.time()
+            append(ROOT/'monitor/raw.jsonl',{'local_epoch':now,**row})
+            temps=[x['temperature_c'] for x in row['nodes'].values()]
+            if max(temps)>=85:cooling=True;stable=None
+            if cooling:
+                stable=(stable or time.monotonic()) if max(temps)<75 else None
+                if stable and time.monotonic()-stable>=30:cooling=False
+            healthy=not cooling and all(x['memory']['MemAvailable']>2*1024**3 for x in row['nodes'].values())
+            dump(ROOT/'monitor/status.json',{'state':'running' if healthy else 'thermal_or_memory_backoff','local_epoch':now,'temperatures_c':temps})
+        except Exception as exc:
+            dump(ROOT/'monitor/status.json',{'state':'transport_retry','local_epoch':time.time(),'error':type(exc).__name__})
+        try:await asyncio.wait_for(done.wait(),3)
+        except TimeoutError:pass
+
+
+def bill():
+    results=[json.loads(p.read_text()) for p in (ROOT/'runs/requests').glob('*/result.json')]
+    ids=sorted({x.get('response_request_id') or x.get('request_id') for x in results}-{None})
+    assert all(re.fullmatch('[A-Za-z0-9_-]+',x) for x in ids)
+    ch=build_clickhouse_client(load_settings());rows=[]
+    for start in range(0,len(ids),150):
+        values=','.join("'"+x+"'" for x in ids[start:start+150])
+        rows.extend(ch.query('SELECT id,request_id,type,created_at,model_provider_id,channel_id,provider_name,prompt_tokens,completion_tokens,reasoning_tokens,quota,finish_reason,other FROM logs WHERE created_at >= 1792195200 AND request_id IN ('+values+')').rows)
+    rows=list({str(x['id']):x for x in rows}.values())
+    routing=[x['request_id'] for x in rows if x['model_provider_id']!=2084 or x['channel_id']!=2538]
+    if routing:raise RuntimeError('route identity mismatch')
+    origins=origin_usage(ch,rows,results,ROOT)
+    found={x['request_id'] for x in rows}
+    missing=[x['id'] for x in results if x['state']=='received' and time.time()-x['end_epoch']>180 and (x.get('response_request_id') or x.get('request_id')) not in found]
+    receipt={'utc':utc(),'rows':rows,'new_actual_usd':sum(x['quota'] for x in rows)/1e6,
+             'prior_actual_usd':8.561299,'missing_success_receipts':missing,'route_mismatch':routing,**origins}
+    receipt['cumulative_actual_usd']=receipt['new_actual_usd']+receipt['prior_actual_usd']
+    dump(ROOT/'evidence/billing_latest.json',receipt)
+    if missing or origins['origin_usage_issues']:raise RuntimeError('billing/origin evidence incomplete')
+    return {k:v for k,v in receipt.items() if k!='rows'}
+
+
+async def fresh():
+    start=time.monotonic();stable=None
+    while time.monotonic()-start<600:
+        if (HERE/'STOP').exists() or (ROOT/'STOP').exists():raise RuntimeError('explicit stop')
+        p=ROOT/'monitor/status.json'
+        data=json.loads(p.read_text()) if p.exists() else {}
+        good=data.get('state')=='running' and time.time()-data.get('local_epoch',0)<15 and max(data.get('temperatures_c',[100]))<75
+        stable=(stable or time.monotonic()) if good else None
+        if stable and time.monotonic()-stable>=30:return
+        await asyncio.sleep(2)
+    raise RuntimeError('node recovery/cooling timeout')
+
+
+async def recover_transient(runner,reason):
+    """Only known monitor/backoff or confirmed CF failures may be retried."""
+    allowed=reason in ['waiting for node telemetry','node telemetry stale or in thermal backoff'] or str(reason).startswith('Cloudflare retry limit exhausted for ')
+    if not allowed or (HERE/'STOP').exists():return False
+    if any(x['state'] in ['started','timeout','transport_error','incomplete'] for x in runner.ledger['entries'].values()):return False
+    marker=ROOT/'STOP'
+    if marker.exists():
+        if marker.read_text()!=reason:return False
+        dump(ROOT/'evidence'/f'recovered_stop_{time.time_ns()}.json',{'utc':utc(),'reason':reason,'known_terminal_attempts':True})
+        marker.unlink()
+    runner.stop=None;runner.errors=0
+    await fresh()
+    pre=json.loads(await asyncio.to_thread(remote,(HERE/'preflight_remote.py').read_text(),30))
+    if not pre['engine']['idle'] or pre['configuration']!=json.loads((HERE/'preflight.json').read_text())['configuration']:
+        raise RuntimeError('service identity or idle state changed before recovery')
+    return True
+
+
+async def run():
+    manifest=json.loads((ROOT/'manifest.json').read_text())
+    assert json.loads((HERE/'budget_amendment.json').read_text())['financial_ceiling_usd'] is None
+    state={'state':'preflight','started_utc':utc(),'completed_blocks':0,'budget_ceiling_usd':None}
+    path=ROOT/'status.json'
+    if path.exists():raise RuntimeError('public arm already registered; no blind replay')
+    dump(path,state);done=asyncio.Event();monitor=asyncio.create_task(sample_loop(done))
+    def cases(block,prefix=''):
+        p=ROOT/'plans'/block['file'];assert hashlib.sha256(p.read_bytes()).hexdigest()==block['sha256']
+        rows=read_rows(p)
+        for x in rows:
+            if prefix:x['id']=prefix+x['id']
+        return rows
+    try:
+        await fresh();runner=MonitoredRunner();assert runner.ledger['ceiling_usd'] is None
+        async with client() as api:
+            first=cases(manifest['blocks'][0])[0]
+            first.update(id='gc17_route_preflight',warmup=True,max_tokens=32)
+            state.update(state='route_preflight');dump(path,state)
+            result=await runner.case(api,first)
+            if result.get('state')!='received':raise RuntimeError('public route preflight did not complete')
+            for _ in range(30):
+                await asyncio.to_thread(bill)
+                billing=json.loads((ROOT/'evidence/billing_latest.json').read_text())
+                if billing['rows']:break
+                await asyncio.sleep(5)
+            else:raise RuntimeError('preflight routing receipt unavailable')
+            references=[]
+            for block in manifest['blocks']:
+                if block['kind'] in ['interference','soak']:continue
+                for attempt in range(1,4):
+                    ident=block['id'] if attempt==1 else block['id']+f'_independent{attempt}'
+                    state.update(state='running',current_block=ident,utc=utc());dump(path,state)
+                    before=json.loads(await asyncio.to_thread(remote,(HERE/'public_sample.py').read_text(),25));dump(ROOT/'runs/blocks'/f"{ident}.before.json",before)
+                    results=await runner.closed(api,cases(block,prefix='' if attempt==1 else f'a{attempt}_'),block['concurrency'],ident)
+                    after=json.loads(await asyncio.to_thread(remote,(HERE/'public_sample.py').read_text(),25));dump(ROOT/'runs/blocks'/f"{ident}.after.json",after)
+                    why=runner.stopping()
+                    if not why:break
+                    if attempt==3 or not await recover_transient(runner,why):raise RuntimeError(why)
+                if block['kind']=='reference':references.append(json.loads((ROOT/'runs/blocks'/f"{ident}.json").read_text()))
+                state['completed_blocks']+=1;await asyncio.to_thread(bill)
+            reference_results=[json.loads((ROOT/'runs/requests'/ident/'result.json').read_text()) for b in references for ident in b['request_ids']]
+            eligible=len(references)==3 and all(b['completed']==60 and b['sent']==60 for b in references)
+            eligible=eligible and all(not x.get('integrity_flags') and not x.get('retry_index') and x.get('usage_available') for x in reference_results)
+            if eligible:
+                rate=.7*180/sum(b['end_epoch']-b['start_epoch'] for b in references)
+                dump(ROOT/'reference_selection.json',{'rate':rate,'rule':manifest['interference_rate_rule'],'references':references})
+                offsets={}
+                for block in [b for b in manifest['blocks'] if b['kind']=='interference']:
+                    rows=cases(block);warm=[x for x in rows if x.get('warmup')];measured=[x for x in rows if not x.get('warmup')]
+                    off=offsets.setdefault(block['pair'],poisson_offsets(rate,32,180,block['arrival_seed']))
+                    if len(off)<32:
+                        dump(ROOT/'runs/blocks'/f"{block['id']}.json",{'state':'not_admitted','reason':'32 fixed-rate arrivals do not fit 180 seconds','planned':len(rows)})
+                        continue
+                    state.update(state='interference',current_block=block['id'],utc=utc());dump(path,state)
+                    await runner.closed(api,warm,1,block['id']+'_warm')
+                    short=[x for x in measured if x['stream_kind']=='short'];long=[x for x in measured if x['stream_kind']=='long']
+                    lo=[off[0]+(off[-1]-off[0])*(i+.5)/8 for i in range(8)]
+                    await execute(runner,api,list(zip(off,short))+list(zip(lo,long)),block['id'],workers={'short':4,'long':1})
+                    if runner.stopping():raise RuntimeError(runner.stopping())
+                    state['completed_blocks']+=1;await asyncio.to_thread(bill)
+            else:dump(ROOT/'interference_not_admitted.json',{'reason':'new C4 reference blocks incomplete'})
+            block=next(b for b in manifest['blocks'] if b['kind']=='soak')
+            # A new independent hour is never joined to an interrupted prior hour.
+            for attempt in range(1,manifest['soak_max_independent_attempts']+1):
+                rows=cases(block,prefix='' if attempt==1 else f'a{attempt}_');off=poisson_offsets(manifest['soak_rate'],len(rows),3600,manifest['soak_seed'])
+                if time.time()+3900>manifest['deadline_epoch']:raise RuntimeError('insufficient fixed window for full hour and drain')
+                ident=f'gc17_soak_a{attempt}';state.update(state='soak',current_block=ident,utc=utc());dump(path,state)
+                start=time.monotonic()
+                results,receipt=await execute(runner,api,list(zip(off,rows)),ident)
+                while time.monotonic()-start<3600 and not runner.stopping():await asyncio.sleep(1)
+                why=runner.stopping()
+                receipt.update(drain_end_epoch=receipt['end_epoch'],end_epoch=time.time(),arrival_window_s=3600,
+                    observed_continuous_s=time.monotonic()-start,offered_rate=manifest['soak_rate'],independent_attempt=attempt,
+                    complete_continuous_window=not bool(why) and time.monotonic()-start>=3600,stop=why)
+                dump(ROOT/'runs/blocks'/f'{ident}.json',receipt)
+                if not why:break
+                if attempt==manifest['soak_max_independent_attempts'] or not await recover_transient(runner,why):raise RuntimeError(why)
+            state['completed_blocks']+=1
+            await asyncio.sleep(10);state['billing']=await asyncio.to_thread(bill)
+            state.update(state='complete',completed_requests=sum(x['state']=='received' for x in runner.ledger['entries'].values()))
+    except BaseException as exc:
+        state.update(state='stopped',error=type(exc).__name__+': '+str(exc)[:800])
+    finally:
+        done.set();await asyncio.gather(monitor,return_exceptions=True)
+        state['ended_utc']=utc();dump(path,state)
+
+
+if __name__=='__main__':asyncio.run(run())

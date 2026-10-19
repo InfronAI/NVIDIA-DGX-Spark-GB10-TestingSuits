@@ -1,0 +1,89 @@
+"""Small remote control surface for this one benchmark, read JSON from stdin."""
+import base64
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+
+from gpu_system_guard import check_lease, engine_idle, owned_process, process_identity, sample_guard, utc, write_json
+
+
+def status(root, rank):
+    result = {'utc': utc(), 'rank': rank, 'children': {}}
+    for p in root.glob('child_*.json'):
+        d = json.loads(p.read_text()); d['alive'] = owned_process(root, d)
+        receipt_path = root / (d['phase'] + '_result.json')
+        if receipt_path.exists(): d['result'] = json.loads(receipt_path.read_text())
+        if not d['alive'] and d['state'] == 'running':
+            d['state'] = 'complete' if d.get('result', {}).get('state') == 'complete' else 'stopped'
+            write_json(p, d)
+        result['children'][d['phase']] = d
+    for name in ['observer', 'telemetry_latest', 'measurement_latest']:
+        p = root / (name + '.json')
+        if p.exists(): result[name] = json.loads(p.read_text())
+    if rank == 0: result['engine'] = engine_idle()
+    return result
+
+
+def main():
+    q = json.load(sys.stdin); root = Path(q['root']); rank = q['rank']; op = q['op']
+    if op == 'status':
+        out = status(root, rank)
+    elif op == 'lease':
+        write_json(root / 'lease.json', q['lease']); out = {'accepted': True, 'utc': utc()}
+    elif op == 'start':
+        phase = q['phase']; assert phase in ['single', 'communication', 'soak']
+        sample_guard(root)
+        if rank == 0 and not engine_idle()['idle']: raise RuntimeError('serving engine is busy')
+        prior = root / ('child_' + phase + '.json')
+        if prior.exists():
+            out = {'already_registered': True, 'child': json.loads(prior.read_text())}
+        else:
+            for item in status(root, rank)['children'].values():
+                if item['alive']: raise RuntimeError('another owned GPU stage is active')
+            deadline = min(q['deadline_epoch'], time.time() + {'single': 5400, 'communication': 3600, 'soak': 16200}[phase])
+            env = os.environ.copy(); env.update(OMP_NUM_THREADS='1', MKL_NUM_THREADS='1', CUDA_VISIBLE_DEVICES='0')
+            python = '/home/benchmark/Projects/qwen38/.sglang/bin/python3'
+            if phase == 'communication':
+                argv = [python, str(root/'gpu_system_collectives.py'), '--root', str(root), '--rank', str(rank)]
+                env.update(NCCL_SOCKET_IFNAME='enp1s0f1np1', NCCL_IB_HCA='rocep1s0f1,roceP2p1s0f1',
+                           NCCL_DEBUG='INFO', NCCL_DEBUG_SUBSYS='INIT,NET,GRAPH', NCCL_DEBUG_FILE=str(root/'nccl.%h.%p.log'))
+            else:
+                argv = [python, str(root/'gpu_system_bench.py'), '--root', str(root), '--mode', phase]
+            with (root/(phase+'.log')).open('ab') as log:
+                p = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, start_new_session=True)
+            identity = process_identity(p.pid)
+            if identity is None: raise RuntimeError('GPU child exited before registration')
+            out = {'pid': p.pid, 'phase': phase, 'state': 'running', 'start_ticks': identity['start_ticks'],
+                   'started_utc': utc(), 'hard_deadline_epoch': deadline, 'argv': argv}
+            write_json(prior, out)
+    elif op == 'stop':
+        (root/'STOP_GPU').write_text(q.get('reason', 'controller stop'))
+        for child in status(root, rank)['children'].values():
+            if child['alive']:
+                os.killpg(child['pid'], signal.SIGTERM)
+        out = {'stopped': True, 'utc': utc()}
+    elif op == 'snapshot':
+        # No transfers of raw traces while a timed GPU stage is active.
+        state = status(root, rank)
+        if any(c['alive'] for c in state['children'].values()): raise RuntimeError('cannot transfer traces during GPU timing')
+        files = {}
+        for p in sorted(root.iterdir()):
+            if p.is_file() and not p.is_symlink() and p.suffix in ['.json', '.jsonl', '.log', '.py']:
+                data = p.read_bytes()
+                if p.suffix == '.jsonl' and not data.endswith(b'\n'):
+                    data = data.rsplit(b'\n', 1)[0] + b'\n'
+                files[p.name] = {'data': base64.b64encode(data).decode(), 'sha256': hashlib.sha256(data).hexdigest()}
+        out = {'snapshot_utc': utc(), 'gzip_base64': base64.b64encode(gzip.compress(json.dumps(files).encode())).decode()}
+    else:
+        raise ValueError('unknown remote operation')
+    print(json.dumps(out))
+
+
+if __name__ == '__main__':
+    main()

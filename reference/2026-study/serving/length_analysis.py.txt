@@ -1,0 +1,28 @@
+"""Offline length coverage and realized-work audit. Never generates traffic."""
+import csv,json,statistics
+from common import ROOT,dump
+
+def build():
+ from cache_runner import result
+ amendment=(ROOT/'protocol/natural_length_amendment.json').exists()
+ m=json.loads((ROOT/'plans/length_expansion/manifest.json').read_text());idx=json.loads((ROOT/'plans/length_expansion/request_index.json').read_text());rows=[];blocks=[]
+ for b in m['blocks']:
+  p=ROOT/'runs/length_conditions'/f"{b['id']}.json";receipt=json.loads(p.read_text()) if p.exists() else {};proofs=receipt.get('upstream',{})
+  ids=[k for k,v in idx.items() if v['block']==b['id']];br=[]
+  for ident in ids:
+   c=idx[ident];r=result(ident);u=proofs.get(ident,{}).get('usage',{});n=u.get('completion_tokens');i=u.get('prompt_tokens');timing=r.get('timing',{});wp=ROOT/'runs/length_cache_windows'/f'{ident}.json';w=json.loads(wp.read_text()).get('window',{}) if wp.exists() else {}
+   qualified=bool(n is not None and r.get('state')=='received' and proofs[ident].get('upstream_ignore_eos')=='true' and str(proofs[ident].get('upstream_max_tokens'))==str(c['max_tokens']) and .98*c['max_tokens']<=n<=c['max_tokens'])
+   mode=receipt.get('mode') or ('natural_pressure' if amendment and c['mode']=='fixed' and not ident.startswith('length_calibration') else c['mode'])
+   reached=bool(n is not None and r.get('state')=='received' and str(proofs[ident].get('upstream_max_tokens'))==str(c['max_tokens']) and .98*c['max_tokens']<=n<=c['max_tokens'])
+   row=dict(id=ident,block=b['id'],family=b['family'],mode=mode,concurrency=b['concurrency'],warmup=c['warmup'],input_target=c['target_input_tokens'],local_input=c['local_prompt_tokens'],output_cap=c['max_tokens'],state=r.get('state',receipt.get('state','not_started')),sent=bool(r),complete=r.get('state')=='received',actual_input=i,actual_output=n,output_attainment=n/c['max_tokens'] if n is not None else None,fixed_qualified=qualified,output_attained=reached,input_error_fraction=(i-c['target_input_tokens'])/c['target_input_tokens'] if i is not None else None,ttft_s=timing.get('first_visible_s'),first_generated_s=timing.get('first_generated_s'),e2e_s=timing.get('e2e_s'),tpot_s=(timing['e2e_s']-timing['first_generated_s'])/(n-1) if n and n>1 and timing.get('e2e_s') is not None and timing.get('first_generated_s') is not None else None,retry_index=r.get('retry_index',0),cache_role=c.get('cache_role'),prefix_target=c.get('target_prefix_percent'),prefix_actual=c.get('actual_prefix_fraction'),cache_fraction=w.get('token_fraction') if w.get('valid') else None,skip_reason=receipt.get('reason'))
+   rows.append(row);br.append(row)
+  bp=ROOT/'runs/blocks'/f"{b['id']}.json";bw=json.loads(bp.read_text()) if bp.exists() else {}
+  good=b['family']=='repeated_blocks' and not receipt.get('resumed') and len(br)==b['count'] and all(x['output_attained'] and not x['retry_index'] and x['input_error_fraction'] is not None and abs(x['input_error_fraction'])<=.01 for x in br) and bw.get('planned')==b['count'] and bw.get('actual_new_attempts')==b['count'] and bw.get('end_epoch',0)>bw.get('start_epoch',0)
+  blocks.append(dict(id=b['id'],family=b['family'],planned=b['count'],sent=sum(x['sent'] for x in br),complete=sum(x['complete'] for x in br),qualified=sum(x['fixed_qualified'] for x in br),attained=sum(x['output_attained'] for x in br),state=receipt.get('state','not_started'),valid_capacity=good,tokens_s=sum(x['actual_output'] for x in br)/(bw['end_epoch']-bw['start_epoch']) if good else None,elapsed_s=bw['end_epoch']-bw['start_epoch'] if good else None))
+ out=dict(generated_utc=json.loads((ROOT/'reports/analysis.json').read_text())['generated_utc'],planned=299,sent=sum(x['sent'] for x in rows),complete=sum(x['complete'] for x in rows),qualified=sum(x['fixed_qualified'] for x in rows),attained=sum(x['output_attained'] for x in rows),natural_pressure=amendment,upstream_count=sum(x['actual_output'] is not None for x in rows),rows=rows,blocks=blocks,matrix=m['matrix'])
+ dump(ROOT/'reports/length_analysis.json',out)
+ with (ROOT/'reports/length-observations.csv').open('w') as f:
+  w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
+ return out
+
+def data():return json.loads((ROOT/'reports/length_analysis.json').read_text())

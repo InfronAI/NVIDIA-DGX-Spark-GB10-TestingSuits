@@ -1,0 +1,26 @@
+import unittest
+from retry_policy import retry_decision
+class RetryPolicy(unittest.TestCase):
+ def setUp(self):self.proof={'state':'verified','configuration_equal':True}
+ def decide(self,error,**kwargs):return retry_decision({'state':'stopped','error':error},kwargs.get('proof',self.proof),kwargs.get('attempt',1),kwargs.get('remaining',12000))
+ def test_transient(self):
+  for e in ['thermal backoff exceeded maximum duration','hardware telemetry stale','exclusive GPU lease absent or expired','node 1 control failed: Connection reset']:self.assertEqual(self.decide(e),'retry')
+ def test_numeric_fatal(self):self.assertEqual(self.decide('thermal backoff exceeded maximum duration; numerical validation failed'),'non_transient_failure')
+ def test_explicit_stop(self):self.assertEqual(self.decide('explicit maintenance stop'),'non_transient_failure')
+ def test_unknown(self):self.assertEqual(self.decide('unexpected CUDA problem'),'unclassified_failure')
+ def test_restore_required(self):self.assertEqual(self.decide('Connection reset',proof={}),'restoration_unverified')
+ def test_limit(self):self.assertEqual(self.decide('Connection reset',attempt=3),'attempt_limit')
+ def test_window(self):self.assertEqual(self.decide('Connection reset',remaining=8000),'insufficient_fixed_window')
+ def test_complete(self):self.assertEqual(retry_decision({'state':'batch_complete'},self.proof,1,0),'complete')
+ def test_complete_requires_restore(self):self.assertEqual(retry_decision({'state':'batch_complete'},{},1,0),'restoration_unverified')
+ def test_alive_child(self):self.assertEqual(retry_decision({'state':'stopped','error':'control failed','nodes':{'0':{'children':{'soak':{'phase':'soak','alive':True}}}}},self.proof,1,12000),'active_child')
+ def test_nested_failure(self):self.assertEqual(retry_decision({'state':'stopped','error':'hardware stage ended without completion: soak','nodes':{'0':{'children':{'soak':{'phase':'soak','alive':False,'result':{'error':'hardware telemetry stale'}}}}}},self.proof,1,12000),'retry')
+class MixedOnlySchedule(unittest.TestCase):
+ def test_new_authorization_preserves_completed_phases(self):
+  import tempfile,json
+  from pathlib import Path
+  from soak_protocol import schedule
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d);(p/'resume_authorization.json').write_text(json.dumps({'reason':'user_resume_mixed_with_thermal_backoff','restoration_verified':True,'completed_soak_phases':['compute','bandwidth'],'remaining_soak_phases':['mixed'],'mixed_seconds':7200}))
+   self.assertEqual(schedule(p),[('mixed',7200)])
+if __name__=='__main__':unittest.main()

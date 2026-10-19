@@ -1,0 +1,148 @@
+"""Consistent captions, semantic alignment and accessible result tables."""
+import re
+from collections import defaultdict
+from bs4 import BeautifulSoup
+
+CSS = """
+.document{color:var(--inf-neutral-800);line-height:1.75}
+.document h3{font-size:19px;line-height:1.5;margin:30px 0 14px;font-weight:600}
+.document p{max-width:100%;overflow-wrap:break-word}
+.document .table-wrap,.document .figure{background:var(--inf-bg);border:1px solid var(--inf-border-strong);border-radius:16px;margin:24px 0;box-shadow:none}
+.document .table-wrap{padding:0;overflow:auto;scrollbar-color:var(--inf-neutral-300) transparent;overscroll-behavior-inline:contain}
+.document .table-wrap:focus-visible{outline:2px solid var(--inf-focus-ring);outline-offset:3px}
+.document .result-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;line-height:1.65;table-layout:auto}
+.document .result-table caption{text-align:left;caption-side:top;padding:15px 16px 12px;background:white;border-bottom:1px solid var(--inf-border)}
+.document .visual-label{display:inline-block;color:var(--inf-brand);font-size:11px;font-weight:600;letter-spacing:.04em;margin-right:10px;white-space:nowrap}
+.document .visual-title{font-size:13px;color:var(--inf-neutral-800);font-weight:600;line-height:1.6}
+.document .result-table th{background:var(--inf-neutral-50);color:var(--inf-neutral-800);font-weight:600;text-align:left;vertical-align:bottom;border-bottom:1px solid var(--inf-border-strong)}
+.document .result-table th,.document .result-table td{padding:11px 14px;overflow-wrap:break-word;border-right:none}
+.document .result-table td{border-bottom:1px solid var(--inf-border);background:white;vertical-align:top}
+.document .result-table tbody tr:nth-child(even) td{background:var(--inf-neutral-25)}
+.document .result-table tbody tr:last-child td{border-bottom:0}
+.document .result-table .numeric{text-align:right;font-variant-numeric:tabular-nums lining-nums}
+.document .result-table .metric-value{font-weight:600;font-size:inherit;background:none;border:0;padding:0;color:var(--inf-brand)}
+.document .result-table .metric-range{display:inline;font-size:.92em;color:var(--inf-neutral-700);white-space:normal;font-weight:400}
+.document .result-table .comparison-primary{box-shadow:inset 3px 0 var(--inf-brand);background:var(--inf-blue-50)}
+.document .result-table .comparison-secondary{box-shadow:inset 3px 0 var(--inf-blue-400);background:var(--inf-blue-100)}
+.document .result-table .comparison-secondary .metric-value{color:var(--inf-blue-600)}
+.document .result-table .comparison-reference{box-shadow:inset 3px 0 var(--inf-neutral-450);background:var(--inf-neutral-50)}
+.document .result-table .comparison-reference .metric-value{color:var(--inf-neutral-700)}
+.document .result-table .comparison-baseline{background:var(--inf-neutral-50)}
+.document .result-table .comparison-repeat{background:var(--inf-blue-50)}
+.document .result-table .metric-missing{color:var(--inf-text-muted);font-weight:400}
+.document .result-table .result-positive{background:var(--inf-functional-success-subtle)}
+.document .result-table .result-positive .metric-value{color:var(--inf-success)}
+.document .result-table .result-negative{background:var(--inf-functional-danger-subtle)}
+.document .result-table .result-negative .metric-value{color:var(--inf-danger)}
+.document .key-figure{background:none;padding:0;font-weight:600;color:var(--inf-brand);font-variant-numeric:tabular-nums lining-nums}
+.document .figure{padding:18px 20px 16px;overflow:hidden}
+.document .figure figcaption{border-top:1px solid var(--inf-border);padding-top:12px;margin:12px 0 0;font-size:12px;line-height:1.7;color:var(--inf-neutral-700)}
+.document .figure figcaption .visual-title{font-size:13px}
+.document .figure .visual-note{display:block;margin-top:5px;color:var(--inf-neutral-700)}
+.document .static-chart{display:block;width:100%;height:auto;max-width:100%}
+.document .enhanced .static-chart{display:none}
+.document .chart-viewport{overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-color:var(--inf-neutral-300) transparent}
+.document .chart-viewport:focus-visible{outline:2px solid var(--inf-focus-ring);outline-offset:2px}
+.document .figure:target,.document .table-wrap:target{outline:2px solid var(--inf-blue-300);outline-offset:3px}
+.document .result-table th a{color:inherit}
+.document .result-table td:first-child{font-weight:500}
+.document .study-overview td:last-child{background:var(--inf-blue-50)}
+@media screen and (min-width:1001px){.layout{grid-template-columns:220px minmax(0,1fr);max-width:1420px;gap:36px}.document .result-table.dense-table{font-size:12px}.document .dense-table td,.document .dense-table th{padding:9px 11px}}
+@media screen and (max-width:700px){.document .table-wrap{border-radius:12px}.document .result-table{min-width:560px}.document .result-table.dense-table{min-width:760px}.document .figure{padding:12px}.document .chart-viewport .static-chart,.document .chart-viewport .interactive{min-width:680px}.document .result-table caption{padding:12px}.document .result-table th,.document .result-table td{padding:9px 11px}.document .visual-title{font-size:12px}.document h3{font-size:17px}}
+@media print{
+ .document{font-size:9pt;line-height:1.65}
+ .document h3{font-size:12pt;margin:18px 0 9px;break-after:avoid}
+ .document .table-wrap{border:0;border-radius:0;overflow:visible;margin:12px 0 16px}
+ .document .result-table,.document .result-table.dense-table{width:100%;min-width:0;font-size:7.8pt;line-height:1.5;border-collapse:collapse}
+ .document .result-table th,.document .result-table td{padding:6px 7px;font-size:7.8pt;line-height:1.5}
+ .document .dense-table th,.document .dense-table td{padding:5px 6px;font-size:7.4pt}
+ .document .result-table caption{padding:6px 0 8px;border-bottom:1px solid var(--inf-border-strong);break-after:avoid}
+ .document .visual-label{font-size:7.5pt;margin-right:7px}
+ .document .visual-title,.document .figure figcaption .visual-title{font-size:8.2pt}
+ .document .figure{padding:10px;margin:14px 0 18px;border-radius:8px;break-inside:avoid}
+ .document .figure figcaption{font-size:8pt;padding-top:7px;margin-top:8px;line-height:1.55}
+ .document .figure .visual-note{margin-top:3px}
+ .document .chart-viewport{overflow:visible}.document .chart-viewport .static-chart{min-width:0}
+ .document .enhanced .static-chart{display:block!important}.document .interactive{display:none!important}
+ .document table thead{display:table-header-group}.document table tr{break-inside:avoid}
+ .document .result-table,.document .figure{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .document .result-table .comparison-primary,.document .result-table .comparison-secondary,.document .result-table .comparison-reference{box-shadow:none}
+}
+"""
+
+
+def _classes(tag, *names):
+    tag['class'] = list(dict.fromkeys(list(tag.get('class', [])) + list(names)))
+
+
+def decorate(body, lang):
+    soup = BeautifulSoup(body, 'html.parser')
+    source_cells = [x.get_text() for x in soup.select('td,th')]
+    T = lambda z, e: z if lang == 'zh' else e
+    section = 0; heading = ''; counts = defaultdict(int)
+    receipt = {'tables': 0, 'figures': 0, 'numeric_cells': 0}
+    for tag in soup.find_all(['h2', 'h3', 'h4', 'table', 'figure']):
+        if tag.name == 'h2':
+            match = re.match(r'(\d+)', tag.get_text(strip=True))
+            section = int(match[1]) if match else section
+            heading = re.sub(r'^\d+\s*·\s*', '', tag.get_text(' ', strip=True))
+        elif tag.name in ('h3', 'h4'):
+            heading = tag.get_text(' ', strip=True)
+        elif tag.name == 'table':
+            counts[(section, 'table')] += 1; receipt['tables'] += 1
+            key = f'{section:02d}-{counts[(section, "table")]:02d}'
+            _classes(tag, 'result-table')
+            headers = tag.select('thead th')
+            if len(headers) >= 7: _classes(tag, 'dense-table')
+            for h in headers: h['scope'] = 'col'
+            caption = soup.new_tag('caption', id='table-caption-' + key)
+            number = soup.new_tag('span', attrs={'class': 'visual-label'})
+            number.string = T('表 ', 'Table ') + key
+            title = soup.new_tag('span', attrs={'class': 'visual-title'}); title.string = heading
+            caption.extend([number, title]); tag.insert(0, caption)
+            parent = tag.parent
+            if 'table-wrap' in parent.get('class', []):
+                parent['role'] = 'region'; parent['tabindex'] = '0'
+                parent['aria-labelledby'] = caption['id']; parent['id'] = 'table-' + key
+            rows = tag.select('tbody tr')
+            numeric = defaultdict(int)
+            for row in rows:
+                cells = row.find_all('td', recursive=False)
+                for col, cell in enumerate(cells):
+                    text = cell.get_text(' ', strip=True)
+                    # Align whole numerical measurements, not prose with embedded numbers.
+                    reduced = re.sub(r'(?:US\$|USD|n\s*=|[PTGMK]?FLOP/s|[TGMK]?B/s|GiB|MiB|KiB|GB|MHz|kWh|Wh|W|ms|μs|µs|ns|s|tokens?/s|词元/s|min|years?|年|分钟)', '', text)
+                    if col > 0 and re.fullmatch(r'[\d\s.,%+−–—\-→×/／:;；≈<>≤≥()（）\[\]K]+', reduced):
+                        _classes(cell, 'numeric'); numeric[col] += 1; receipt['numeric_cells'] += 1
+            for col, n in numeric.items():
+                if col < len(headers) and n >= max(1, .7 * len(rows)):
+                    _classes(headers[col], 'numeric')
+        else:
+            counts[(section, 'figure')] += 1; receipt['figures'] += 1
+            key = f'{section:02d}-{counts[(section, "figure")]:02d}'
+            caption = tag.find('figcaption')
+            if not caption: continue
+            caption['id'] = 'figure-caption-' + key
+            label = soup.new_tag('span', attrs={'class': 'visual-label'})
+            label.string = T('图 ', 'Figure ') + key
+            # Existing scientific note, links and emphasis survive unchanged.
+            original = str(caption.decode_contents())
+            original = re.sub(r'^(?:图\s*\d+(?:-\d+)?\s*｜|Figure\s+\d+(?:-\d+)?\s*\|\s*)', '', original)
+            parts = re.split(r'\s*[｜|]\s*', original, maxsplit=1)
+            caption.clear(); caption.append(label)
+            title = soup.new_tag('span', attrs={'class': 'visual-title'})
+            title.extend(BeautifulSoup(parts[0], 'html.parser').contents); caption.append(title)
+            if len(parts) == 2:
+                note = soup.new_tag('span', attrs={'class': 'visual-note'})
+                note.extend(BeautifulSoup(parts[1], 'html.parser').contents); caption.append(note)
+            tag['aria-labelledby'] = caption['id']
+            image = tag.find('img')
+            if image: image['alt'] = title.get_text(' ', strip=True)
+            if image and not image.find_parent(class_='chart-viewport'):
+                viewport=soup.new_tag('div',attrs={'class':'chart-viewport','role':'region','tabindex':'0','aria-label':title.get_text(' ',strip=True)})
+                image.insert_before(viewport)
+                interactive=tag.select_one('.interactive')
+                if interactive:viewport.append(interactive.extract())
+                viewport.append(image.extract())
+    assert source_cells == [x.get_text() for x in soup.select('td,th')], 'Visual styling changed table evidence'
+    return str(soup), receipt

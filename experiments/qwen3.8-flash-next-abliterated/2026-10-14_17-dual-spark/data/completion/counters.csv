@@ -1,0 +1,49 @@
+kernel,metric,mode,node,profile_returncode,round,unit,value
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,0,0,1,ns,3800544.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,0,0,1,%,0.01
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,0,0,1,%,2.74
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,0,0,1,%,88.92
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,0,0,2,ns,3865088.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,0,0,2,%,0.02
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,0,0,2,%,2.74
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,0,0,2,%,92.66
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,0,0,3,ns,3831552.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,0,0,3,%,0.01
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,0,0,3,%,2.69
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,0,0,3,%,88.47
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,0,0,1,ns,936896.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,0,0,1,%,7.02
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,0,0,1,%,99.02
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,0,0,1,%,46.35
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,0,0,2,ns,937504.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,0,0,2,%,17.09
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,0,0,2,%,99.03
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,0,0,2,%,46.34
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,0,0,3,ns,936672.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,0,0,3,%,15.69
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,0,0,3,%,99.04
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,0,0,3,%,46.34
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,1,0,1,ns,3891552.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,1,0,1,%,0.01
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,1,0,1,%,2.65
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,1,0,1,%,84.8
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,1,0,2,ns,4325664.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,1,0,2,%,0.07
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,1,0,2,%,2.39
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,1,0,2,%,90.13
+"triad(const float *, const float *, float *, unsigned long)",gpu__time_duration.sum,triad,1,0,3,ns,3999008.0
+"triad(const float *, const float *, float *, unsigned long)",lts__t_sector_hit_rate.pct,triad,1,0,3,%,0.02
+"triad(const float *, const float *, float *, unsigned long)",sm__throughput.avg.pct_of_peak_sustained_elapsed,triad,1,0,3,%,2.59
+"triad(const float *, const float *, float *, unsigned long)",sm__warps_active.avg.pct_of_peak_sustained_active,triad,1,0,3,%,87.3
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,1,0,1,ns,937888.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,1,0,1,%,18.0
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,1,0,1,%,99.04
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,1,0,1,%,46.34
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,1,0,2,ns,939232.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,1,0,2,%,18.23
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,1,0,2,%,99.03
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,1,0,2,%,46.34
+"fma_chains(float *, int)",gpu__time_duration.sum,fma,1,0,3,ns,938752.0
+"fma_chains(float *, int)",lts__t_sector_hit_rate.pct,fma,1,0,3,%,45.32
+"fma_chains(float *, int)",sm__throughput.avg.pct_of_peak_sustained_elapsed,fma,1,0,3,%,99.02
+"fma_chains(float *, int)",sm__warps_active.avg.pct_of_peak_sustained_active,fma,1,0,3,%,46.35

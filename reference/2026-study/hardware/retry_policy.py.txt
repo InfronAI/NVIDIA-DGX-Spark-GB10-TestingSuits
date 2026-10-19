@@ -1,0 +1,21 @@
+"""Bounded retry classification for the explicitly resumed mixed-load experiment."""
+MAX_ATTEMPTS=3
+BACKOFF_SECONDS=(30,120)
+TRANSIENT=('thermal backoff exceeded maximum duration','hardware telemetry stale','exclusive GPU lease absent or expired','control failed','timed out','TimeoutExpired','Connection reset','Connection refused','Connection closed','No route to host','Broken pipe','connection timeout','connection lost')
+FATAL=('numerical','validation failed','configuration differs','configuration_mismatch','restoration not verified','restore_failed','system memory reserve breached','out of memory','illegal memory','device-side assert','unrecognized error','explicit maintenance stop','hardware stop requested','user stop','fixed hardware load deadline')
+
+def retry_decision(state,proof,attempt,remaining_seconds):
+    if state.get('state')=='batch_complete':
+        return 'complete' if proof.get('state')=='verified' and proof.get('configuration_equal') else 'restoration_unverified'
+    if attempt>=MAX_ATTEMPTS:return 'attempt_limit'
+    if remaining_seconds<7200+900+300+600:return 'insufficient_fixed_window'
+    if proof.get('state')!='verified' or not proof.get('configuration_equal'):return 'restoration_unverified'
+    messages=[state.get('error') or '']
+    for node in state.get('nodes',{}).values():
+        for child in node.get('children',{}).values():
+            if child.get('alive'):return 'active_child'
+            if child.get('phase')=='soak':messages.append(child.get('result',{}).get('error') or '')
+    text='\n'.join(messages)
+    if any(x.lower() in text.lower() for x in FATAL):return 'non_transient_failure'
+    if any(x.lower() in text.lower() for x in TRANSIENT):return 'retry'
+    return 'unclassified_failure'

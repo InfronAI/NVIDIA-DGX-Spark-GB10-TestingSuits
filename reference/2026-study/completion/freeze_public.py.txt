@@ -1,0 +1,61 @@
+"""Prepare independent complete public blocks and a finite arrival schedule."""
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+ROOT=Path(__file__).resolve().parent;PARENT=ROOT.parent
+sys.path.insert(0,str(PARENT))
+from arrival import poisson_offsets
+
+
+def read(path):return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def main():
+    root=ROOT/'public';root.mkdir(exist_ok=True)
+    if (root/'manifest.json').exists():raise RuntimeError('public arm already frozen')
+    assert json.loads((ROOT/'budget_amendment.json').read_text())['financial_ceiling_usd'] is None
+    for sub in ['runs','runs/blocks','runs/requests','protocol','evidence','monitor','plans']:(root/sub).mkdir(exist_ok=True)
+    blocks=[]
+    def copy_block(file,kind,c):
+        source=PARENT/'plans'/file;cases=read(source)
+        bid='gc17_'+source.stem
+        for x in cases:x.update(id='gc17_'+x['id'],block=bid)
+        dest=root/'plans'/source.name;dest.write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in cases))
+        blocks.append({'id':bid,'kind':kind,'concurrency':c,'file':source.name,'cases':len(cases),
+                       'source':str(source),'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+                       'sha256':hashlib.sha256(dest.read_bytes()).hexdigest()})
+    for rep in range(3):copy_block(f'P1_r{rep}_c4.jsonl','reference',4)
+    copy_block('P2_general_i8192_o2048_c1_r2.jsonl','affected_block',1)
+    copy_block('P2_general_i32768_o512_c4_warm.jsonl','affected_warmup',4)
+    copy_block('business/P6_business_draft_i512_o2048_c4_round2.jsonl','affected_business',4)
+    copy_block('length_expansion/length_business_analysis_i32768_o8192.jsonl','affected_long_business',1)
+    schedule=json.loads((PARENT/'plans/schedule.json').read_text())
+    for b in schedule['blocks']:
+        if b.get('kind')=='interference':
+            copy_block(b['file'],'interference',4)
+            blocks[-1].update(pair=b['pair'],mode=b['mode'],arrival_seed=b['arrival_seed'])
+    copy_block('P8_soak.jsonl','soak',8)
+    config=json.loads((ROOT/'manifest.json').read_text())
+    run={'run_id':'qwen38_gap_public_20261017','deadline_epoch':config['deadline_epoch'],
+         'prior_reserved_usd':config['historical_reserved_usd'],'budget_ceiling_usd':None}
+    (root/'run.json').write_text(json.dumps(run,indent=2))
+    policy={'enabled':True,'max_retries':5,'max_total_retries':100,'backoff_seconds':[15,30,60,120,240]}
+    (root/'protocol/cf_retry_policy.json').write_text(json.dumps(policy,indent=2))
+    selected=json.loads((PARENT/'runs/soak_selection.json').read_text())
+    manifest={'blocks':blocks,'soak_rate':selected['rate'],'soak_arrival_seconds':3600,
+              'soak_seed':202610178905,'soak_max_independent_attempts':3,
+              'interference_rate_rule':'0.7 times the three new C4 blocks combined complete requests / full elapsed time',
+              'interference_pairs':5,'interference_queue_seconds':5,'interference_short_window_max_s':180,
+              'cache_state':'Unchanged service policy; paired arms reuse identical short prompts/arrival offsets, alternating order',
+              'historical_outcomes_immutable':True,'budget_ceiling_usd':None,
+              'deadline_epoch':config['deadline_epoch']}
+    (root/'manifest.json').write_text(json.dumps(manifest,indent=2))
+    print(json.dumps({'closed_requests':sum(x['cases'] for x in blocks if x['kind'] not in ['soak','interference']),
+                      'interference_requests':sum(x['cases'] for x in blocks if x['kind']=='interference'),
+                      'soak_arrivals':len(poisson_offsets(selected['rate'],3000,3600,manifest['soak_seed'])),
+                      'budget_ceiling_usd':None}))
+
+
+if __name__=='__main__':main()

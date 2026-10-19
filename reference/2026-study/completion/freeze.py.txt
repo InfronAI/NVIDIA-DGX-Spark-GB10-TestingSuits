@@ -1,0 +1,49 @@
+"""Freeze the new, bounded completion arm. No model calls or remote mutations."""
+import datetime
+import hashlib
+import json
+from pathlib import Path
+import time
+
+ROOT=Path(__file__).resolve().parent
+
+
+def main():
+    path=ROOT/'manifest.json'
+    if path.exists():
+        raise RuntimeError('Already frozen; do not replace an active plan')
+    native=[]
+    def add(stage,i,o,r=1,**kw):
+        native.append(dict(id=f'{stage}_i{i}_o{o}_r{r}',stage=stage,input=i,output=o,
+                           repeat=r,concurrency=1,**kw))
+    add('calibration',1024,1024)
+    for o in [8192,16384,32768]:
+        for rep in range(1,4):add('output_axis',1024,o,rep)
+    for o in [65536,131072,260096]:add('output_axis',1024,o)
+    for size in [16384,32768,65536]:add('balanced',size,size)
+    now=time.time()
+    old=json.loads((ROOT.parent/'runs/ledger.json').read_text())
+    reserved=old['prior_reserved_usd']+sum(x['reserved_usd'] for x in old['entries'].values())
+    plan={'created_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          'authorization':"REDACTED_CREDENTIAL",
+          'deadline_epoch':now+12*3600,'concurrency_cap':8,'api_ceiling_usd':500,
+          'historical_reserved_usd':reserved,'historical_actual_usd':8.561299,
+          'new_public_reservation_ceiling_usd':15,'native_api_cost_usd':0,
+          'native_requests':native,'native_max_attempts_per_case':3,
+          'native_stream_interval':128,'max_context':262144,
+          'thermal':{'pause_c':85,'resume_below_c':75,'stable_seconds':30,'max_backoff_seconds':600},
+          'retry':'Only after owned request abort is acknowledged and engine idle; preserve every attempt; no replay of unknown in-flight work',
+          'public':'Independent full blocks for affected historical conditions; one uninterrupted 3600 s run at 60% of the previously qualified rate, <=8 in flight',
+          'profile':'1K/C1, 32K/C1 and 8K/C4; three paired profiled/unprofiled blocks; preserve profile overhead separately',
+          'cache':'64K first/repeat, three independent prefixes; native cached_tokens and isolated counter deltas',
+          'hardware':'Both nodes: validated FP64 GEMM at 1024,4096,8192, five rounds; bounded representative kernel counters after unloading service with automatic restoration',
+          'non_executable_limits':['No H200 device supplied','No wall-outlet energy meter','No realized sales or production utilization data'],
+          'historical_data_policy':'Immutable; new results are independent dated evidence, not repairs to old success counts',
+          'completion':'All admitted finite cases terminal; complete means measured, expected boundary rejection, or explicitly evidenced unavailable. Unmeasured is never counted successful.'}
+    path.write_text(json.dumps(plan,ensure_ascii=False,indent=2))
+    (ROOT/'manifest.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest()+'\n')
+    print(json.dumps({'native_cases':len(native),'planned_native_output_tokens':sum(x['output'] for x in native),
+                      'prior_reserved_usd':reserved,'deadline_epoch':plan['deadline_epoch']}))
+
+
+if __name__=='__main__':main()

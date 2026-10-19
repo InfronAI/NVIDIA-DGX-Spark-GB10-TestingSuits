@@ -1,0 +1,136 @@
+"""Integrate independently dated completion evidence into the existing report."""
+import collections
+import json
+import re
+import statistics
+from common import ROOT
+
+E=ROOT/'gap_completion_20261017'
+
+
+def augment(ordered,lang):
+    path=E/'analysis/summary.json'
+    if not path.exists():return ordered
+    d=json.loads(path.read_text());T=lambda z,e:z if lang=='zh' else e
+    from build_report import table,fmt
+    b=[x[2] for x in ordered]
+    count=sum(x['state']=='complete' for x in d['native_requests']);maximum=d['native_max_completed_output']
+    status=T('执行已结束，按有效覆盖交付','Execution ended; delivered with actual coverage') if d.get('completion_ready') else T('进行中','In progress')
+    b[4]+='\n\n### '+T('独立补充实验的证据覆盖','Coverage of the independent completion experiments')+'\n\n'
+    b[4]+=T('补充实验于2026年10月17日开展，状态：','The additional experiments started on 17 October 2026. Status: ')+status+T('。各批次保留各自的请求、日期和分母；以下新增结果不改写早期失败记录或原始成功率。费用没有预设金额上限，实际账单继续逐请求核对。','. Each batch retains its own requests, dates and denominators. New measurements do not rewrite earlier failures or success rates. Financial expenditure has no preset ceiling; actual charges are still reconciled per request.')
+    b[4]+=table([T('补充范围','Additional scope'),T('已取得证据','Evidence acquired'),T('定义','Definition')],[
+        [T('固定长输出','Fixed long output'),f'{count} / {len(d["native_requests"])}',T('原生引擎；含1条校准，正式输出轴与等长输入输出','Native engine; includes one calibration, then output-axis and balanced-length requests')],
+        [T('剖析配对','Profiling pairs'),f'{len(d["profile_pairs"])} / 9',T('三种输入／并发，每种三轮剖析与无剖析','Three input/concurrency conditions, three profiled/unprofiled pairs each')],
+        [T('64K缓存','64K cache'),f'{len(d["cache"])} / 6',T('三个独立前缀的首次与立即复用','First and immediate reuse for three independent prefixes')],
+        [T('公网完整响应','Complete public responses'),d['public']['complete'],T('独立并发参考组、受影响条件、混合干扰及一小时运行','Independent reference blocks, affected conditions, mixed-length interference and a one-hour run')],
+        [T('FP64矩阵','FP64 GEMM'),f'{len(d["fp64"])} / 30',T('两个节点、三种规模、每格五轮','Two nodes, three sizes, five rounds per cell')],
+        [T('代表性计数器','Representative counters'),len({(x['node'],x['mode'],x['round']) for x in d['counters']}),T('成功返回有效字段的计算／访存剖析次数','Compute/memory profiles returning valid counters')]])
+    from report_coverage import gap_table
+    b[4]+='\n\n### '+T('未执行与结论受限的项目','Unexecuted items and limits on conclusions')+'\n\n'+gap_table(lang)
+    scope=T('覆盖边界：本轮执行与归档已结束。公网长度清单仍有8次未发送、1次未完整；混合干扰5组候选仅执行3组，0组满足完整配对条件。硬件、原生长输出、剖析、即时缓存复用与连续一小时窗口分别报告其已完成清单，不能据此宣称所有设想均已验证。',
+            'Coverage boundary: execution and archiving have ended. The public-length list retains eight unsent requests and one incomplete response. Three of five candidate interference pairs ran, with zero fully observed pairs. Hardware, native long output, profiling, immediate cache reuse and the continuous hour retain their completed lists; these do not establish validation of every proposed condition.')
+    b[0]+='\n\n'+scope
+    b[11]+='\n\n### '+T('最终覆盖与后续补测优先项','Final coverage and priorities for further measurement')+'\n\n'+scope
+    b[11]+='\n\n'+T('后续优先补齐公网长度的未覆盖组合，并为混合干扰重新设计能完整容纳固定到达序列的观察窗口；同时保留过载拒绝作为服务结果。新实验需独立区组与新的生产资源安排，不能将本轮未准入或不完整配对填为成功。',
+        'Prioritize missing public-length combinations and redesign interference observation windows to contain the fixed arrival sequence, retaining overload rejection as a service outcome. Any new experiments require independent blocks and a new production resource arrangement; current non-admitted or incomplete pairs remain unsuccessful evidence.')
+    b[7]+='\n\n### '+T('固定长输出：原生引擎的可达范围','Fixed long output: demonstrated native-engine range')+'\n\n'
+    b[7]+=T('本组以本地认证的原生生成接口发送精确词元输入，温度为0，忽略结束词元并固定生成数；流式间隔设为128词元。解码速率使用引擎同一进程的生成计数与时间，不能与公网正文首字延迟混为同一指标。输入加输出不超过262,144；1,024输入＋260,096输出保留1,024词元余量，因此这里的最长目标是254K输出。',
+             'This arm uses authenticated native generation with exact token-ID inputs, temperature zero, ignored end tokens and a fixed generation count; the stream interval is 128 tokens. Decode rates use same-process engine counts and times, not public first-content latency. Input plus output stays within 262,144. The 1,024-input / 260,096-output case reserves 1,024 tokens of headroom, so its longest output target is 254K.')
+    b[7]+=table([T('输入→输出词元','Input → output tokens'),T('完整／计划','Complete / planned'),T('解码词元/s，中位数［范围］','Decode token/s, median [range]'),T('请求耗时中位数s','Median engine time s'),T('草稿接受比例','Draft acceptance fraction')],[
+        [f'{r["input"]:,} → {r["output"]:,}',f'{r["complete"]}/{r["planned"]}',
+         (f'{r["decode_median"]:.2f} [{r["decode_min"]:.2f}–{r["decode_max"]:.2f}]' if r['decode_median'] is not None else '—'),
+         fmt(r['e2e_median'],2),fmt(r['mtp_accept_rate'],3)] for r in d['native_groups']])
+    b[7]+='\n\n<!--GAP_LONG_OUTPUT-->\n\n'+T('长输出的生成速率与工作量｜输入固定1K；误差线为已完成独立请求的观测范围，n=1只是一个样本。草稿接受比例按原生引擎字段展示。未完成目标没有性能点。','Long-output generation rate and work | Input is fixed at 1K. Error bars are observed ranges of completed independent requests; n=1 is one observation. Draft acceptance is the native field. Unfinished targets have no performance point.')
+    b[7]+='\n\n'+T('强制长度可能产生重复文本、空白或特殊词元；计数达成只证明计算负载执行到该长度，不证明正文有用性。MTP接受情况与具体生成序列有关，不能将此速率直接用于所有业务或年度产能估算。每格三次的条件报告范围；更长单次探针不提供尾分位或总体置信区间。',
+                    'Forced length may produce repeated text, whitespace or special tokens. Count attainment establishes execution at that length, not useful content. MTP acceptance depends on the generated sequence, so these rates do not directly predict every business workload or annual production. Three-request cells report observed ranges; longer single probes provide no tail percentile or population confidence interval.')
+    patterned=[x for x in d['native_requests'] if x.get('longest_same_char_run',0)>=256]
+    if patterned:b[7]+='\n\n'+T(f'可见文本检查中，{len(patterned)}条完整请求出现连续至少256个相同字符；该标记随原始输出保留，不作为答案能力评分。',f'Visible-text checks flag {len(patterned)} complete requests with runs of at least 256 identical characters. Flags accompany the raw outputs and are not answer-quality scores.')
+    b[7]+='\n\n'+T('[新增请求与计时CSV](../gap_completion_20261017/analysis/native_requests.csv)','[Additional requests and timings CSV](../gap_completion_20261017/analysis/native_requests.csv)')
+    if maximum>4096:
+        for index in [0,11]:
+            b[index]+='\n\n'+T(f'原生引擎固定输出补充结果：已完整验证最高 **{maximum:,}词元**输出。公网自然结束数据仍为独立样本，不能用原生结果替代其端到端测量。',f'Additional native-engine result: fixed output has been validated through **{maximum:,} tokens**. Public natural-stop data remain a separate cohort; native results do not replace end-to-end measurements.')
+    if d['profile_pairs']:
+        pairs=d['profile_pairs'];b[7]+='\n\n### '+T('多场景GPU剖析与测量开销','GPU profiling across conditions and measurement overhead')
+        b[7]+='\n\n'+T('每对使用相同输入与256输出词元，交替执行顺序；每臂发送前在空闲服务清空前缀缓存。剖析只捕获预填充和四个解码步骤，完整请求耗时比衡量这项诊断对该请求的影响，不用于修正所有历史样本。','Each pair uses identical inputs and 256 output tokens, with alternating arm order. Prefix cache is flushed on an idle service before each arm. Profiling captures prefill and four decode steps; the full-request time ratio measures the impact of this diagnostic on that request, not a correction factor for all historical data.')
+        groups=collections.defaultdict(list)
+        for p in pairs:groups[(p['input'],p['concurrency'])].append(p)
+        rows=[]
+        for (i,c),rs in groups.items():
+            values=[x['elapsed_ratio'] for x in rs];rows.append([f'{i:,} / {c}',len(rs),f'{statistics.median(values):.3f} [{min(values):.3f}–{max(values):.3f}]',sum(x['profiled_cached']+x['unprofiled_cached'] for x in rs)])
+        b[7]+=table([T('输入／并发','Input / concurrency'),T('配对数','Pairs'),T('剖析／无剖析耗时比','Profiled / unprofiled time ratio'),T('两臂缓存词元总数','Cached tokens across both arms')],rows)
+        b[7]+='\n\n<!--GAP_PROFILE_COST-->\n\n'+T('剖析开销的配对分布｜柱为中位数，点为独立配对；1表示两臂请求耗时相同。','Paired profiling overhead | Bars show medians and points show independent pairs; 1 means equal request duration.')
+        b[7]=re.sub(r'本次仅有一个8K单并发剖析场景；尚未对每种长度／批量做GPU逐步测量，也未测量剖析开销的配对分布。', '基础剖析为8K单并发场景；下文补充三种输入／并发条件及配对开销。',b[7])
+        b[7]=b[7].replace('Only one 8K, C=1 scenario was profiled; device-step timing across every length/batch and a paired distribution of profiling overhead remain unmeasured.','The initial trace covers 8K at concurrency 1; additional input/concurrency conditions and paired overhead are reported below.')
+    if d['cache']:
+        b[7]+='\n\n### '+T('64K前缀复用的独立核验','Independent check of 64K prefix reuse')
+        b[7]+=table([T('独立前缀','Independent prefix'),T('首次／复用','First / reuse'),T('实际缓存词元','Actual cached tokens'),T('缓存比例','Cached fraction'),T('引擎首词元秒数','Engine first-token seconds')],[[x['pair'],T('首次','First') if x['role']=='first' else T('复用','Reuse'),x['cached_tokens'],fmt(x['cached_fraction'],3),fmt(x['engine_ttft_s'],3)] for x in d['cache']])
+        b[7]+='\n\n'+T('每个前缀在清空缓存后首次发送，再立即复用；本表核验即时复用，不新增长期保留或缓存容量结论。','Each prefix is sent after a cache flush and reused immediately. This table tests immediate reuse, not long-term retention or cache capacity.')
+    # An interrupted wall clock is retained as an operational record, never a sustained-rate denominator.
+    lines=b[8].splitlines();out=[];removed=False
+    for line in lines:
+        is_old_soak=any(k in line for k in ['长度扩展与持续运行 · 合格速率的60%','Length expansion and sustained operation · 60%'])
+        if is_old_soak and '638' in line:
+            line=line.replace('长度扩展与持续运行 · 合格速率的60%','历史分段观测（5段，包含中断）').replace('Length expansion and sustained operation · 60% of qualifying rate','Historical observation (5 segments, including gaps)')
+        elif is_old_soak and line.startswith('|'):
+            removed=True;continue
+        out.append(line)
+    b[8]='\n'.join(out)
+    b[8]+='\n\n'+T('原638次到达的持续阶段分为五段，34,580.3秒为含中断的跨度，不用于判断连续稳定性或连续达标吞吐。下列独立窗口若已完成，则单独报告，不能与前述五段相接。','The original sustained arm has 638 arrivals in five segments. Its 34,580.3-second span includes interruptions and does not establish continuous stability or continuous goodput. Any completed independent window below is reported separately, without joining it to those segments.')
+    if d['public']['blocks']:
+        b[8]+='\n\n### '+T('独立公网区组、混合干扰与连续窗口','Independent public blocks, interference and continuous window')
+        def label(name):
+            if 'soak' in name:return T('连续运行','Continuous run')
+            if 'P7b' in name:
+                pair=re.search(r'pair(\d+)',name)[1];return T('干扰配对','Interference pair ')+pair+' '+(T('混合','Mixed') if 'mixed' in name else T('孤立','Isolated'))
+            if 'P1_' in name:return T('短题库并发4参考组','Short-prompt C4 reference')
+            return T('业务／长度补充区组','Additional business/length block')
+        b[8]+=table([T('测试条件','Condition'),T('发送／完整','Sent / complete'),T('窗口秒数','Window seconds'),T('源站输出词元/s','Origin output token/s'),T('正文首字中位／95分位s','First-content median / p95 s')],[[label(x['id']),f'{x["sent"]}/{x["complete"]}',fmt(x['elapsed_s'],1),fmt(x['output_token_s'],2),f'{fmt(x["ttft_median"],2)} / {fmt(x["ttft_p95"],2)}'] for x in d['public']['blocks'] if not x['id'].endswith('_warm')])
+        b[8]+='\n\n'+T('吞吐仅在源站词元计数覆盖全部完整响应时计算；开放到达保留本地拒绝。干扰效应必须比较同一配对中的短请求，整体混合吞吐不能替代短请求时延变化。','Throughput requires original token counts for every complete response; open arrivals retain local rejection counts. Interference effects compare short requests within matched pairs; total mixed throughput is not a substitute for short-request latency differences.')
+    if d['public'].get('interference'):
+        rows=[];ratios=[]
+        for pair in d['public']['interference']:
+            a=pair['arms'].get('isolated',{});m=pair['arms'].get('mixed',{})
+            rows.append([pair['pair']+1,f'{a.get("complete",0)}/{a.get("offered",0)} → {m.get("complete",0)}/{m.get("offered",0)}',
+                f'{fmt(a.get("ttft_median"),2)} → {fmt(m.get("ttft_median"),2)}',fmt(pair['short_ttft_ratio'],3)])
+            if pair['short_ttft_ratio'] is not None:ratios.append(pair['short_ttft_ratio'])
+        b[8]+='\n\n### '+T('长请求对短请求的等待影响','Effect of long requests on short-request waiting')
+        b[8]+=T('\n\n每对复用相同短请求及到达序列；混合臂另外加入长请求。等待从预定到达时刻开始，包含本地排队和已确认重试。只有两臂全部32条短请求均有正文首字时才计算比值；1表示相同等待，越大表示短请求等待越长。','\n\nEach pair reuses the same short requests and arrival sequence; the mixed arm adds long requests. Waiting starts at the planned arrival, including client queues and confirmed retries. A ratio requires first-content observations for all 32 short requests in each arm; 1 means equal waiting, and larger values mean longer waits.')
+        b[8]+=table([T('配对','Pair'),T('完整/到达：孤立→混合','Complete/offered: isolated → mixed'),T('短请求首字中位数s','Short-request median first-content s'),T('混合/孤立比值','Mixed / isolated ratio')],rows)
+        b[8]+='\n\n<!--GAP_INTERFERENCE-->\n\n'+T('短请求等待的配对比较｜逐对保留样本和完整性；比值只在完整配对间比较。','Paired short-request waiting | Samples and completeness remain explicit; ratios compare fully observed pairs only.')
+        if ratios:
+            b[11]+='\n\n'+T(f'长短混合负载有 **{len(ratios)}对**完整观察；短请求正文首字等待的混合/孤立比值，中位数为 **{statistics.median(ratios):.3f}倍**，观察范围 **{min(ratios):.3f}–{max(ratios):.3f}倍**。此结果描述本次固定到达、并发分区和长请求配比，不等价于任意业务混合的容量上限。',f'The mixed-length experiment has **{len(ratios)} complete pairs**. The mixed/isolated ratio of short-request median first-content waiting has median **{statistics.median(ratios):.3f}×**, with observed range **{min(ratios):.3f}–{max(ratios):.3f}×**. This applies to the tested arrival rate, worker partition and long-request mix, not an arbitrary business mix.')
+    windows=[x for x in d['public'].get('soak_windows',[]) if x['complete_window']]
+    if windows:
+        b[8]+='\n\n### '+T('连续服务的五分钟窗口','Five-minute windows of continuous service')
+        b[8]+=table([T('独立尝试/分钟','Independent attempt / minutes'),T('到达/完整','Offered / complete'),T('首字中位/95分位s','First-content median / p95 s'),T('完成响应产出词元/s','Completed-response output token/s')],[[x['block'].replace('gc17_soak_a','')+f' / {x["window_start_s"]//60}–{x["window_start_s"]//60+5}',f'{x["offered"]}/{x["complete_by_arrival_cohort"]}',f'{fmt(x["ttft_median_s"],2)} / {fmt(x["ttft_p95_s"],2)}',fmt(x['response_credit_output_token_s'],2)] for x in windows])
+        b[8]+='\n\n<!--GAP_SOAK_WINDOWS-->\n\n'+T('连续窗口中的等待与完成产出｜延迟按预定到达窗口归组；词元在响应完成时计入相应窗口，因此不是引擎逐秒生成速率。原始预热标记保留，早期窗口包含启动过渡。','Waiting and completed output in continuous windows | Latency cohorts use planned arrival time. Tokens are credited when a response completes, not at their individual generation times. Original warmup flags remain; early windows include startup transients.')
+        finished=[x for x in d['public']['blocks'] if x.get('complete_continuous_window') and (x.get('continuous_s') or 0)>=3600]
+        if finished:
+            b[11]+='\n\n'+T('连续服务新增了独立一小时的完整观察，五分钟窗口展示等待和完成产出的变化。该证据扩展了本次固定速率下的持续性范围；不外推全天服务等级、峰值容量或全年可用性。','An independent full hour extends the sustained-service evidence, with five-minute windows showing waiting and completed-output variation. This extends coverage at the tested fixed rate; it does not establish a full-day service level, peak capacity or annual availability.')
+    if d['fp64']:
+        b[5]+='\n\n### '+T('FP64矩阵计算补充测量','Additional FP64 matrix measurements')
+        b[5]+='\n\n'+T('卸载模型后运行CUDA上的双精度矩阵乘法，乘加按两次运算计数。输入为可精确表示的有符号二进制分数，每轮将九个跨行列位置与CPU双精度参考比较；下表只纳入校验通过的轮次。','After unloading the model, CUDA double-precision GEMM counts a multiply-add as two operations. Inputs are exactly representable signed binary fractions. Nine entries spanning rows/columns are checked against a CPU double-precision reference every round; only validated rounds enter the table.')
+        groups=collections.defaultdict(list)
+        for x in d['fp64']:groups[(x['node'],x['n'])].append(x['tflops'])
+        b[5]+=table([T('节点','Node'),'M=N=K','n','TFLOP/s '+T('中位数［范围］','median [range]')],[[node,n,len(v),f'{statistics.median(v):.4f} [{min(v):.4f}–{max(v):.4f}]'] for (node,n),v in sorted(groups.items())])
+        b[5]+='\n\n<!--GAP_FP64-->\n\n'+T('FP64规模效应｜点为五轮中位数，误差线为观测范围；不用于预测低精度模型吞吐。','FP64 size effects | Points are five-round medians, with observed ranges; these do not predict low-precision model throughput.')
+        values=[]
+        for rank in [0,1]:
+            v=groups.get((rank,8192),[]);values.append(f'{statistics.median(v):.4f} [{min(v):.4f}–{max(v):.4f}]; n={len(v)}' if v else T('未测','Not measured'))
+        b[9]=re.sub(r'(?m)^\| FP64 \|[^\n]+$', '| FP64 | '+' | '.join(values)+' | '+T('34 通用；67 Tensor Core','34 scalar; 67 Tensor Core')+' | — |',b[9])
+    if d['counters']:
+        b[5]+='\n\n### '+T('代表性核函数的硬件计数器','Hardware counters for representative kernels')
+        grouped=collections.defaultdict(list)
+        for x in d['counters']:grouped[(x['node'],x['mode'],x['metric'],x['unit'])].append(x['value'])
+        names={'gpu__time_duration.sum':T('剖析内核时长','Profiled kernel duration'),'sm__warps_active.avg.pct_of_peak_sustained_active':T('活跃warp比例','Active warp percentage'),'lts__t_sector_hit_rate.pct':T('L2扇区命中比例','L2 sector hit percentage'),'sm__throughput.avg.pct_of_peak_sustained_elapsed':T('SM吞吐占峰值比例','SM throughput percentage of peak')}
+        b[5]+=table([T('节点／核函数','Node / kernel'),T('指标','Metric'),'n',T('中位数［范围］','Median [range]'),T('单位','Unit')],[[f'{n} / {mode}',names.get(metric,metric),len(v),f'{statistics.median(v):.3f} [{min(v):.3f}–{max(v):.3f}]',unit] for (n,mode,metric,unit),v in sorted(grouped.items())])
+        b[5]+='\n\n'+T('计算核函数使用每线程八条独立乘加链、每个SM四个线程块；访存核函数使用三数组共768MiB工作集。管理员运行Nsight Compute，只采集一次指定内核；不修改全局驱动权限、时钟或缓存控制。计数只解释这两个核函数，不能当作模型平均命中率。当前接口未公布物理DRAM字节指标，因此仍不构建依赖该计数的模型Roofline。','The compute kernel uses eight independent FMA chains per thread and four blocks per SM; the memory kernel uses a 768 MiB three-array working set. Administrative Nsight Compute captures one selected kernel without changing global driver permissions, clocks or cache control. Counters describe these kernels, not average model cache behavior. The current interface advertises no physical DRAM-byte metric, so a model Roofline requiring that count remains unsupported.')
+    if d['public']['billing']:
+        bill=d['public']['billing'];b[10]+='\n\n### '+T('补充实验的实际API费用','Actual API charges for the additional experiments')
+        b[10]+=table([T('范围','Scope'),'USD'],[[T('历史已核对费用','Historical reconciled charges'),fmt(bill.get('prior_actual_usd'),6)],[T('独立补充批次','Independent additional batch'),fmt(bill.get('new_actual_usd'),6)],[T('累计已核对','Cumulative reconciled charges'),fmt(bill.get('cumulative_actual_usd'),6)]])
+        b[10]+='\n\n'+T('新增费用不回填早期工作负载的单位成本或投资回报；那些情景仍使用其原有配对费用与吞吐。','Additional charges are not inserted into earlier workload unit costs or investment returns; those scenarios retain their original matched charges and throughput.')
+    b[14]+='\n\n### '+T('独立补充实验：代码、原始证据与分析','Independent completion arm: code, raw evidence and analysis')
+    entries=[('Gap audit','gap_audit.zh.md'),('Protocol','manifest.json'),('Budget amendment','budget_amendment.json'),('Supervisor','supervisor.py'),('Native fixed output','native_completion.py'),('Paired profiles and cache','profile_completion.py'),('Public endpoint','public_completion.py'),('Hardware coordinator','hardware_coordinator.py'),('FP64','fp64_completion.py'),('Counter kernels','counter_workload.cu'),('Counter worker','hardware_worker.py'),('Offline analysis','analyze_completion.py'),('Statistical summary','analysis/summary.json'),('Native request CSV','analysis/native_requests.csv'),('Node 0 raw evidence','raw/node0'),('Node 1 raw evidence','raw/node1')]
+    zh_labels=['缺口审计','固定协议','费用上限修订','持续调度','原生固定输出','配对剖析与缓存','公网执行','硬件协调','双精度矩阵','计数器核函数','计数器执行','离线分析','统计汇总','原生请求CSV','节点0原始证据','节点1原始证据']
+    b[14]+=table([T('内容','Content'),T('绝对磁盘路径','Absolute disk path')],[[zh_labels[i] if lang=='zh' else label,f'[{E/rel}](../gap_completion_20261017/{rel})'] for i,(label,rel) in enumerate(entries) if (E/rel).exists()])
+    return [(z,e,body) for (z,e,_),body in zip(ordered,b)]

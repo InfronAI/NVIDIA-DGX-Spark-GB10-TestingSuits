@@ -1,0 +1,93 @@
+"""Offline checks for money denominators, missingness and time-weighted resources."""
+import unittest
+from report_diagnostics import cost_for_requests, window_measure, normalized_cost
+from report_cost_model import scenario, break_even_utilization, investment, investment_scenarios
+
+class ReportDiagnosticsTests(unittest.TestCase):
+    def request(self,id='case',rid='rid',output='200'):
+        return {'id':id,'request_id':rid,'completion_tokens':output,'prompt_tokens':'800'}
+    def bill(self,id=1,rid='rid',kind=2,quota=1000,provider=2084):
+        return {'id':id,'request_id':rid,'type':kind,'quota':quota,'model_provider_id':provider,'channel_id':2538}
+    def test_exact_join_deduplicates_bills_and_counts_input_in_charge(self):
+        r=cost_for_requests([self.request()],[self.bill(),self.bill(),self.bill(2,kind=7,quota=500)],1000000)
+        self.assertAlmostEqual(r['cost_usd'],.0015);self.assertAlmostEqual(r['usd_per_1000_responses'],1.5)
+        self.assertAlmostEqual(r['usd_per_million_generated'],7.5);self.assertEqual(r['output_tokens'],200)
+    def test_partial_bill_coverage_never_becomes_zero(self):
+        r=cost_for_requests([self.request(),self.request('two','other')],[self.bill()],1000000)
+        self.assertEqual(r['matched'],1);self.assertIsNone(r['cost_usd']);self.assertIsNone(r['usd_per_million_generated'])
+    def test_wrong_route_or_ambiguous_success_excluded(self):
+        for bills in [[self.bill(provider=1)],[self.bill(),self.bill(2)]]:
+            self.assertEqual(cost_for_requests([self.request()],bills,1000000)['matched'],0)
+    def test_missing_generated_tokens_preserve_cost_not_token_ratio(self):
+        r=cost_for_requests([self.request(output='')],[self.bill()],1000000)
+        self.assertEqual(r['cost_usd'],.001);self.assertIsNone(r['usd_per_million_generated'])
+    def test_interval_clipping_and_time_weighting(self):
+        rows=[{'epoch':0,'v':10},{'epoch':10,'v':20},{'epoch':20,'v':30}]
+        m=window_measure(rows,[(5,15)],'v');self.assertEqual(m['covered_s'],10);self.assertEqual(m['mean'],15);self.assertEqual(m['coverage'],1)
+    def test_missing_value_and_large_gap_not_bridged(self):
+        rows=[{'epoch':0,'v':10},{'epoch':10,'v':20},{'epoch':40,'v':40},{'epoch':50,'v':None},{'epoch':60,'v':60}]
+        m=window_measure(rows,[(0,60)],'v');self.assertEqual(m['covered_s'],10);self.assertEqual(m['mean'],10);self.assertAlmostEqual(m['coverage'],1/6)
+        self.assertEqual(m['max'],60)  # Sampled peak includes final boundary, not only interval-left values.
+    def test_disjoint_windows_exclude_idle(self):
+        rows=[{'epoch':i,'v':i} for i in range(0,51,10)]
+        m=window_measure(rows,[(0,10),(40,50)],'v');self.assertEqual(m['mean'],20);self.assertEqual(m['window_s'],20)
+    def test_cost_dimensions_and_utilization(self):
+        r=scenario(100,200,.5,years=2,hours=1000,capex=10000,electricity=.1)
+        self.assertEqual(r['annual_cost_usd'],5020);self.assertEqual(r['generated_million_year'],180)
+        self.assertAlmostEqual(r['usd_per_million_generated'],5020/180)
+        full=scenario(100,200,1,years=2,hours=1000,capex=10000,electricity=.1)
+        self.assertEqual(r['usd_per_million_generated'],2*full['usd_per_million_generated'])
+        self.assertEqual(normalized_cost(100,.5),2*normalized_cost(100,1))
+    def test_invalid_cost_population(self):
+        self.assertIsNone(scenario(0,200,.5));self.assertIsNone(scenario(100,None,.5));self.assertIsNone(scenario(100,200,0))
+    def test_parity_threshold_is_not_clamped_to_feasible(self):
+        self.assertEqual(break_even_utilization(720,100,1000,1),2)
+        self.assertEqual(break_even_utilization(180,100,1000,1),.5)
+
+    def test_cash_return_deducts_capital_once_without_depreciation(self):
+        # 180 million tokens/year at $10/M: $1800 gross, $20 energy, $100 other.
+        r=investment(100,200,.5,10,3,hours=1000,capex=10000,electricity=.1,other_annual=100)
+        self.assertEqual(r['net_operating_cash_usd_year'],1680)
+        self.assertEqual(r['cumulative_net_cash_usd'],3*1680-10000)
+        self.assertEqual(r['roi_fraction'],-.496)
+        self.assertAlmostEqual(r['payback_years'],10000/1680)
+        later=investment(100,200,.5,10,5,hours=1000,capex=10000,electricity=.1,other_annual=100)
+        self.assertEqual(later['payback_years'],r['payback_years'])
+
+    def test_sales_deductions_and_break_even_price(self):
+        r=investment(100,200,.5,10,5,hours=1000,electricity=.1,fee_fraction=.2)
+        self.assertEqual(r['gross_benefit_usd_year'],1800)
+        self.assertEqual(r['fees_usd_year'],360)
+        self.assertEqual(r['net_operating_cash_usd_year'],1420)
+        at_threshold=investment(100,200,.5,r['required_price_usd_per_million'],5,hours=1000,electricity=.1,fee_fraction=.2)
+        self.assertAlmostEqual(at_threshold['cumulative_net_cash_usd'],0)
+        self.assertAlmostEqual(at_threshold['payback_years'],5)
+
+    def test_no_demand_and_no_positive_margin_do_not_show_payback(self):
+        zero=investment(100,200,0,10,5,hours=1000,electricity=.1)
+        self.assertEqual(zero['roi_fraction'],-1.01)
+        self.assertIsNone(zero['payback_years'])
+        self.assertIsNone(zero['required_price_usd_per_million'])
+        marginal=investment(100,200,.5,20/180,5,hours=1000,electricity=.1)
+        self.assertIsNone(marginal['payback_years'])
+        self.assertEqual(marginal['roi_fraction'],-1)
+        full_fee=investment(100,200,.5,10,5,hours=1000,electricity=.1,fee_fraction=1)
+        self.assertIsNone(full_fee['payback_years'])
+        self.assertIsNone(full_fee['required_price_usd_per_million'])
+
+    def test_invalid_investment_inputs_and_missing_bill(self):
+        for args in [{'capex':0},{'fee_fraction':1.1},{'hours':9000},{'other_annual':-1}]:
+            self.assertIsNone(investment(100,200,.5,10,3,**args))
+        self.assertIsNone(investment(100,None,.5,10,3))
+        self.assertIsNone(investment(100,200,.5,float('nan'),3))
+        d={'natural':[{'key':'a','tps':100}],'costs':[{'cell':'a','usd_per_million_generated':None}],'cost_scenarios':[{'cell':'a','power_w':200}]}
+        self.assertEqual(investment_scenarios(d),[])
+
+    def test_self_use_and_same_price_sales_match_without_fees(self):
+        d={'natural':[{'key':'a','tps':100}],'costs':[{'cell':'a','usd_per_million_generated':1}],'cost_scenarios':[{'cell':'a','power_w':200}]}
+        rows=investment_scenarios(d);self.assertEqual(len(rows),48)
+        for r in [r for r in rows if r['use']=='self_use']:
+            sale=next(s for s in rows if s['use']=='sale' and s['price_multiple']==1 and s['utilization']==r['utilization'] and s['horizon_years']==r['horizon_years'])
+            self.assertEqual(r['cumulative_net_cash_usd'],sale['cumulative_net_cash_usd'])
+
+if __name__=='__main__':unittest.main()

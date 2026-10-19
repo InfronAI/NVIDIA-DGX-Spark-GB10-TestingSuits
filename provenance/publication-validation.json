@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-19",
+  "scope": "Publication validation; no production inference or GPU benchmark rerun",
+  "unit_tests": {
+    "passed": 20,
+    "command": "python -m unittest discover -s tests -v"
+  },
+  "repository_check": {
+    "command": "python scripts/verify_repository.py",
+    "artifact_hashes": "verified",
+    "bilingual_links": "verified"
+  },
+  "html_offline": {
+    "passed": true,
+    "scope": "Relocated local file only; isolated headless browser; network offline",
+    "checks": [
+      {
+        "language": "zh",
+        "images": 57,
+        "brokenImages": 0,
+        "fontsLoaded": true,
+        "documentWidth": 1440,
+        "viewport": 1440,
+        "tables": 108,
+        "interactiveChart": true,
+        "chartGrids": 2,
+        "costOutput": 386,
+        "localLinks": 0,
+        "cost_calculator_works": true,
+        "print_button_works": true,
+        "mobile_no_page_overflow": true,
+        "print_fallback_visible": true
+      },
+      {
+        "language": "en",
+        "images": 57,
+        "brokenImages": 0,
+        "fontsLoaded": true,
+        "documentWidth": 1440,
+        "viewport": 1440,
+        "tables": 108,
+        "interactiveChart": true,
+        "chartGrids": 2,
+        "costOutput": 662,
+        "localLinks": 0,
+        "cost_calculator_works": true,
+        "print_button_works": true,
+        "mobile_no_page_overflow": true,
+        "print_fallback_visible": true
+      }
+    ],
+    "javascript_errors": [],
+    "external_requests": [],
+    "canonical_reports_unchanged": true
+  },
+  "pdf": {
+    "zh": {
+      "pages": 89
+    },
+    "en": {
+      "pages": 97
+    },
+    "validation": "Rendered from published HTML; text extraction checked"
+  },
+  "dry_runs": [
+    "sparkbench serve --config configs/serving.example.json --workloads configs/smoke-workloads.jsonl",
+    "sparkbench hardware --mode base",
+    "sparkbench hardware --mode extensions"
+  ],
+  "live_gpu_validation": "Historical algorithms were measured in the archived study; new CLI adapters not rerun on production GPUs",
+  "github_actions": {
+    "status": "template_only",
+    "reason": "Publishing credential lacks workflow scope",
+    "template": "deploy/github-actions.validate.yml"
+  }
+}

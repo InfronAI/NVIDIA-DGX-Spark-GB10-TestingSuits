@@ -1,0 +1,14 @@
+import copy,json,unittest
+from unittest.mock import patch
+from common import ROOT
+import public_monitor,collector
+class PublicMonitor(unittest.TestCase):
+    def nodes(self):return [json.loads((ROOT/f'evidence/public_{node}.json').read_text()) for node in public_monitor.IDS]
+    def test_public_collection_does_not_call_ssh(self):
+        with patch('public_monitor.enabled',return_value=True),patch('public_monitor.sample',return_value=self.nodes()),patch.dict('os.environ',{'QWEN_PERF_MONITOR_TOKEN':'test'}),patch('collector.subprocess.run',side_effect=AssertionError('SSH must not be called')):
+            data=collector.raw_sample(True)
+            self.assertFalse(data['raw_available']);self.assertNotIn('server_info',data)
+            self.assertEqual(len(data['dashboard_nodes']),2)
+    def test_new_oom_still_blocks(self):
+        nodes=self.nodes();nodes[0]['metrics']['gpu']['kernelErrors']['oomKills']+=1
+        with self.assertRaisesRegex(AssertionError,'oomKills'):public_monitor.check(nodes)

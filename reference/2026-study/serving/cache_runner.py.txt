@@ -1,0 +1,61 @@
+"""Sequential diagnostic blocks inside the existing bounded business executor."""
+import asyncio,json,os,time
+from common import ROOT,dump,digest,read_rows,utc
+from cache_counters import boundary,window
+
+def validate(root=ROOT):
+ folder=root/'plans/cache_diagnostics';m=json.loads((folder/'manifest.json').read_text());seen=set();previous=set()
+ assert m['planned_calls']==160
+ for b in m['blocks']:
+  path=folder/b['file'];assert digest(path)==b['sha256'];rows=read_rows(path)
+  assert len(rows)==b['count'] and b['concurrency'] in [1,4]
+  assert set(b.get('depends_on',[]))<=previous
+  for c in rows:
+   assert c['phase']=='P6' and c['id'] not in seen and c['block']==b['id']
+   assert c['local_prompt_tokens']+c['max_tokens']<262144 and c['effort']=='none'
+   seen.add(c['id'])
+  previous.add(b['id'])
+ assert len(seen)==160;return m
+
+def result(ident,root=ROOT):
+ logical=root/'runs/logical_outcomes'/f'{ident}.json'
+ if logical.exists():ident=json.loads(logical.read_text()).get('final_attempt_id') or ident
+ p=root/'runs/requests'/ident/'result.json';return json.loads(p.read_text()) if p.exists() else {}
+
+async def wait_until(epoch,runner):
+ while time.time()<epoch and not runner.stopping():await asyncio.sleep(min(1,epoch-time.time()))
+
+async def run(runner,api):
+ from business_runner import pending
+ m=validate();byblock={b['id']:read_rows(ROOT/'plans/cache_diagnostics'/b['file']) for b in m['blocks']}
+ for b in m['blocks']:
+  if runner.stopping():break
+  cases=byblock[b['id']];todo=pending(cases,runner.ledger)
+  if not todo:continue
+  deps=[c for key in b.get('depends_on',[]) for c in byblock[key]]
+  if any(result(c['id']).get('state')!='received' for c in deps):
+   dump(ROOT/'runs/cache_windows'/f"{b['id']}.json",dict(block=b['id'],valid=False,reasons=['incomplete_dependency']));continue
+  before_wait=await boundary(runner);seed=result(b.get('delay_after_id','')) if b.get('delay_after_id') else {}
+  if seed:await wait_until(seed['end_epoch']+b['delay_s'],runner)
+  schedule=None
+  if b.get('schedule_origin'):
+   op=ROOT/'runs/cache_schedule.json';schedule=json.loads(op.read_text()) if op.exists() else {'origin_epoch':time.time(),'utc':utc()}
+   if not op.exists():dump(op,schedule)
+   await wait_until(schedule['origin_epoch']+b['offset_s'],runner)
+  if runner.stopping():break
+  before=await boundary(runner)
+  dump(ROOT/'runs/supervisor_status.json',dict(utc=utc(),pid=os.getpid(),state='running',stage='cache_diagnostics',block=b,sent=len(runner.ledger['entries'])))
+  await runner.closed(api,todo,b['concurrency'],b['id'])
+  results=[result(c['id']) for c in cases];ends=[r.get('end_epoch',0) for r in results];after=await boundary(runner,max(ends,default=0))
+  complete=all(r.get('state')=='received' for r in results)
+  expected_prompt=sum(r.get('usage',{}).get('prompt_tokens',0) for r in results) if complete else None
+  expected_output=sum(r.get('usage',{}).get('completion_tokens',0) for r in results) if complete else None
+  w=window(before,after,expected_prompt,expected_output)
+  if any(r.get('retry_index',0)>0 for r in results):w.update(valid=False,token_fraction=None,reasons=w['reasons']+['retry_changes_cache_exposure'])
+  if not complete or len(todo)!=len(cases):w.update(valid=False,token_fraction=None,reasons=w['reasons']+['incomplete_or_resumed_block'])
+  started=min((r.get('start_epoch',time.time()) for r in results),default=time.time())
+  actual_delay=started-seed['end_epoch'] if seed else None
+  idle=window(before_wait,before) if seed else None
+  if idle and (not idle['valid'] or any(idle[k]!=0 for k in ['prompt_delta','output_delta'])):w.update(valid=False,token_fraction=None,reasons=w['reasons']+['idle_window_not_isolated'])
+  if seed and actual_delay>b['delay_s']+30:w.update(valid=False,token_fraction=None,reasons=w['reasons']+['idle_target_missed'])
+  dump(ROOT/'runs/cache_windows'/f"{b['id']}.json",dict(utc=utc(),block=b['id'],family=b['family'],before=before,after=after,window=w,actual_idle_s=actual_delay,target_idle_s=b.get('delay_s'),idle_window=idle,actual_offset_s=started-schedule['origin_epoch'] if schedule else None,target_offset_s=b.get('offset_s'),complete=complete,request_ids=[r.get('id') for r in results]))

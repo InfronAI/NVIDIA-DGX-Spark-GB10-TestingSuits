@@ -1,0 +1,88 @@
+"""Standalone scientific figures, reading saved measurements only."""
+import datetime as dt
+import json
+import math
+import re
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.font_manager import FontProperties,fontManager
+from common import ROOT
+from report_model import presentation
+from research_figures import extra_figures
+from report_diagnostics import build as build_diagnostics
+from diagnostic_figures import draw as diagnostic_figures
+from report_labels import condition_name
+
+ASSETS=ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/assets'
+from report_visual_theme import configure, save, PALETTE
+configure()
+COLORS=PALETTE
+
+def empty(ax,text):ax.text(.5,.5,text,ha='center',va='center',transform=ax.transAxes);ax.set_xticks([]);ax.set_yticks([])
+def times(rows,key):
+    x=[];y=[];prev=None
+    for r in rows:
+        if prev is not None and r['epoch']-prev>20:x.append(dt.datetime.fromtimestamp(prev+.01,dt.timezone.utc));y.append(float('nan'))
+        x.append(dt.datetime.fromtimestamp(r['epoch'],dt.timezone.utc));y.append(r.get(key) if r.get(key) is not None else float('nan'));prev=r['epoch']
+    return x,y
+
+def main(reuse_analysis=False):
+    a=json.loads((ROOT/'reports/analysis.json').read_text())
+    view=presentation(a);diagnostics=json.loads((ROOT/'reports/diagnostics.json').read_text()) if reuse_analysis else build_diagnostics(a)
+    from cache_analysis import build as build_cache
+    from cache_figures import draw as cache_figures
+    cache=json.loads((ROOT/'reports/cache_analysis.json').read_text()) if reuse_analysis else build_cache()
+    from length_analysis import build as build_length
+    from length_figures import draw as length_figures
+    length=json.loads((ROOT/'reports/length_analysis.json').read_text()) if reuse_analysis else build_length()
+    from system_figures import draw as system_figures
+    for lang in ['zh','en']:
+        from review_figures import draw as review_figures
+        review_figures(diagnostics,lang,save)
+        system_figures(lang,save)
+        length_figures(length,lang,save,empty)
+        cache_figures(cache,lang,save,empty)
+        extra_figures(a,lang,save,empty)
+        diagnostic_figures(a,diagnostics,lang,save,empty)
+        T=lambda zh,en:zh if lang=='zh' else en
+        fig,axes=plt.subplots(1,2,figsize=(9,3.4))
+        gs=sorted([dict(x,block_output_tokens_s=x['tps'],ttft_visible_s=x['ttft']) for x in view['groups'] if x['key'].startswith('P1_')],key=lambda x:int(re.search(r'_c(\d+)',x['key'])[1]))
+        if gs:
+            cs=[int(re.search(r'_c(\d+)',x['key'])[1]) for x in gs]
+            axes[0].plot([1,2,4,8],[next((x['block_output_tokens_s'] for x in gs if int(re.search(r'_c(\d+)',x['key'])[1])==c),float('nan')) for c in [1,2,4,8]],marker='o',color=COLORS[0]);axes[0].set_ylabel(T('输出 token / 秒','Output tokens / s'))
+            for k,label,col in [('p50',T('中位数','Median'),COLORS[0]),('p95',T('第 95 百分位','95th percentile'),COLORS[1])]:axes[1].plot([1,2,4,8],[next((x['ttft_visible_s'][k] for x in gs if int(re.search(r'_c(\d+)',x['key'])[1])==c),float('nan')) for c in [1,2,4,8]],marker='s' if k=='p95' else 'o',label=label,color=col)
+            axes[1].legend();axes[1].set_ylabel(T('正文首字延迟（秒）','First visible-content latency (s)'))
+            for ax in axes:ax.set_xticks([1,2,4,8]);ax.set_xlabel(T('并发','Concurrency'));ax.set_ylim(bottom=0)
+        else:
+            for ax in axes:empty(ax,T('等待完整自然任务区组','Awaiting a complete natural-task block'))
+        save(fig,'capacity',lang)
+        fig,axes=plt.subplots(1,2,figsize=(9,3.4))
+        for i,cell in enumerate(sorted({x['cell'] for x in a['latency_samples'] if x['phase'] in ['P1','P3']})):
+            for ax,field,label in zip(axes,['ttft_visible_s','e2e_s'],[T('正文首字延迟（秒）','First visible-content latency (s)'),T('端到端延迟（秒）','End-to-end latency (s)')]):
+                vals=sorted(x[field] for x in a['latency_samples'] if x['cell']==cell and x[field] is not None and x['state']=='received')
+                if vals:ax.step(vals,np.arange(1,len(vals)+1)/len(vals),where='post',label=condition_name(cell,lang,False)+T(f'（{len(vals)} 次）',f' ({len(vals)} responses)'),color=COLORS[i%4],linestyle='--' if i>=4 else '-');ax.set_xlabel(label);ax.set_ylabel(T('不超过横轴延迟的响应比例','Fraction at or below the latency'))
+        for ax in axes:ax.legend(fontsize=6.5)
+        save(fig,'latency',lang)
+        fig,axes=plt.subplots(3,1,figsize=(9,7),sharex=True)
+        for node in [0,1]:
+            rows=[r for r in a['monitoring']['hardware'] if r['node']==node]
+            for ax,key,label in zip(axes,['gpu_percent','temperature_c','gpu_power_w'],[T('GPU 利用率（%）','GPU utilization (%)'),T('温度（°C）','Temperature (°C)'),T('GPU 传感器功率（W）','GPU sensor power (W)')]):
+                x,y=times(rows,key);ax.plot(x,y,color=COLORS[node],label=T(f'节点 {node}',f'Node {node}'),linewidth=.9);ax.set_ylabel(label)
+        axes[0].legend();axes[-1].xaxis.set_major_formatter(mdates.DateFormatter('%H:%M',tz=dt.timezone.utc));axes[-1].set_xlabel(T('协调世界时（北京时间减 8 小时）','Coordinated Universal Time (UTC)'));save(fig,'hardware',lang)
+        fig,axes=plt.subplots(4,1,figsize=(9,8),sharex=True);rows=a['monitoring']['engine']
+        for node in [0,1]:
+            x,y=times(rows,f'node{node}_mem_available_gib');axes[0].plot(x,y,label=T(f'节点 {node}',f'Node {node}'),color=COLORS[node],linewidth=.9)
+        axes[0].set_ylabel(T('可用内存（GiB）','Available RAM (GiB)'));axes[0].legend()
+        for key,col in [('running',COLORS[0]),('queue',COLORS[1])]:
+            x,y=times(rows,key);axes[1].plot(x,y,label=T('执行中' if key=='running' else '排队中','Running' if key=='running' else 'Queued'),color=col,linewidth=.9)
+        axes[1].set_ylabel(T('引擎请求数','Engine requests'));axes[1].legend()
+        x,y=times(rows,'mtp_accept_rate_gauge');axes[2].plot(x,y,color=COLORS[0],linewidth=.9);axes[2].set_ylabel(T('多词元预测\n窗口接受比例','Multi-token prediction\nwindow acceptance'))
+        for key,col in [('kv_used_tokens',COLORS[0]),('kv_evictable_tokens',COLORS[1])]:
+            x,y=times(rows,key);axes[3].plot(x,y,label=T('已使用缓存' if key=='kv_used_tokens' else '可回收缓存','Used cache' if key=='kv_used_tokens' else 'Evictable cache'),color=col,linewidth=.9)
+        axes[3].set_ylabel(T('键值缓存词元数','Key/value cache tokens'));axes[3].legend();axes[-1].xaxis.set_major_formatter(mdates.DateFormatter('%H:%M',tz=dt.timezone.utc));axes[-1].set_xlabel(T('协调世界时（北京时间减 8 小时）','Coordinated Universal Time (UTC)'));save(fig,'engine',lang)
+    print('Bilingual scientific figures and auditable diagnostics rendered')
+
+if __name__=='__main__':main()

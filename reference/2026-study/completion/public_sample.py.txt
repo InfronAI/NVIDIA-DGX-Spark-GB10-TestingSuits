@@ -1,0 +1,29 @@
+"""Read-only raw engine and node sampling. No prompts or credentials are emitted."""
+import json
+from pathlib import Path
+import sys
+import time
+import urllib.request
+
+sys.path.insert(0,'/home/benchmark/infron-benchmarks/hardware_unloaded_confirmed_20261016')
+from remote_coordinator import both_script,server_configuration
+
+key=None
+for path in Path('/proc').glob('[0-9]*/cmdline'):
+    try:
+        args=path.read_bytes().decode().split(chr(0))
+        if 'sglang.launch_server' in args and '--api-key' in args:key=args[args.index('--api-key')+1]
+    except OSError:pass
+assert key
+req=urllib.request.Request('http://127.0.0.1:8000/metrics',headers={'Authorization':'Bearer '+key,
+    'User-Agent':'Infron-Gap-Evaluation/1.0','Accept':'text/plain','Connection':'close'})
+opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+with opener.open(req,timeout=8) as response:metrics=response.read().decode()
+query="""import subprocess,json,pathlib
+p=subprocess.run(['nvidia-smi','--query-gpu=temperature.gpu,power.draw,utilization.gpu,clocks.sm,clocks.mem','--format=csv,noheader,nounits'],capture_output=True,text=True,timeout=6)
+assert p.returncode==0
+values=p.stdout.strip().split(',')
+mem={line.split(':')[0]:int(line.split()[1])*1024 for line in pathlib.Path('/proc/meminfo').read_text().splitlines() if line.split(':')[0] in ['MemTotal','MemAvailable','SwapTotal','SwapFree']}
+print(json.dumps({'temperature_c':float(values[0]),'gpu':values,'memory':mem,'loadavg':pathlib.Path('/proc/loadavg').read_text().strip()}))
+"""
+print(json.dumps({'epoch':time.time(),'metrics':metrics,'nodes':both_script(query)}))

@@ -1,0 +1,99 @@
+"""Paired hardware diagnostics from archived rows only; never launches work."""
+import collections,statistics
+
+def comparisons(rows):
+    valid=[x for x in rows if x.get('state')=='measured' and x.get('validation',{}).get('passed')]
+    result={'contention':[],'streams':[],'managed':[]}
+    base={(x['node_index'],x['round']):x for x in valid if x['kind']=='cpu_contention' and x['workers']==0}
+    for x in valid:
+        if x['kind']=='cpu_contention' and x['workers']:
+            b=base.get((x['node_index'],x['round']))
+            if b and b.get('effective_gb_s',0)>0:result['contention'].append({'node':x['node_index'],'round':x['round'],'workers':x['workers'],'mode':x['cpu_mode'],'retention':x['effective_gb_s']/b['effective_gb_s'],'cpu_affinity':x.get('cpu_affinity')})
+        if x['kind']=='managed_access':result['managed'].append({'node':x['node_index'],'round':x['round'],'gpu_first_repeat_ms':x['gpu_first_repeat_ms'],'cpu_first_repeat_ms':x['cpu_first_repeat_ms']})
+    pairs=collections.defaultdict(dict)
+    for x in valid:
+        if x['kind']=='streams':pairs[(x['node_index'],x['streams'],x['round'])][x['mode']]=x
+    for (node,n,r),p in pairs.items():
+        if set(p)=={'serial','parallel'} and p['serial']['flops_per_call']==p['parallel']['flops_per_call']:
+            result['streams'].append({'node':node,'streams':n,'round':r,'serial_over_parallel':p['serial']['mean_device_interval_us']/p['parallel']['mean_device_interval_us']})
+    return result
+
+def draw(summary,lang,prefix='hardware_unloaded'):
+    from plots import plt,save,empty
+    T=lambda z,e:z if lang=='zh' else e
+    colors=['#004AB9','#70A6FF'];groups=summary['groups'];d=summary.get('extended_comparisons',{})
+    def error(ax,x,ys,label,color,style='-'):
+        mid=[statistics.median(y) for y in ys]
+        ax.errorbar(x,mid,yerr=[[m-min(y) for m,y in zip(mid,ys)],[max(y)-m for m,y in zip(mid,ys)]],fmt='o'+style,color=color,capsize=3,label=label,ms=4)
+    fig,axes=plt.subplots(1,2,figsize=(11,4))
+    for node,ax in enumerate(axes):
+        for th,color in zip([128,256,512],['#004AB9','#70A6FF','#1E324C']):
+            for chains,style in [(1,'--'),(8,'-')]:
+                rr=sorted([g for g in groups if g['node']==node and g['kind']=='scalar_fma' and g['threads']==th and g['chains']==chains],key=lambda g:g['sm_multiplier'])
+                if rr:ax.plot([g['sm_multiplier'] for g in rr],[g['effective_tflops']['median']*1000 for g in rr],marker='o',linestyle=style,color=color,label=f'{th} / {chains}')
+        ax.set_title(T('节点','Node ')+str(node));ax.set_xlabel(T('线程块数 / SM数量','Block count / SM count'));ax.set_ylabel('GFLOP/s');ax.set_ylim(bottom=0)
+        if ax.lines:ax.legend(title=T('线程数 / 依赖链数','Threads / chains'),fontsize=7)
+        else:empty(ax,T('尚无有效乘加测量','No valid FMA measurements yet'))
+    save(fig,prefix+'_fma',lang)
+    fig,axes=plt.subplots(1,2,figsize=(11,4))
+    for node in [0,1]:
+        for mode,style in [('memory','-'),('compute','--')]:
+            rr=[x for x in d.get('contention',[]) if x['node']==node and x['mode']==mode];xs=sorted({x['workers'] for x in rr})
+            if xs:error(axes[0],xs,[[100*x['retention'] for x in rr if x['workers']==n] for n in xs],f'{node} '+T('内存' if mode=='memory' else '计算',mode),colors[node],style)
+        rr=[x for x in d.get('streams',[]) if x['node']==node];xs=sorted({x['streams'] for x in rr})
+        if xs:error(axes[1],xs,[[x['serial_over_parallel'] for x in rr if x['streams']==n] for n in xs],T('节点','Node ')+str(node),colors[node])
+    for ax,reference in zip(axes,[100,1]):
+        if ax.lines:ax.legend(fontsize=7);ax.axhline(reference,color='#A1B0C4',ls=':')
+        else:empty(ax,T('尚无完整配对数据','No complete paired data yet'))
+        ax.set_ylim(bottom=0)
+    axes[0].set_xlabel(T('固定核心上的CPU工作进程数','Pinned CPU worker processes'));axes[0].set_ylabel(T('GPU带宽 / 同轮无竞争基线 %','GPU bandwidth / same-round idle baseline %'));axes[1].set_xlabel(T('执行流数（每对总工作量相同）','Stream count (matched work within each pair)'));axes[1].set_ylabel(T('串行时间 / 并行时间','Serial time / parallel time'));save(fig,prefix+'_contention',lang)
+    fig,axes=plt.subplots(1,2,figsize=(11,4))
+    for node in [0,1]:
+        rr=sorted([g for g in groups if g['node']==node and g['kind']=='shared_memory'],key=lambda x:x['stride'])
+        if rr:axes[0].plot([x['stride'] for x in rr],[x['effective_gb_s']['median'] for x in rr],'.-',color=colors[node],label=T('节点','Node ')+str(node))
+        for graph,marker in [(False,'o'),(True,'s')]:
+            rr=[g for g in groups if g['node']==node and g['kind']=='empty_launch' and g['graph']==graph]
+            for g in rr:
+                v=g['mean_device_interval_us'];axes[1].errorbar(node+(-.12 if not graph else .12),v['median'],yerr=[[v['median']-v['min']],[v['max']-v['median']]],fmt=marker,color=colors[node],capsize=3,label=f'{node} '+T('图执行' if graph else '普通启动','Graph' if graph else 'Ordinary'))
+    axes[0].set_xscale('log',base=2);axes[0].set_xlabel(T('共享内存地址步长（float元素）','Shared-memory address stride (float elements)'));axes[0].set_ylabel(T('逻辑读写 GB/s','Logical read/write GB/s'));axes[1].set_xticks([0,1],[T('节点0','Node 0'),T('节点1','Node 1')]);axes[1].set_ylabel(T('空内核CUDA区间 μs','Empty-kernel CUDA interval μs'))
+    for ax in axes:
+        ax.set_ylim(bottom=0)
+        if ax.lines:ax.legend(fontsize=7)
+        else:empty(ax,T('尚无有效数据','No valid data yet'))
+    save(fig,prefix+'_launch_shared',lang)
+    fig,axes=plt.subplots(1,2,figsize=(11,4))
+    for ax,field in zip(axes,['gpu_first_repeat_ms','cpu_first_repeat_ms']):
+        for node in [0,1]:
+            rr=[x for x in d.get('managed',[]) if x['node']==node]
+            if rr:error(ax,[1,2],[[x[field][i] for x in rr] for i in [0,1]],T('节点','Node ')+str(node),colors[node])
+        ax.set_xticks([1,2],[T('首次','First'),T('重复','Repeat')]);ax.set_ylabel('ms');ax.set_ylim(bottom=0);ax.set_title(T('GPU写入' if field.startswith('gpu') else 'CPU完整求和','GPU write' if field.startswith('gpu') else 'CPU full sum'))
+        if ax.lines:ax.legend()
+        else:empty(ax,T('尚无管理内存数据','No managed-memory data yet'))
+    save(fig,prefix+'_managed',lang)
+    fig,ax=plt.subplots(figsize=(10,4));rr=summary.get('overlap_comparisons',[]);keys=sorted({(x['message_bytes'],x['matrix_n']) for x in rr})
+    if keys:
+        ys=[[x['serial_over_overlap'] for x in rr if (x['message_bytes'],x['matrix_n'])==k] for k in keys];error(ax,list(range(len(keys))),ys,T('四臂配对轮次','Four-arm paired rounds'),colors[0]);ax.set_xticks(range(len(keys)),[f'{size/1024:g} KiB\n{n} × {n}' for size,n in keys]);ax.axhline(1,color='#A1B0C4',ls=':')
+    else:empty(ax,T('尚无完整四臂配对','No complete four-arm pairs yet'))
+    ax.set_ylabel(T('串行时间 / 重叠时间','Serial time / overlapped time'));ax.set_ylim(bottom=0);save(fig,prefix+'_overlap',lang)
+
+def draw_operators(summary,lang,prefix='hardware_unloaded'):
+    from plots import plt,save,empty
+    T=lambda z,e:z if lang=='zh' else e;groups=summary['groups']
+    fig,axes=plt.subplots(1,3,figsize=(13,4.2))
+    for node,style in [(0,'-'),(1,'--')]:
+        for kind,color in [('sum','#004AB9'),('softmax','#70A6FF'),('rmsnorm','#1E324C')]:
+            rr=sorted([g for g in groups if g['node']==node and g['kind']==kind],key=lambda x:x['elements'])
+            if rr:axes[0].plot([x['elements'] for x in rr],[x['mean_device_interval_us']['median'] for x in rr],marker='.',ls=style,color=color,label=f'{node} {kind}')
+        for mode,color in [('single','#004AB9'),('full','#70A6FF')]:
+            rr=sorted([g for g in groups if g['node']==node and g['kind']=='attention' and (g.get('query_length')==1)==(mode=='single')],key=lambda x:x['kv_length'])
+            if rr:axes[1].plot([x['kv_length'] for x in rr],[x['mean_device_interval_us']['median'] for x in rr],marker='.',ls=style,color=color,label=f'{node} '+T('单查询' if mode=='single' else '全长查询','Single query' if mode=='single' else 'Full queries'))
+        for graph,color,offset in [(False,'#004AB9',-.17),(True,'#70A6FF',.17)]:
+            rr=[g for g in groups if g['node']==node and g['kind']=='graph_add' and g['graph']==graph]
+            if rr:
+                v=rr[0]['mean_device_interval_us'];axes[2].bar(node+offset,v['median'],width=.3,color=color,label=T('图执行' if graph else '普通启动','Graph' if graph else 'Ordinary') if node==0 else None);axes[2].errorbar(node+offset,v['median'],yerr=[[v['median']-v['min']],[v['max']-v['median']]],color='#1E324C',capsize=3,fmt='none')
+    for ax in axes:
+        if ax.lines or ax.patches:ax.legend(fontsize=7)
+        else:empty(ax,T('等待有效算子归档','Awaiting valid operator archive'))
+        ax.set_ylabel(T('每调用CUDA区间 μs','CUDA interval per call μs'))
+        if ax is not axes[1]:ax.set_ylim(bottom=0)
+    axes[0].set_xscale('log',base=2);axes[0].set_xlabel(T('向量元素数','Vector elements'));axes[1].set_xscale('log',base=2);axes[1].set_yscale('log');axes[1].set_xlabel(T('键值序列长度','Key/value sequence length'));axes[2].set_xticks([0,1],[T('节点0','Node 0'),T('节点1','Node 1')]);axes[2].set_xlabel(T('1,048,576元素加法','1,048,576-element add'));save(fig,prefix+'_operators',lang)

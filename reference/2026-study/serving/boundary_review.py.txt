@@ -1,0 +1,15 @@
+"""Accept a reviewed terminal boundary-probe HTTP error without inventing its cause."""
+import json
+from common import digest
+
+def verified(root,ident):
+ if ident!='P4_boundary':return False
+ p=root/'evidence/boundary_review.json'
+ if not p.exists():return False
+ proof=json.loads(p.read_text());folder=root/'runs/requests'/ident
+ if any(digest(folder/name)!=h for name,h in proof['request_files'].items()):return False
+ r=json.loads((folder/'result.json').read_text());req=json.loads((folder/'request.json').read_text())
+ if not (r['state']=='http_error' and r['status']==400 and r['local_prompt_tokens']==263001 and (r.get('response_request_id') or r.get('request_id'))==proof['request_id']):return False
+ if req['model']!='qwen/qwen3.8-flash-next-abliterated':return False
+ rows=proof['rows']
+ return len([x for x in rows if x['type']==6])==1 and all(x['request_id']==proof['request_id'] and x['type'] in [6,7] and x['model_provider_id']==2084 and x['channel_id']==2538 and json.loads(x['other'])['status_code']==400 for x in rows) and proof['no_replay'] and proof['context_overflow_cause_verified'] is False

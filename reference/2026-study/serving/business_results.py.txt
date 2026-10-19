@@ -1,0 +1,55 @@
+"""Read-only amendment summaries; no API calls, no filling absent cache fields."""
+import csv,json,statistics,collections
+from common import ROOT,dump
+
+def number(v):
+    try:return float(v) if v not in [None,''] else None
+    except (ValueError,TypeError):return None
+
+def summarize():
+    from report_model import presentation
+    index=json.loads((ROOT/'plans/business/request_index.json').read_text())
+    with (ROOT/'reports/requests.csv').open() as f:source=list(csv.DictReader(f))
+    rows=[]
+    for r in source:
+        c=index.get(r.get('retry_of') or r['id'])
+        if not c:continue
+        rows.append({**r,**{k:v for k,v in c.items() if k in ['shape','cache_role','cache_pair','target_prefix_percent','matched_prefix_tokens','actual_prefix_fraction','target_input_tokens']}})
+    grouped=collections.defaultdict(list)
+    for r in rows:
+        if r['warmup']=='True':continue
+        grouped[r['cell']].append(r)
+    analysis=json.loads((ROOT/'reports/analysis.json').read_text())
+    coherent={g['key']:g for g in presentation(analysis)['groups']}
+    groups=[]
+    for key,rs in sorted(grouped.items()):
+        ok=[r for r in rs if r['state']=='received']
+        stats={}
+        for field in ['first_visible_s','e2e_s','completion_tokens','prompt_tokens','tpot_compat_s']:
+            xs=[number(r.get(field)) for r in ok];xs=[x for x in xs if x is not None]
+            stats[field]={'n':len(xs),'median':statistics.median(xs) if xs else None,'min':min(xs) if xs else None,'max':max(xs) if xs else None}
+        cache=[r for r in ok if r.get('usage_source')=='original upstream SSE usage' and number(r.get('cached_tokens')) is not None and (number(r.get('prompt_tokens')) or 0)>0]
+        cached=sum(number(r['cached_tokens']) for r in cache);inp=sum(number(r['prompt_tokens']) for r in cache)
+        realized=[number(r['prompt_tokens'])/number(r['completion_tokens']) for r in ok if (number(r.get('completion_tokens')) or 0)>0 and number(r.get('prompt_tokens')) is not None]
+        groups.append({'cell':key,'shape':rs[0].get('shape'),'input_target':rs[0].get('target_input_tokens'),'concurrency':int(rs[0]['condition_concurrency']),'target_prefix_percent':rs[0].get('target_prefix_percent'),'attempts':len(rs),'complete':len(ok),'truncated':sum(r.get('truncated')=='True' for r in ok),'stats':stats,'coherent_block_tps':coherent.get(key,{}).get('tps'),'realized_io_ratio_median':statistics.median(realized) if realized else None,'cache_fields_available':len(cache),'reported_cached_token_fraction':cached/inp if inp else None,'actual_prefix_fraction_mean':statistics.mean([r['actual_prefix_fraction'] for r in rs]) if rs[0].get('actual_prefix_fraction') is not None else None,'usage_sources':sorted({r.get('usage_source','') for r in ok})})
+    result={'planned_calls':352,'attempts':len(rows),'complete':sum(r['state']=='received' for r in rows),'measured_complete':sum(r['state']=='received' and r['warmup']!='True' for r in rows),'groups':groups,'cache_caveat':'Reported token fields are not proof of engine cache residency or retention; missing values are never replaced by zero.'}
+    dump(ROOT/'reports/business_results.json',result)
+    return result
+
+def result_text(lang):
+    from build_report import table,fmt
+    from report_foundations import EXAMPLES
+    T=lambda z,e:z if lang=='zh' else e;r=summarize()
+    m=json.loads((ROOT/'plans/business/manifest.json').read_text());names={s['id']:s['name_'+lang] for s in m['shapes']}
+    text='\n\n### '+T('业务形态与缓存比例：实际覆盖','Business shapes and cache ratios: observed coverage')+'\n\n'
+    text+=T(f'业务形态与缓存比例测试在本快照完成 {r["complete"]} / 352 次计划调用，其中正式测量完整响应 {r["measured_complete"]} / 264。',f'At this snapshot, business-shape and cache-ratio tests have {r["complete"]} / 352 planned calls completed, including {r["measured_complete"]} / 264 complete measured responses.')
+    shape=[g for g in r['groups'] if g['shape']]
+    cache=[g for g in r['groups'] if g['target_prefix_percent'] is not None]
+    if shape:
+        text+='\n\n'+table([T('业务／并发','Shape / concurrency'),T('完整数','Complete'),T('实际输出中位数','Median output'),T('实际输入输出比中位数','Median realized I/O'),T('正文首字中位数 s','Median visible TTFT s'),T('端到端中位数 s','Median E2E s')],[[names[g['shape']]+' / '+str(g['concurrency']),g['complete'],fmt(g['stats']['completion_tokens']['median'],1),fmt(g['realized_io_ratio_median'],1),fmt(g['stats']['first_visible_s']['median'],2),fmt(g['stats']['e2e_s']['median'],2)] for g in shape])
+        text+='\n\n'+table([T('业务／并发','Shape / concurrency'),T('连续完整区组 token/s','Complete continuous-block token/s'),T('估算 TPOT 中位数 ms','Median estimated TPOT ms'),T('触顶／完整数','Length-limited / complete')],[[names[g['shape']]+' / '+str(g['concurrency']),fmt(g['coherent_block_tps'],1),fmt(1000*g['stats']['tpot_compat_s']['median'],2) if g['stats']['tpot_compat_s']['median'] is not None else '—',f'{g["truncated"]}/{g["complete"]}'] for g in shape])
+    if cache:
+        text+='\n\n'+table([T('输入／目标共享','Input / target overlap'),T('完整数','Complete'),T('实际共享 %','Realized overlap %'),T('缓存字段覆盖','Cache-field coverage'),T('字段报告缓存 %','Reported cached %'),T('正文首字中位数 s','Median visible TTFT s')],[[f'{g["input_target"]:,} / {g["target_prefix_percent"]}%',g['complete'],fmt(g['actual_prefix_fraction_mean']*100,1),f'{g["cache_fields_available"]}/{g["complete"]}',fmt(100*g['reported_cached_token_fraction'],1) if g['reported_cached_token_fraction'] is not None else '—',fmt(g['stats']['first_visible_s']['median'],2)] for g in cache])
+    if not shape and not cache:text+=T('\n\n**本快照尚无业务形态与缓存比例的正式测量结果。**','\n\n**No formal business-shape or cache-ratio measurements are available at this snapshot.**')
+    text+=T('\n\n解释顺序为：核对实际长度与输出触顶 → 对齐并发和样本组成 → 看首片段等待及生成耗时 → 核对缓存字段覆盖 → 结合同时段资源说明可能机制。没有完整区组、有效缓存字段或匹配输入时，只报告观察，保留替代解释。','\n\nInterpret in order: verify realized lengths and truncation → align concurrency and sample composition → inspect waiting and generation → check cache-field coverage → examine contemporaneous resources. Without complete blocks, valid cache fields or matching inputs, describe observations and retain alternative explanations.')
+    return text

@@ -1,0 +1,38 @@
+"""Standalone cache protocol, evidence coverage and observed time windows."""
+import datetime as dt,math
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from report_labels import phase_name
+BLUE='#004AB9';PALE='#E5EDF9';MUTED='#A1B0C4'
+def draw(r,lang,save,empty):
+ T=lambda z,e:z if lang=='zh' else e
+ fig,ax=plt.subplots(figsize=(10,4.3));ax.axis('off')
+ rows=[(T('业务复用 · 72次','Business reuse · 72 calls'),[T('3类业务 × 并发1 / 4','3 shapes × concurrency 1 / 4'),T('每格4个独立前缀','4 independent prefixes / cell'),T('首次 → 50% / 100%','Seed → 50% / 100%')]),(T('空闲保留 · 36次','Idle retention · 36 calls'),[T('2档输入 × 3个独立前缀','2 lengths × 3 independent prefixes'),T('分别等待0 / 30 / 300秒','Separate waits: 0 / 30 / 300 s'),T('每个前缀只探测一次','One terminal probe per prefix')]),(T('竞争恢复 · 24次','Pressure / recovery · 24 calls'),[T('首次 → 立即复测','Seed → baseline repeat'),T('4 × 32,768词元独立干扰','4 × 32,768 distinct distractors'),T('竞争后复测 → 再次复测','Post-pressure → recovery repeat')]),(T('周期复用 · 28次','Periodic reuse · 28 calls'),[T('4个前缀首次请求','4 seed prefixes'),T('每120秒一轮，6轮','6 rounds, 120 s apart'),T('10分钟计划观察跨度','10-minute planned observation')])]
+ for i,(label,steps) in enumerate(rows):
+  y=.88-i*.24;ax.text(.01,y,label,fontsize=9,weight='bold',va='center')
+  for j,txt in enumerate(steps):
+   x=.29+j*.245;ax.text(x,y,txt,ha='center',va='center',fontsize=8,bbox=dict(boxstyle='round,pad=.65',fc=PALE,ec='#B4C5E0'))
+   if j<2:ax.annotate('',xy=(x+.145,y),xytext=(x+.105,y),arrowprops=dict(arrowstyle='->',color=BLUE))
+ ax.set_xlim(0,1);ax.set_ylim(0,1);save(fig,'cache_protocol',lang)
+ fig,axes=plt.subplots(1,2,figsize=(10,4))
+ cs=[x for x in r['coverage'] if x['complete']];ys=list(range(len(cs)));vals=[100*x['known']/x['complete'] for x in cs]
+ axes[0].barh(ys,[100]*len(cs),color=PALE);axes[0].barh(ys,vals,color=BLUE)
+ axes[0].set_yticks(ys,[phase_name(x['phase'],lang) for x in cs],fontsize=8)
+ for i,x in enumerate(cs):axes[0].text(99,i,f'{x["known"]}/{x["complete"]}',ha='right',va='center',fontsize=8)
+ names=[('business',72,T('业务交叉','Business cross')),('retention',36,T('空闲保留','Idle retention')),('competition',24,T('竞争恢复','Pressure / recovery')),('periodic',28,T('周期复用','Periodic reuse'))]
+ axes[1].barh(range(4),[100]*4,color=PALE);axes[1].barh(range(4),[100*r['family_completed'][k]/n for k,n,_ in names],color=BLUE);axes[1].set_yticks(range(4),[label for _,_,label in names],fontsize=8)
+ for i,(k,n,_) in enumerate(names):axes[1].text(99,i,f'{r["family_completed"][k]}/{n}',ha='right',va='center',fontsize=8)
+ for ax,title in zip(axes,[T('逐请求字段可用比例','Per-request field availability'),T('专项计划完成比例','Diagnostic completion')]):ax.set_xlim(0,100);ax.set_xlabel('%');ax.set_title(title,fontsize=10);ax.invert_yaxis()
+ save(fig,'cache_evidence',lang)
+ fig,axes=plt.subplots(2,1,figsize=(10,4.8),sharex=True);bins=r['time_bins']
+ if any(x['token_fraction'] is not None for x in bins):
+  xs=[];ys=[];ts=[];previous=None
+  for b in bins:
+   if previous is not None and b['start_epoch']-previous>15:
+    xs.append(dt.datetime.fromtimestamp(previous+1,dt.timezone.utc));ys.append(float('nan'));ts.append(float('nan'))
+   xs.append(dt.datetime.fromtimestamp(b['end_epoch'],dt.timezone.utc));ys.append(100*b['token_fraction'] if b['token_fraction'] is not None else float('nan'));ts.append(b['ttft_median_s'] if b['ttft_median_s'] is not None else float('nan'));previous=b['end_epoch']
+  axes[0].plot(xs,ys,marker='.',color=BLUE);axes[1].plot(xs,ts,marker='.',color=BLUE);axes[1].xaxis.set_major_formatter(mdates.DateFormatter('%H:%M',tz=dt.timezone.utc));axes[1].set_xlabel('UTC')
+ else:
+  for ax in axes:empty(ax,T('待形成有效的有输入计数窗口','Awaiting valid counter windows with prompt activity'))
+ axes[0].set_ylim(0,max(1,max((100*x['token_fraction'] for x in bins if x['token_fraction'] is not None),default=0)*1.1))
+ axes[0].set_ylabel(T('缓存词元比例 %','Cached token fraction %'));axes[1].set_ylabel(T('正文首字中位数 s','Visible TTFT median s'));save(fig,'cache_timeline',lang)

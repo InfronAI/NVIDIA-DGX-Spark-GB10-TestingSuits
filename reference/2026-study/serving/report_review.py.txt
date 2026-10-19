@@ -1,0 +1,228 @@
+"""Reader-facing synthesis of archived evidence. No execution or data mutation."""
+import json,re
+from common import ROOT
+
+
+def figure(token, zh, en, lang):
+    return '\n\n<!--'+token+'-->\n\n'+(zh if lang=='zh' else en)
+
+
+def tables(text):
+    return re.findall(r'(?m)^\|[^\n]+\n\|[^\n]+\n(?:\|[^\n]+\n)+',text)
+
+
+def revise(ordered,lang):
+    from build_report import table
+    from hardware_completion_report import data
+    from hardware_h200_report import hardware as comparison
+    T=lambda z,e:z if lang=='zh' else e
+    b=[x[2] for x in ordered];h=data()
+    # Keep an immediate scope digest; detailed provenance belongs with experimental materials.
+    key='### '+T('评测基准：来源、任务形式与本次用途','Benchmarks: sources, task forms and use in this study')
+    # Source headings are explicitly matched, never inferred from numerical contents.
+    assert key in b[0],key
+    identity,provenance=b[0].split(key,1);provenance=key+provenance
+    launch='#### '+T('SGLang启动与生效参数','SGLang launch and resolved settings')
+    assert launch in identity,launch
+    identity,launch_details=identity.split(launch,1)
+    identity+='\n\n'+T('完整启动命令与解析后的参数见附录C。','The full launch command and parsed parameters are in Appendix C.')
+    overview=table([T('材料／范围','Material / scope'),T('本次定义','Definition in this study')],[
+        [T('自然题库','Natural prompt bank'),T('六套公开基准，各10条，共60条独立提示；只作性能负载。','Six public datasets, ten prompts each: 60 unique inputs used as performance workloads.')],
+        [T('受控服务负载','Controlled serving loads'),T('输入／输出1K–256K设计空间、八类业务、前缀比例与保留诊断；完成量见第04节。','1K–256K input/output design space, eight business shapes, prefix ratios and retention diagnostics; realized coverage is in section04.')],
+        [T('引擎与硬件','Engine and hardware'),T('原生引擎231条正式请求；双节点计算、内存、算子、通信及分阶段持续负载。','231 formal native-engine requests; two-node compute, memory, operators, communication and segmented sustained loads.')],
+        [T('对照与经济模型','Reference and economics'),T('H200采用官方规格作架构参照；采购、电价与利用率用于成本情景。','H200 official specifications provide an architectural reference; purchase price, electricity and utilization define cost scenarios.')],
+    ])
+    # Reduce the three overlapping introductions to a research abstract.
+    first_heading=identity.index('### ')
+    abstract=T('大语言模型推理系统的性能由计算、内存数据供给、设备间协作和请求调度共同决定。单一峰值算力或单请求生成速度无法描述不同输入长度、并发和缓存条件下的服务表现。本研究以双 NVIDIA DGX Spark / GB10 为实验平台，对已接入 Infron 的 `qwen/qwen3.8-flash-next-abliterated` 开展分层性能测量，建立从硬件资源到用户响应的可追溯证据。',
+       'Large-language-model inference depends on computation, memory supply, device coordination and request scheduling. A peak arithmetic rating or single-request generation rate does not characterize serving across input lengths, concurrency and cache conditions. This study measures `qwen/qwen3.8-flash-next-abliterated` on two NVIDIA DGX Spark / GB10 nodes through Infron, connecting hardware resources to user-visible responses through layered evidence.')
+    abstract+='\n\n'+T('实验分别使用合成张量、固定长度的原生引擎请求，以及公开题库和业务文本。硬件计时、引擎阶段计时与公网响应独立统计；固定条件重复测量，数值校验、样本量及未完成范围随结果报告。方法依据NVIDIA推理指标定义与MLPerf的负载场景思想；本研究为自定义实验，不宣称标准榜单认证。',
+       'Synthetic tensors, fixed-length native-engine requests, public prompts and business text serve distinct experimental roles. Device timing, engine-stage timing and public responses are analyzed separately. Repeated fixed conditions retain correctness checks, sample sizes and incomplete coverage. Metric and arrival definitions draw on NVIDIA guidance and MLPerf scenario concepts; this is a custom study, not a certified benchmark submission.')+' [NVIDIA](https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/) · [MLPerf](https://github.com/mlcommons/inference_policies/blob/master/inference_rules.adoc)'
+    b[0]=abstract+'\n\n'+identity[first_heading:]+'\n\n### '+T('实验材料与范围摘要','Experimental materials and scope')+'\n\n'+overview
+    # Materials before construction and examples, avoiding the former multi-page opening.
+    marker='### '+T('模型服务实验与材料','Model-serving experiments and materials')
+    b[1]=b[1].replace(marker,provenance+'\n\n'+marker,1)
+    b[13]+='\n\n### '+T('SGLang完整启动与生效参数','Full SGLang launch and resolved settings')+'\n\n'+launch_details
+    # Separate public length control from the native engine's fixed-output experiment.
+    old='本轮输出控制校准中，请求携带 ignore_eos=true，但保存的源站转发请求没有该字段，实际仅生成2个词元。因此，本报告没有已生效的固定输出模式证据。未发送的长度组采用自然结束，保持原输入、输出上限、并发和预算；达到上限98%–100%表示实际长度达成，不表示结束词元被禁用。短输出、未达成与未执行分别保留，不能把筛选后的达成样本推广到全部请求。'
+    en='The output-control calibration sent ignore_eos=true, but the saved upstream forwarded request omitted it and produced only two tokens.'
+    replacement=T('公网长度扩展保留自然结束：校准请求的ignore_eos字段未传递到源站。输出达到上限的98%–100%仅表示该次长度达成。独立原生引擎实验使用已核验的固定输出，见第07节。',
+      'Public length-extension requests retain natural stopping: calibration did not forward ignore_eos upstream. Reaching98%–100%of a cap establishes realized length for that request only. The native-engine experiment separately verifies fixed output in section07.')
+    for i in [1,6]:
+        if lang=='zh':b[i]=b[i].replace(old,replacement if i==1 else '公网长度扩展采用自然结束，控制方式见第02节；以下同时报告生成上限与实际生成量。')
+        else:
+            b[i]=re.sub(r'(?m)^.*(?:ignore_eos=true|ignore_eos).*?\[.*?natural_length_amendment.json\)[^\n]*$', replacement if i==1 else 'Public length expansion uses natural stopping as defined in section02; requested caps and realized generation are reported together.',b[i])
+    b[1]=re.sub(r'(?m)^新增共299次[^\n]*$', '长度扩展预先固定299次调用，按轴线、对角线与近边界组合选择；实际完成量与达成情况见第04、07节。',b[1])
+    b[1]=re.sub(r'(?m)^.*299.*(?:8,171|8\s?171|8171).*$', 'The extension fixes 299 calls across axes, diagonals and near-boundary combinations; sections 04 and 07 report realized coverage and attainment.',b[1])
+    b[1]=b[1].replace('长度分布见第01节','长度分布见本章前文').replace('Section 01 documents the six public benchmarks','The earlier tables in this chapter document the six public benchmarks')
+    b[1]=b[1].replace('具体长度组合、业务输入／输出示例、缓存间隔和并发控制见第02节','具体长度组合、业务输入／输出示例、缓存间隔和并发控制见本节后文')
+    # Source counts are coverage, not a live operational diary.
+    b[3]=b[3].replace(T('进度包含预热','Coverage includes warmup'),T('覆盖统计包含预热','Coverage includes warmup'))
+    coverage_tables=tables(b[3])
+    if coverage_tables:
+        tab=coverage_tables[0];lines=tab.strip().splitlines()
+        if len(lines[0].split('|'))==5:
+            b[3]=b[3].replace(tab,'\n'.join('| '+' | '.join(line.strip('| ').split(' | ')[:2])+' |' for line in lines)+'\n')
+    # Move long fixed-shape result rows to the statistical appendix; retain the heatmap and key rates.
+    large=[x for x in tables(b[4]) if ('M×N×K' in x and len(x.splitlines())>20)]
+    for tab in large:
+        b[4]=b[4].replace(tab,T('关键形状的逐精度、逐节点统计见附录B；本节图示保留规模趋势。\n','Precision-by-node statistics for key shapes are in Appendix B; the figure retains the size trend.\n'))
+        b[12]+='\n\n### '+T('关键矩阵形状的完整统计','Complete statistics for key matrix shapes')+'\n\n'+tab
+    # Remove operational deadline/status table from the result section; archive files retain it.
+    runtime=[x for x in tables(b[4]) if ('恢复截止' in x or 'Restoration deadline' in x)]
+    for tab in runtime:b[4]=b[4].replace(tab,'')
+    b[4]+=figure('REVIEW_NODE_PARITY','节点一致性｜固定8192³矩阵与8 GiB访问条件下，节点1中位数／节点0中位数。比值用于描述两台已测设备，不能估计整个产品系列的个体差异。','Node consistency | Node 1 median / node 0 median for fixed 8192³ matrices and 8 GiB access. Ratios describe these two tested devices, not population variability.',lang)
+    # Explain the engine before presenting user-visible serving outcomes.
+    engine='### '+T('引擎内部预填充与解码：独立实验','Independent engine prefill and decode experiment')
+    assert engine in b[6],engine
+    serving,engine_body=b[6].split(engine,1)
+    b[6]=T('本节先定义并测量引擎处理阶段，再观察公网用户体验，最后分析输入结构与缓存。预填充处理输入；解码持续生成输出。两组请求的材料与计时边界不同，结果互作解释依据，不做跨实验耗时相减。',
+        'This section first defines and measures engine stages, then examines public-endpoint experience and input/cache effects. Prefill processes input; decode generates output. Workloads and timing boundaries differ, so results inform interpretation without subtracting times across experiments.')+'\n\n'+engine+engine_body+'\n\n'+serving.replace('### '+T('并发：吞吐与等待','Concurrency: throughput and waiting'),'### '+T('公网并发：吞吐与等待','Public concurrency: throughput and waiting'),1)
+    b[6]=b[6].replace('#### '+T('同一前缀立即复用的预填充对照','Immediate prefix-reuse prefill control'),figure('REVIEW_DECODE_GRID','解码长度×并发｜每格为三个区组的汇总速率；灰格未测，左、右面板色标独立。固定输出256词元，长输入下提高并发不保证提高合计吞吐。','Decode length × concurrency | Each cell summarizes three blocks; gray cells are unmeasured and panels use independent scales. Output is fixed at256tokens; more concurrency need not increase aggregate throughput at longer inputs.',lang)+'\n\n#### '+T('同一前缀立即复用的预填充对照','Immediate prefix-reuse prefill control'),1)
+    b[6]+=figure('REVIEW_CONCURRENCY','并发扩展的收益与代价｜左侧为同题库合计吞吐相对并发1的倍数；右侧为每请求平均词元耗时的中位数。各条件保留实际完整区组数；曲线是描述性比较，不是配对因果效应。','Concurrency benefit and cost | Left: aggregate throughput relative to C=1 on the same prompt bank. Right: median estimated time per output token. Eligible block counts remain visible; this is descriptive, not a paired causal effect.',lang)
+    # Prospective safety configuration is methodology, not an observed sustained result.
+    thermal='### '+T('后续独立混合负载：温度退避与吞吐口径','Subsequent independent mixed work: cooling backoff and throughput boundaries')
+    if thermal in b[7]:
+        before,after=b[7].split(thermal,1)
+        boundary='\n\n'+T('驱动限制原因｜','Driver limit reasons |')
+        if boundary not in after:
+            boundary='\n\n<!--HARDWARE_UNLOADED_RETENTION-->'
+        assert boundary in after
+        config,rest=after.split(boundary,1)
+        b[7]=before+boundary+rest
+        b[11]+='\n\n### '+T('温度退避协议及统计边界','Thermal backoff protocol and measurement boundaries')+'\n\n'+config
+    # Remove retry/operations narrative while preserving sampling rules in methods and raw evidence.
+    b[7]=re.sub(r'\n\n(?:一次持续运行出现客户端传输失败|持续运行样本中有1次客户端传输失败|One sustained-run attempt has a client transport failure)[^\n]*','',b[7])
+    b[7]+=figure('REVIEW_SUSTAINED','持续负载覆盖｜实色为本次有效正式时长，浅色为计划剩余时长；各阶段独立，不累计为连续稳定性。','Sustained coverage | Solid bars show valid formal duration, pale bars show the planned remainder. Phases are independent and do not establish continuous stability.',lang)
+    # Cross-layer synthesis and a single function-based H200 reference replace generic future requirements.
+    b[8]=synthesis(lang,h)+'\n\n'+comparison(lang,h)
+    # Keep concise observed economics; retain detailed numeric rows in the cost chapter.
+    original_conclusion=tables(b[10])[0]
+    cost_rows=[line for line in original_conclusion.splitlines() if line.startswith('|') and any(k in line for k in ['自用经济性','售卖经济性','Self-use economics','Sales economics'])]
+    b[10]=conclusions(lang,h,cost_rows)
+    b[11]=re.sub(r'(?m)^分析暂不提供：[^\n]*$', '本次仍缺少真正逐词元的客户端间隔、全阶段完整原始引擎计数器、插座侧能耗及物理DRAM事务计数。独立集合通信和逻辑内存带宽已另行实测，见第05–06节；它们不等于同一模型请求内部的通信开销或物理总线利用率。',b[11])
+    b[11]=re.sub(r'(?m)^(?:Analysis does not yet provide:|Unavailable analyses include)[^\n]*$', 'Remaining gaps include exact client inter-token intervals, complete engine counters across every stage, wall-meter energy and physical DRAM transactions. Independent collectives and logical memory bandwidth are measured in sections05–06; they do not directly establish communication cost within a model request or physical bus utilization.',b[11])
+    # Normalize stale procedural prose rather than recounting report revisions.
+    substitutions={
+      '独立窗口最长2小时、并发上限8，累计API预算仍为US$500；直接源站调用不产生Infron API账单。':'并发上限8；直接源站调用不计入Infron API账单。',
+      'The separate window is limited to two hours and concurrency eight under the existing cumulative US$500 API budget. Direct-origin calls generate no Infron API bill.':'Concurrency is capped at eight; direct-origin calls are outside Infron API billing.',
+      'Temperature below75°C for30continuous seconds':'Temperature below 75°C for 30 continuous seconds',
+      '600seconds;':'600 seconds;',
+    }
+    for i in range(len(b)):
+        for old,new in substitutions.items():b[i]=b[i].replace(old,new)
+        if lang=='en':
+            chunks=re.split(r'(```.*?```|`[^`]*`|\[[^\]]*\]\([^)]*\))',b[i],flags=re.S)
+            for j in range(0,len(chunks),2):
+                x=chunks[j]
+                x=re.sub(r'\b(about|at|of|the|for|with|and|from|section|sections|total|rated|to|fixed|specifies|active|only|completed|aggregates|is|across|fixes|in|than|each|reaching|cover|provides|output|span)(?=\d)',r'\1 ',x,flags=re.I)
+                x=re.sub(r'(?<=\d)(tokens|dense|with|minutes|seconds|hours|calls|and|sparsity|requests|rounds|continuous|single)(?=\b|\d)',r' \1',x)
+                x=x.replace('×specification','× specification').replace('×;','×;').replace('process(rank)runs','process (rank) runs').replace('TFLOP/s(specifications)','TFLOP/s (specifications)').replace('128GB','128 GB').replace('256GB','256 GB').replace('256tokens','256 tokens').replace('2:4sparsity','2:4 sparsity').replace('8192³dense','8192³ dense').replace('98%–100%of','98%–100% of')
+                chunks[j]=x
+            b[i]=''.join(chunks)
+        b[i]=re.sub(r'\n{4,}','\n\n\n',b[i]).strip()
+    # Separate the executive findings from model identity and deployment details.
+    marker='### '+T('模型身份与权重来源','Model identity and weight provenance')
+    assert marker in b[0],marker
+    opening,system=b[0].split(marker,1)
+    b=[opening.strip(),marker+system]+b[1:]
+    b=[advance_chapter_references(body) for body in b]
+    from report_overview import summary
+    b[0]+='\n\n'+summary(lang,h)
+    titles=[
+      ('研究背景、摘要与结论','Research background, abstract and findings'),
+      ('实验对象与部署配置','Experimental system and deployment'),
+      ('实验设计、材料与工作负载','Experimental design, materials and workloads'),
+      ('指标定义与统计方法','Metric definitions and statistics'),
+      ('实际覆盖与分析样本','Realized coverage and analysis samples'),
+      ('GPU计算、内存与算子','GPU compute, memory and operators'),
+      ('双机通信与系统协同','Two-node communication and cooperation'),
+      ('从引擎阶段到服务表现','From engine stages to serving performance'),
+      ('持续性能、热状态与资源','Sustained performance, thermal state and resources'),
+      ('跨层解释与H200技术对照','Cross-layer interpretation and H200 comparison'),
+      ('费用、持有成本与投资回报','API cost, ownership and investment return'),
+      ('整体结论与后续工作','Overall conclusions and next work'),
+      ('附录A：完整指标与统计定义','Appendix A: complete metric and statistical definitions'),
+      ('附录B：补充图表与统计明细','Appendix B: supplementary figures and statistics'),
+      ('附录C：测试代码与数据磁盘路径','Appendix C: test code and data disk paths')]
+    return [(z,e,body) for (z,e),body in zip(titles,b)]
+
+
+def advance_chapter_references(text):
+    """Shift legacy report references after inserting the deployment chapter.
+
+    Only prose chapter references and local section anchors are rewritten;
+    scientific quantities, file paths and external source versions stay intact.
+    """
+    plan_refs=[]
+    def preserve(match):
+        plan_refs.append(match[0])
+        return '\x00planref'+chr(65+len(plan_refs))+'\x00'
+    text=re.sub(r'测试计划第\s*\d{1,2}\s*节|\b[Ss]ection\s*\d{1,2}\s+of the test plan',preserve,text)
+    def numbers(match):
+        def shift(m):
+            value=int(m[0]);new=value+1 if value>=2 else value
+            return str(new).zfill(len(m[0]))
+        return re.sub(r'\d+',shift,match[0])
+    text=re.sub(r'第\s*\d{1,2}(?:\s*[、，,/／–—-]\s*\d{1,2})*\s*节',numbers,text)
+    text=re.sub(r'\b[Ss]ections?\s*\d{1,2}(?:\s*(?:and|,|/|–|—|-)\s*\d{1,2})*',numbers,text)
+    text=re.sub(r'#section-\d{2}\b',numbers,text)
+    for i,original in enumerate(plan_refs,1):
+        text=text.replace('\x00planref'+chr(65+i)+'\x00',original)
+    return text
+
+
+def synthesis(lang,h):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    mixed_complete=all(any(x['node']==n and x['phase']=='mixed' and x['elapsed_s']>=7200 for x in h['soak']) for n in [0,1])
+    thermal_observation=T('计算、带宽与混合负载分别完成60／60／120分钟；驱动原因字段按采样覆盖解释。','Compute, bandwidth and mixed loads separately complete60/60/120minutes; driver reasons retain their sampled coverage.') if mixed_complete else T('计算／带宽各60分钟；混合阶段仅部分完成，驱动原因字段按采样覆盖解释。','Compute/bandwidth each cover60minutes; mixed work is partial, with driver reasons interpreted within sampled coverage.')
+    out=T('前面的实验分别给出资源上限、执行效率和用户体验。本节把这些观测联系起来：同一现象可以由多个机制产生，只有匹配工作量的对照才能缩小解释范围。下表将已建立的结论与仍需验证的机制分开。',
+        'The experiments establish resource ceilings, execution efficiency and user experience separately. This section connects them: multiple mechanisms can produce the same symptom, and matched-work controls narrow the explanation. The table separates established observations from mechanisms requiring validation.')
+    out+=table([T('维度','Dimension'),T('联合观测','Combined observations'),T('可支持的解释','Supported interpretation')],[
+      [T('计算与形状','Compute and shape'),T('矩阵规模／精度扫描、独立算子与引擎GPU轨迹。','Matrix size/dtype sweeps, standalone operators and engine GPU traces.'),T('实际速率依赖规模与实现；最高TFLOP/s不等于模型词元吞吐。缺少计算管线计数，不能确定唯一计算瓶颈。','Achieved rate depends on shape and implementation; peak TFLOP/s is not model token throughput. Missing pipeline counters prevent unique compute attribution.')],
+      [T('内存与协作','Memory and coordination'),T('8 GiB复制约223–227 GB/s；1 GiB AllReduce总线口径约21.81 GB/s。','8 GiB copy: about223–227 GB/s;1 GiB AllReduce bus rate: about21.81 GB/s.'),T('本地读写与跨节点同步有不同资源预算；各自字节口径不同，不能用两者比值推算模型加速。','Local access and inter-node synchronization have different resource budgets and byte accounting; their ratio is not a model speedup.')],
+      [T('并发与等待','Concurrency and waiting'),T('短题库并发1→8，合计吞吐45.1→158.9词元/s；单请求词元耗时随之增加。','On short prompts,C=1→8 raises aggregate output45.1→158.9tokens/s while per-request token time increases.'),T('并发提升系统处理量，需同时检查用户等待；未建立无限扩展或长期容量。','Concurrency raises system output; user waiting must be checked alongside it. Neither unlimited scaling nor long-term capacity is established.')],
+      [T('缓存与上下文','Cache and context'),T('公网复用诊断、节点词元计数和原生引擎立即复用分别计量。','Public reuse diagnostics, node token counters and native immediate repeats are measured separately.'),T('重复输入、实际缓存量和等待收益是三个量；短时复用不能证明任意业务的保留期限。','Repeated input, cached tokens and waiting benefit are distinct. Short reuse tests do not establish retention for arbitrary business traffic.')],
+      [T('温度与保持率','Temperature and retention'),thermal_observation,T('可评价已测分段的性能保持；温度阈值、驱动限速和性能损失不能互相替代。','Retention is assessable within observed segments. A temperature threshold, driver throttling and performance loss are distinct observations.')],
+    ])
+    out+='\n\n'+T('统计解释采用四类证据：直接观测、匹配对照、官方规格、经济情景。仅前两类来自本次性能实验；对照存在顺序效应、样本量或资源状态限制时随表注明。',
+        'Interpretation distinguishes direct observations, matched comparisons, official specifications and economic scenarios. Only the first two are performance experiments here; ordering, sample-size and resource-state limits accompany comparisons.')
+    if any(x.get('returncode')==0 and any(m.get('value','').lower() not in ['', 'n/a', 'nan'] for m in x.get('metrics',[])) for x in h.get('counter_retry',{}).get('nodes',{}).values()):
+        out+=' '+T('硬件计数器仅覆盖单核函数诊断探针；尚缺代表性硬件与模型工作负载的计数，不能据此推导模型Roofline。','Hardware counters cover only a single-kernel diagnostic probe; representative hardware/model workloads remain unprofiled, preventing model roofline attribution.')
+    else:
+        out+=' '+T('未取得可用的设备计数器数据，因此不提供硬件缓存命中率或严格的模型Roofline归因。','Unavailable hardware-counter data prevents cache-hit-rate reporting and rigorous model roofline attribution.')
+    return out
+
+
+def conclusions(lang,h,cost_rows):
+    from build_report import table
+    from hardware_h200_report import evidence
+    T=lambda z,e:z if lang=='zh' else e
+    e=evidence(h)
+    mixed=[x['elapsed_s']/60 for x in h['soak'] if x['phase']=='mixed']
+    mixed_minutes=min(mixed) if mixed else 0
+    mixed_complete=len(mixed)==2 and mixed_minutes>=120
+    out=T('本次测评建立了双DGX Spark在当前模型、引擎配置和已测负载下的分层性能基线。部署判断应同时满足容量、等待、处理量和成本要求；以下结论分别对应前文可复核的数据。',
+        'This evaluation establishes a layered baseline for two DGX Spark nodes under the tested model, engine and workloads. Deployment decisions require capacity, waiting, throughput and cost to be considered together; each conclusion below maps to reproducible preceding evidence.')
+    rows=[
+      [T('数据供给与通信','Data supply and communication'),T('8 GiB连续复制223–227 GB/s；1 GiB AllReduce约21.81 GB/s。','8 GiB contiguous copy223–227 GB/s;1 GiB AllReduce about21.81 GB/s.'),T('用于相同条件的资源基线；不是模型吞吐预测。','A resource baseline under matching conditions, not a token-throughput prediction.')],
+      [T('引擎阶段','Engine stages'),T('单并发、固定256输出的解码中位速率49.8–60.2词元/s，随已测输入长度变化。','At C=1 and256fixed output tokens, median decode rates span49.8–60.2tokens/s across tested input lengths.'),T('原生合成负载；阶段时间含引擎调度边界。','Native synthetic loads; stage timing includes engine scheduling boundaries.')],
+      [T('公网并发','Public concurrency'),T('并发8合计158.9词元/s，正文首字95分位2.39 s；相对并发1合计吞吐约3.52倍。','C=8 aggregates158.9tokens/s with visible-content p95 of2.39s; throughput is about3.52×C=1.'),T('60条短提示库、实际完整区组；不是服务承诺。','The60-prompt short-input bank and eligible complete blocks; not a service guarantee.')],
+      [T('长输入与长输出','Long input and output'),T('并发4、输出上限512时，输入512→32,768对应正文首字中位1.48→37.02 s；长度扩展中达到目标的最大输出为4,096。','At C=4 and output cap512, input512→32,768 changes median visible wait1.48→37.02s; the largest achieved target output in the extension is4,096.'),T('256K是配置边界；未建立256K实际输出能力。','256K is the configured boundary; actual256K output is not established.')],
+      [T('前缀复用','Prefix reuse'),T('节点有效活动窗口的词元加权缓存比例为20.3%；原生复用结果按输入长度分别报告。','Token-weighted cache fraction is20.3% in eligible active node windows; native reuse is reported by input length.'),T('混合窗口统计不是逐请求命中率，不能外推长期保留。','Mixed-window statistics are not per-request hit rates or evidence of long retention.')],
+      [T('持续与热状态','Sustained and thermal behavior'),T(f'两节点计算、带宽各完成60分钟；混合负载两节点共同覆盖{mixed_minutes:.1f}分钟。',f'Both nodes completed60minutes each of compute and bandwidth; the common mixed-load coverage is{mixed_minutes:.1f}minutes.'),T('分段证据，不构成连续4小时可靠性验证。','Segmented evidence, not four-hour continuous reliability validation.')],
+      [T('H200技术参照','H200 technical reference'),T('单设备容量相近，H200标称本地内存带宽更高；设备协作路径与功耗边界不同。','Per-device capacities are similar; H200 specifies higher local-memory bandwidth, with different cooperation paths and power boundaries.'),T('无H200同负载实测，不能给出推理性价比排名。','No matched H200 run supports an inference value-for-money ranking.')],
+    ]
+    out+=table([T('维度','Dimension'),T('结论','Finding'),T('适用范围','Applicability')],rows)
+    if cost_rows:
+        out+='\n\n'+table([T('经济用途','Economic use'),T('情景结果','Scenario result'),T('关键条件','Key conditions')],[[cell.strip() for cell in row.strip().strip('|').split('|')] for row in cost_rows])
+    out+='\n\n### '+T('局限与后续工作','Limitations and future work')
+    out+=table([T('优先级','Priority'),T('待解决的不确定性','Open uncertainty'),T('后续实验与验收依据','Next experiment and assessment')],[
+      ['1',T('跨时段持续性','Sustained behavior across periods') if mixed_complete else T('混合负载持续性','Sustained mixed load'),T('在独立日期与环境温度下复验持续负载，检查性能保持与退避频率是否可重复。','Repeat sustained work on independent dates and ambient conditions to assess reproducibility of retention and cooling frequency.') if mixed_complete else T('完成混合负载，分别报告有效计算速率及包含冷却的阶段墙钟吞吐；执行状态见第04节。','Complete mixed work and report both compute rates and phase-wall throughput including cooling; execution status is in section04.')],
+      ['2',T('长输出的真实可达范围','Realized long-output range'),T('用固定生成条件验证更长输出，并分别报告自然结束与强制长度；不把输出上限当完成量。','Verify longer outputs under controlled generation; separate natural stopping from fixed length rather than treating caps as realized work.')],
+      ['3',T('缓存保留与业务服务目标','Retention and service objectives'),T('固定真实业务分布，增加独立时间段和竞争请求，关联逐请求缓存量、等待与达标吞吐。','Hold a representative traffic distribution fixed, add independent periods and competing requests, and link per-request reuse to waiting and goodput.')],
+      ['4',T('硬件机制与H200可比收益','Hardware mechanism and matched H200 benefit'),T('在同模型、精度、长度、并发及缓存条件下对照；补齐计数器、通信路径和同轨迹分析。','Compare identical model, precision, lengths, concurrency and cache states; add counters, verified transport and same-trace analysis.')],
+      ['5',T('实际持有成本','Real ownership cost'),T('用插座电表、真实利用率、采购报价及运营费用替换情景输入，再复算1／3／5年回报。','Replace scenarios with wall-meter energy, actual utilization, purchase quotes and operating expenses before recomputing1/3/5-year returns.')],
+    ])
+    return out

@@ -1,0 +1,79 @@
+"""Self-contained bilingual cache protocol, observed results and bounded conclusions."""
+import json
+from common import ROOT
+
+def data():return json.loads((ROOT/'reports/cache_analysis.json').read_text())
+def methods(lang):
+ from build_report import table
+ T=lambda z,e:z if lang=='zh' else e
+ rows=[
+ ['72',T('业务 × 复用 × 并发','Business × reuse × concurrency'),T('工单分类512→64、多轮助理8,192→512、摘要32,768→128；并发1／4；各4个独立前缀，每个首次、50%共享、100%重复。','Triage 512→64, dialogue 8,192→512, summary 32,768→128; concurrency 1/4; four independent prefixes per condition, each with seed, 50% overlap and exact repeat.')],
+ ['36',T('空闲保留','Idle retention'),T('8,192／32,768输入 × 名义等待0／30／300秒 × 3个独立前缀 × 首次与探测。每个前缀只做一次终点探测。','8,192/32,768 input × nominal waits 0/30/300 s × three independent prefixes × seed/probe. Each prefix receives one terminal probe.')],
+ ['24',T('竞争与恢复','Competition and recovery'),T('3个独立8,192词元锚点；首次→立即复测→4个独立32,768词元干扰请求→锚点复测→再次复测。','Three independent 8,192-token anchors: seed → baseline repeat → four distinct 32,768-token distractors → post-pressure repeat → recovery repeat.')],
+ ['28',T('周期复用稳定性','Periodic-reuse stability'),T('4个8,192词元前缀；预热4次后，并发4，每120秒复测一轮，共6轮；计划跨度10分钟。','Four 8,192-token prefixes; four seeds, then six repeat rounds at concurrency four, spaced 120 s apart; planned span ten minutes.')],
+ ['0',T('持续负载中的缓存变化','Cache under sustained load'),T('复用独立到达与持续运行测试，按约60秒有效窗口统计缓存比例、首字延迟和缓存占用，不额外发请求。','Reuse arrival and soak tests; approximately 60-second valid windows align cache fraction, TTFT and occupancy. No extra generation calls.')]]
+ return '\n\n#### '+T('缓存专项：覆盖范围与样本','Cache diagnostics: scope and samples')+'\n\n'+T('原有两档长度、六档共享比例的144次对照保留，另增加以下160次诊断。箭头为目标输入→输出上限，均使用温度0、关闭思考；同一复用对的生成参数保持一致。','The existing 144-call, two-length/six-overlap design is retained. The following 160 diagnostics are added. Arrows denote target input → output cap; temperature is zero and reasoning is disabled, with identical generation settings within each reuse pair.')+table([T('调用数','Calls'),T('测试','Test'),T('条件与含义','Conditions and meaning')],rows)+'\n\n'+T('三类交叉业务覆盖短输入、中长会话和长文档；其余五类业务仍保留原有性能测量，不外推缓存结论。不同并发使用独立前缀，50%／100%探测顺序交替；首次请求只是新前缀参照，不保证底层缓存为空。空闲实际间隔从首次响应完成到探测发送；0秒表示不主动等待，监控边界采样仍有开销。计划偏差、重试、监控缺口和计数不匹配单独标记，不纳入缓存归因。','The three crossed shapes represent short input, conversation and long documents. The other five retain their original performance measurements, without extrapolated cache findings. Concurrency arms use independent prefixes; 50%/100% probe order alternates. A seed is a fresh-prefix reference, not proof of an empty engine cache. Actual idle time runs from seed completion to probe dispatch; zero denotes no intentional wait, with telemetry overhead retained. Timing deviations, retries, telemetry gaps and counter mismatches are flagged and excluded from cache attribution.')
+
+def definitions(lang):
+ from build_report import table
+ T=lambda z,e:z if lang=='zh' else e
+ rows=[
+ [T('输入前缀重合比例','Input-prefix overlap'),T('完整聊天模板的最长公共词元前缀长度／探测输入长度。属于受控输入结构。','Longest common token prefix over the full chat template / probe input length. A controlled input property.')],
+ [T('逐请求缓存词元比例','Per-request token-cache fraction'),T('仅在字段有效的请求中，已缓存输入词元总数／输入词元总数；同时给出字段覆盖数／完整请求数。','Sum of cached input tokens / sum of input tokens for requests with valid fields, accompanied by field coverage / complete responses.')],
+ [T('有命中的请求比例','Fraction of requests with a hit'),T('有效字段中缓存词元>0的请求数／有效字段请求数；模板少量命中也计入，不代表整段输入复用。','Requests with cached tokens >0 / requests with valid cache fields. A small template hit counts; it does not imply full-input reuse.')],
+ [T('窗口缓存词元比例','Window token-cache fraction'),T('同一服务窗口的累计缓存量增量／累计输入量增量；检查新鲜度、计数复位、服务标识及与请求计数的一致性，只取头节点一次。','Endpoint cached-counter delta / prompt-counter delta; check freshness, resets, identity and receipt agreement. Count the head endpoint once.')],
+ [T('配对等待收益','Paired waiting change'),T('首次正文首字延迟−重复请求正文首字延迟，正值表示重复请求更快；另列相对变化。网络、执行顺序和负载可能共同影响，不直接称为缓存因果加速。','Seed visible TTFT minus repeat TTFT; positive means the repeat was faster. Relative changes are separate. Network, order and load may contribute; this is not isolated causal acceleration.')],
+ [T('保留、竞争与恢复','Retention, competition and recovery'),T('按实际空闲间隔比较缓存比例；竞争后与立即复测相比，观察比例下降和等待增加；再次重复观察恢复。只对已施加的压力与时长成立。','Compare cache fractions by actual idle gap; compare post-pressure with baseline for cache loss and extra waiting, then examine recovery. Findings apply only to tested pressure and intervals.')],
+ [T('时间稳定性与覆盖','Temporal stability and coverage'),T('报告有效窗口数／全部窗口数、实际跨度、词元加权平均、范围及至少3个有效窗口时的标准差；监控缺失、复位不补零或跨段相连。','Report valid / all windows, observed span, token-weighted mean, range and SD for at least three valid windows. Missing or reset intervals are neither zero-filled nor connected.')]]
+ return table([T('缓存指标','Cache metric'),T('定义与判定','Definition and interpretation')],rows)
+
+def conclusion(lang):
+ r=data();T=lambda z,e:z if lang=='zh' else e;valid=[w for w in r['windows'] if w.get('window',{}).get('valid')];n=r['supplement_completed']
+ if not n:summary=T(f'完整响应 {r["complete_total"]:,} 次中，仅 {r["cache_fields"]} 次具有可用源站逐请求缓存字段，无法估计本次负载的总体请求命中率。160次专项诊断尚未形成结果；当前不确认缓存保留时长、抗逐出能力或长期稳定性。',f'Only {r["cache_fields"]} of {r["complete_total"]:,} complete responses have usable upstream per-request cache fields, so an overall request-hit fraction is not estimable. The 160-call supplement has no results yet; retention duration, eviction resistance and long-term stability remain unestablished.')
+ if n:summary=T(f'缓存专项已完成 {n}/160 次调用，获得 {len(valid)} 个可归因计数窗口。结论按业务、实际空闲间隔、竞争压力与周期分别阅读；未完成或计数不满足条件的格子仍无结论。',f'The supplement has completed {n}/160 calls with {len(valid)} attributable counter windows. Interpret business, actual idle gaps, pressure and periodic reuse separately; incomplete or invalid cells remain unresolved.')
+ pairs=r.get('reuse_pairs',[])
+ if pairs:summary+=' '+T(f'已有 {len(pairs)} 对首次／重复观察，其中 {sum(x["reduction_s"]>0 for x in pairs)} 对重复访问首字更快；这只支持等待差异观察，尚不能确认缓存因果收益。',f'Across {len(pairs)} observed first/repeat pairs, {sum(x["reduction_s"]>0 for x in pairs)} repeats have lower TTFT. This supports a waiting-time observation, not isolated causal cache benefit.')
+ bins=[b for b in r['time_bins'] if b['token_fraction'] is not None]
+ if bins:
+  ratio=sum(b['cached_delta'] for b in bins)/sum(b['prompt_delta'] for b in bins)
+  summary+=' '+T(f'节点计数的 {len(bins)} 个有效活动窗口记录到 {ratio:.1%} 的词元加权缓存比例；这是该时段混合输入的观测值，不是逐请求命中率或长期稳定性结论。',f'Across {len(bins)} valid active node-counter windows, the token-weighted cached fraction is {ratio:.1%}. This describes the input mix in those windows, not per-request hits or long-term stability.')
+ return summary
+
+def results(lang):
+ from build_report import table,fmt
+ from report_results_expansion import chart
+ from report_labels import phase_name
+ T=lambda z,e:z if lang=='zh' else e;r=data();text='\n\n### '+T('缓存命中与稳定性','Cache reuse and stability')+'\n\n'
+ text+=T('前缀缓存保存已处理输入的中间状态，使后续相同开头有机会减少输入计算。是否能复用，取决于前缀一致性、缓存驻留和调度；缓存占用率反映存储状态，本身不等于命中率。','A prefix cache retains intermediate states for processed input so later matching prefixes may reduce input computation. Reuse depends on prefix equality, residency and scheduling. Cache occupancy describes storage state; it is not a hit fraction.')
+ text+=methods(lang)
+ text+=chart('CACHE_PROTOCOL','缓存验证顺序｜从输入复用到空闲保留、竞争恢复和时间变化；图示均为计划条件。','Cache evaluation sequence | Reuse, idle retention, pressure/recovery and temporal behavior. Conditions are prospective.',lang)
+ text+='\n\n#### '+T('实际观测与证据覆盖','Observed evidence and coverage')+'\n\n'+conclusion(lang)
+ text+=table([T('负载组','Workload'),T('完整响应','Complete'),T('缓存字段有效／缺失','Cache fields valid / missing')],[[phase_name(x['phase'],lang),x['complete'],f'{x["known"]} / {x["missing"]}'] for x in r['coverage'] if x['complete']])
+ if r['reuse_summary']:
+  text+='\n\n'+T('已有首次／完全重复序列的配对等待结果如下。这里“首次”是序列内的首次访问，不能保证系统此前没有相同前缀；表中差值先逐对计算，再取中位数。','Paired waiting observations from existing first/exact-repeat sequences follow. First denotes first within the sequence, not guaranteed absence of prior cache state. Differences are calculated per pair before taking the median.')
+  text+=table([T('附加历史词元','History tokens'),T('配对数','Pairs'),T('实际输入中位','Input median'),T('首次首字 s','First TTFT s'),T('重复首字 s','Repeat TTFT s'),T('配对减少 s','Paired reduction s'),T('重复更快','Repeat faster')],[[g['history_tokens'],g['n'],fmt(g['input_median'],0),fmt(g['first_median_s'],2),fmt(g['repeat_median_s'],2),fmt(g['reduction_median_s'],2),f'{g["faster"]}/{g["n"]}'] for g in r['reuse_summary']])
+ text+='\n\n'+T('覆盖表只将原始源站用量中的缓存字段视为有效；网关标准化响应中的零值若尚未与源站字段核对，保留为待核验，不进入命中率分母。','Coverage counts cache fields in original upstream usage only. Zeros in gateway-normalized responses remain unverified until matched to upstream fields and are excluded from hit-fraction denominators.')
+ text+=T('\n\n已保存的SGLang配置为 `enable_cache_report=false`，同时前缀缓存开启。因此，缺少逐请求字段不能解释为没有命中。SparkDash提供累计输入与缓存计数；专项测试使用隔离区组前后的新鲜增量，并与同区组请求量核对。接口字段、节点累计量及其观测覆盖分别保存。','\n\nThe archived SGLang configuration has `enable_cache_report=false` while prefix caching is enabled. Missing per-request fields therefore do not establish a miss. SparkDash exposes cumulative prompt and cached-token counters; isolated diagnostic blocks use fresh boundary deltas reconciled with the same requests. API fields, node counters and their coverage remain separate.')
+ text+=' [SGLang v0.5.21](https://github.com/sgl-project/sglang/blob/v0.5.21/python/sglang/srt/entrypoints/openai/usage_processor.py) · [SparkDash '+T('计数实现','counter implementation')+'](https://github.com/MiaAI-Lab/sparkDash/blob/d94450b0da3e57c5998ced9dc971e0038ff896d4/server/collectors/LlmProbe.js)'
+ text+=chart('CACHE_EVIDENCE','证据覆盖｜左侧为逐请求缓存字段可用比例，右侧为专项调用完成比例；均不是缓存命中率。','Evidence coverage | Left: per-request cache-field availability. Right: completed diagnostic calls. Neither is a cache-hit rate.',lang)
+ if r['groups']:
+  roles={'seed':T('首次','Seed'),'shared50':'50%','repeat100':'100%','probe':T('复测','Probe'),'baseline':T('立即复测','Baseline'),'post':T('竞争后','Post-pressure'),'recovery':T('再次复测','Recovery')};families=dict(business=T('业务','Business'),retention=T('空闲','Idle'),competition=T('竞争','Pressure'),periodic=T('周期','Periodic'))
+  rows=[]
+  for g in r['groups']:
+   if g['role'].startswith('pressure'):continue
+   label=families[g['family']]+' / '+(g['shape'] or str(g['input_target']))+' / '+roles.get(g['role'],g['role'])
+   if g['target_delay_s'] is not None:label+=f' / {g["target_delay_s"]} s'
+   if g['epoch'] is not None:label+=' / '+str(g['epoch']+1)
+   rows.append([label,g['concurrency'],g['n'],fmt(g['ttft_median_s'],2),fmt(g['paired_reduction_median_s'],2),str(g['valid_counter_windows'])+' / '+(fmt(g['counter_fraction']*100,1)+'%' if g['counter_fraction'] is not None else '—')])
+  text+=table([T('条件','Condition'),T('并发','Conc.'),'n',T('首字中位 s','TTFT median s'),T('配对减少 s','Paired reduction s'),T('有效窗口／缓存%','Valid windows / cache %')],rows)
+ text+='\n\n#### '+T('运行期间的缓存变化','Cache variation over time')+'\n\n'
+ bins=[x for x in r['time_bins'] if x['token_fraction'] is not None];den=sum(x['prompt_delta'] for x in bins)
+ if bins:
+  ratios=[x['token_fraction'] for x in bins];text+=T(f'已获得 {len(bins)} 个有输入量的有效计数窗口，词元加权缓存比例为 {sum(x["cached_delta"] for x in bins)/den:.2%}，窗口范围 {min(ratios):.2%}–{max(ratios):.2%}。这些窗口可能包含不同测试负载，只用于描述时间变化，不作为缓存保留或稳定命中的证明。',f'{len(bins)} valid windows contain prompt activity, with a token-weighted cache fraction of {sum(x["cached_delta"] for x in bins)/den:.2%} and a window range of {min(ratios):.2%}–{max(ratios):.2%}. Windows may contain different workloads; they describe temporal behavior rather than proving retention or stable hits.')
+  if len(ratios)>=3:
+   import statistics
+   text+=' '+T(f'窗口比例标准差为 {statistics.stdev(ratios)*100:.2f} 个百分点。',f'The sample SD across window fractions is {statistics.stdev(ratios)*100:.2f} percentage points.')
+ else:text+=T('尚无满足时长、新鲜度和计数条件的有输入窗口；图中保留“待形成有效窗口”，不绘制零命中曲线。','No active-input windows yet meet duration, freshness and counter checks. The chart shows pending evidence rather than a zero-hit curve.')
+ text+=chart('CACHE_TIMELINE','时间观察｜约60秒窗口的计数增量比例与同期首字延迟；不同工作负载的变化不能直接归因于缓存。','Time observation | Counter-delta fractions in approximately 60-second windows with contemporaneous TTFT; workload changes prevent simple causal attribution.',lang)
+ text+='\n\n#### '+T('判定与后续验证','Interpretation and further validation')+'\n\n'+T('只有同一参数、完整响应、无重试且计数核对通过的区组，才给出区组缓存词元比例；并发区组无法拆成逐请求命中率。空闲组每个前缀只探测一次，避免探测本身刷新保留状态；竞争实验只覆盖约131,072个干扰输入词元，不声称达到缓存容量上限。周期实验只有10分钟计划跨度，连续负载按实际执行时长报告。下一步以真实业务热度分布、更多独立时段及不同竞争强度验证可重复性；容量与成本模型暂不加入未经验证的缓存收益。','Only matched-parameter, complete, retry-free blocks with reconciled counters receive block token-cache fractions; concurrent blocks do not yield per-request hit fractions. Idle prefixes are probed once to avoid refreshing retention. Pressure tests insert about 131,072 distractor input tokens, without claiming cache-capacity exhaustion. Periodic reuse spans ten planned minutes; sustained load uses actual observed duration. Further work should vary business popularity, independent periods and competition strength. Capacity and cost models receive no unverified cache benefit.')
+ return text

@@ -1,0 +1,43 @@
+import json,time,tempfile,unittest
+from pathlib import Path
+import httpx
+from common import dump
+from runner import Runner
+from cf_retry import is_cf_error
+from test_runner import Bytes
+
+class Retry(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
+        dump(self.root/'run.json',{'run_id':'test','prior_reserved_usd':0,'deadline_epoch':time.time()+60})
+        dump(self.root/'protocol/cf_retry_policy.json',{'enabled':True,'max_retries':2,'max_total_retries':10,'backoff_seconds':[0,0]})
+        self.runner=Runner(self.root,False);self.case={'id':'test','phase':'P1','cell':'P1_none_c1','messages':[{'role':'user','content':'test'}],'max_tokens':32}
+    async def test_cf_then_success_preserves_both_attempts_and_reserves(self):
+        calls=[]
+        def handler(req):
+            calls.append(req.content)
+            return httpx.Response(502,text='<html>Cloudflare</html>') if len(calls)==1 else httpx.Response(200,stream=Bytes())
+        async with httpx.AsyncClient(base_url='https://offline.invalid',transport=httpx.MockTransport(handler)) as c:
+            r=await self.runner.case(c,self.case)
+            await self.runner.case(c,self.case)
+        self.assertEqual(len(calls),2);self.assertEqual(calls[0],calls[1]);self.assertEqual(r['state'],'received')
+        self.assertEqual(len(self.runner.ledger['entries']),2);self.assertEqual(r['retry_of'],'test')
+        self.assertTrue(is_cf_error(json.loads((self.root/'runs/requests/test/result.json').read_text())))
+        self.assertGreater(self.runner.reserved(),self.runner.ledger['entries']['test']['reserved_usd'])
+    async def test_bounded_cf_retries_stop(self):
+        async with httpx.AsyncClient(base_url='https://offline.invalid',transport=httpx.MockTransport(lambda req:httpx.Response(530,text='cloudflare error 1033'))) as c:
+            await self.runner.case(c,self.case)
+        self.assertEqual(len(self.runner.ledger['entries']),3);self.assertTrue((self.root/'STOP').exists())
+    async def test_generic_502_not_retried(self):
+        async with httpx.AsyncClient(base_url='https://offline.invalid',transport=httpx.MockTransport(lambda req:httpx.Response(502,text='internal application error'))) as c:
+            await self.runner.case(c,self.case)
+        self.assertEqual(len(self.runner.ledger['entries']),1)
+    async def test_budget_applies_to_retry(self):
+        def handler(req):
+            self.runner.ledger['prior_reserved_usd']=499.999
+            return httpx.Response(502,text='cloudflare')
+        async with httpx.AsyncClient(base_url='https://offline.invalid',transport=httpx.MockTransport(handler)) as c:
+            r=await self.runner.case(c,self.case)
+        self.assertEqual(len(self.runner.ledger['entries']),1);self.assertEqual(r['state'],'not_sent')
+
+if __name__=='__main__':unittest.main()

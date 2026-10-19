@@ -1,0 +1,12 @@
+# Frozen evidence must retain its byte-level hashes on every platform.
+experiments/** -text
+reference/** -text
+*.py text eol=lf
+*.cu text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.svg -text linguist-generated=true
+*.html -text linguist-generated=true
+*.csv -text
+*.pdf binary

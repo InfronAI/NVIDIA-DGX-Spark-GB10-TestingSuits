@@ -1,0 +1,73 @@
+"""Offline checks for costly-execution guards and SSE measurement, no network."""
+import asyncio
+import json
+import tempfile
+import time
+import unittest
+from pathlib import Path
+import httpx
+from common import dump
+from runner import Events, Runner
+
+class Bytes(httpx.AsyncByteStream):
+    async def __aiter__(self):
+        chunks=[{'choices':[{'delta':{'role':'assistant'}}]}, {'choices':[{'delta':{'reasoning':'思考'}}]}, {'choices':[{'delta':{'content':'many tokens in one event'}}]}, {'choices':[{'delta':{},'finish_reason':'stop'}]}, {'usage':{'prompt_tokens':10,'completion_tokens':8},'request_id':'offline_1'}]
+        for obj in chunks:
+            data=('data: '+json.dumps(obj,ensure_ascii=False)+'\r\n\r\n').encode()
+            cut=len(data)//2
+            yield data[:cut];await asyncio.sleep(.002);yield data[cut:]
+        yield b'data: [DONE]\n\n'
+
+class Guards(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.calls=0
+        dump(self.root/'run.json',{'run_id':'offline','prior_reserved_usd':7.8,'deadline_epoch':time.time()+60})
+        self.runner=Runner(self.root,require_monitor=False)
+        def handle(req):
+            self.calls+=1
+            self.assertTrue((self.root/'runs/requests/p0_test/started.json').exists())
+            self.assertEqual(json.loads(req.content)['provider']['allow_fallbacks'],False)
+            return httpx.Response(200,stream=Bytes())
+        self.client=httpx.AsyncClient(base_url='https://offline.invalid',transport=httpx.MockTransport(handle))
+        self.case={'id':'p0_test','phase':'P0','messages':[{'role':'user','content':'test'}],'max_tokens':32}
+    async def asyncTearDown(self):
+        await self.client.aclose();self.tmp.cleanup()
+    async def test_sse_and_no_replay(self):
+        r=await self.runner.case(self.client,self.case)
+        self.assertEqual(r['state'],'received');self.assertEqual(r['reasoning'],'思考')
+        self.assertLess(r['timing']['first_generated_s'],r['timing']['first_visible_s'])
+        self.assertEqual(r['generated_event_count'],2);self.assertIsNone(r['first_event_token_count'])
+        self.assertAlmostEqual(r['timing']['tpot_compat_s'],(r['timing']['e2e_s']-r['timing']['first_generated_s'])/7)
+        self.assertGreater((self.root/'runs/requests/p0_test/response.sse').stat().st_size,0)
+        await self.runner.case(self.client,self.case);self.assertEqual(self.calls,1)
+    async def test_budget_and_prior_carry(self):
+        self.runner.ledger['prior_reserved_usd']=499.9999
+        r=await self.runner.case(self.client,self.case)
+        self.assertEqual(self.calls,0);self.assertIn('reservation',r['reason'])
+    async def test_deadline(self):
+        self.runner.ledger['deadline_epoch']=time.time()-1
+        await self.runner.case(self.client,self.case);self.assertEqual(self.calls,0)
+    async def test_stop(self):
+        (self.root/'STOP').write_text('user pause')
+        await self.runner.case(self.client,self.case);self.assertEqual(self.calls,0)
+    async def test_unknown_not_replayed(self):
+        self.runner.ledger['entries']['p0_test']={'phase':'P0','state':'started','reserved_usd':1}
+        await self.runner.case(self.client,self.case);self.assertEqual(self.calls,0)
+    async def test_phase_ceiling(self):
+        self.runner.ledger['entries']={str(i):{'phase':'P0','state':'received','reserved_usd':.01} for i in range(12)}
+        r=await self.runner.case(self.client,self.case);self.assertEqual(self.calls,0);self.assertEqual(r['reason'],'request ceiling')
+    async def test_missing_monitor_blocks_real_mode(self):
+        self.runner.require_monitor=True
+        r=await self.runner.case(self.client,self.case);self.assertEqual(self.calls,0);self.assertEqual(r['reason'],'monitor has not started')
+    async def test_timeout_stops_without_retry(self):
+        self.case['timeout_s']=.001
+        r=await self.runner.case(self.client,self.case)
+        self.assertEqual(r['state'],'timeout');self.assertTrue((self.root/'STOP').exists())
+        await self.runner.case(self.client,self.case);self.assertEqual(self.calls,1)
+    async def test_usage_missing_is_explicit(self):
+        r={'timing':{},'content':'','reasoning':'','done':False,'usage':None,'finish_reason':None}
+        p=Events(r,lambda _:None)
+        p.feed(b'data: {"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',1)
+        self.assertTrue(r['done']);self.assertIsNone(r['usage'])
+
+if __name__=='__main__':unittest.main()

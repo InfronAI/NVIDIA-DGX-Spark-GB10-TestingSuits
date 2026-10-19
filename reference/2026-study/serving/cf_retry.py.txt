@@ -1,0 +1,38 @@
+"""User-authorized CF retry classification; ambiguous outcomes never qualify."""
+import json
+from common import dump,utc,digest
+
+def policy(root):
+    p=root/'protocol/cf_retry_policy.json'
+    return json.loads(p.read_text()) if p.exists() else {}
+
+def is_cf_error(result):
+    return result.get('state')=='http_error' and result.get('status') in [502,503,504,520,521,522,523,524,525,526,530] and 'cloudflare' in result.get('body','').lower()
+
+def logical_id(result):
+    return result.get('retry_of') or result['id']
+
+def discover_receipts(client,root,results,known):
+    """SELECT-only exact payload/time matching for CF responses lacking IDs."""
+    path=root/'evidence/cf_retry_associations.json'
+    saved=json.loads(path.read_text()) if path.exists() else {}
+    for r in results:
+        if not is_cf_error(r) or r['id'] in known or r.get('request_id') or r.get('response_request_id'):continue
+        request_path=root/'runs/requests'/r['id']/'request.json'
+        if r['id'] in saved:
+            assert saved[r['id']]['request_sha256']==digest(request_path)
+            continue
+        lo=int(r['start_epoch'])-2;hi=int(r['end_epoch'])+2
+        logs=client.query(f'SELECT id,request_id,created_at FROM logs WHERE created_at>={lo} AND created_at<={hi} AND model_provider_id=2084 AND channel_id=2538 AND type=6 LIMIT 50').rows
+        if not logs:continue
+        contents=client.query('SELECT id,original_request_json FROM log_contents WHERE id IN ('+','.join(str(x['id']) for x in logs)+')').rows
+        payload=json.loads(request_path.read_text());matches=[]
+        for row in contents:
+            try:equal=json.loads(row['original_request_json'])==payload
+            except ValueError:equal=False
+            if equal:matches.extend(x for x in logs if x['id']==row['id'])
+        if len(matches)==1:
+            saved[r['id']]={'utc':utc(),'request_id':matches[0]['request_id'],'log_id':matches[0]['id'],'request_sha256':digest(request_path),'basis':'exact original JSON equality and bounded time window'}
+        elif len(matches)>1:raise RuntimeError('Ambiguous CF receipt association '+r['id'])
+    dump(path,saved)
+    return {k:v['request_id'] for k,v in saved.items()}

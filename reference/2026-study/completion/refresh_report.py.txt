@@ -1,0 +1,82 @@
+"""Offline delivery for the active finite experiment sequence; no model calls."""
+import argparse
+import datetime
+import fcntl
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+E=Path(__file__).resolve().parent; R=E.parent
+REPORT_PY='/tmp/growthpulse-morphic-report-311/bin/python'
+EVAL_PY='/tmp/gp-qwen38-eval/bin/python'
+
+
+def utc():return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def write(path,data):
+    temp=path.with_suffix('.tmp');temp.write_text(json.dumps(data,ensure_ascii=False,indent=2));temp.replace(path)
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--final',action='store_true');parser.add_argument('--redraw',action='store_true');parser.add_argument('--plan',action='store_true');args=parser.parse_args()
+    outer=(R/'hardware_report_finalize.lock').open('a');fcntl.flock(outer,fcntl.LOCK_EX)
+    state={'started_utc':utc(),'state':'rendering','passed':False,'final_requested':args.final,'steps':[]}
+    protected=json.loads((R/'evidence/visual_system_revision_20261017/measurement_inputs.json').read_text())
+    def save():write(E/'delivery.json',dict(state,utc=utc()))
+    def unchanged():
+        assert all(sha(R/p)==digest for p,digest in protected.items()),'Historical measurement inputs changed during presentation update'
+    save()
+    try:
+        unchanged()
+        with (E/'offline_build.log').open('a') as log:
+            commands=[(EVAL_PY,E/'analyze_completion.py'),(EVAL_PY,E/'figures.py')]
+            if args.redraw:commands.append((EVAL_PY,R/'redraw_report_figures.py'))
+            if args.plan:commands.append((REPORT_PY,R/'build_reviewed_plan.py'))
+            commands.extend([(REPORT_PY,R/'build_report.py'),(REPORT_PY,R/'verify_scientific_report.py'),(EVAL_PY,R/'validate_h200_comparison.py')])
+            for interpreter,path in commands:
+                state['current_step']=str(path.relative_to(R));save()
+                lock=None
+                if path.name=='build_report.py':
+                    lock=(R/'runs/report.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX)
+                try:subprocess.run([interpreter,str(path)],cwd=R,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=1800)
+                finally:
+                    if lock:lock.close()
+                state['steps'].append({'script':str(path.relative_to(R)),'utc':utc(),'passed':True})
+            validator=R/'verify_visual_system.py'
+            if validator.exists():
+                subprocess.run([REPORT_PY,str(validator)],cwd=R,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=600)
+                state['steps'].append({'script':validator.name,'utc':utc(),'passed':True})
+        unchanged()
+        summary=json.loads((E/'analysis/summary.json').read_text())
+        complete=summary.get('completion_ready',False)
+        if args.final and not complete:raise RuntimeError('Required experiments or exact service restoration remain incomplete')
+        # An interim renderer racing final collection cannot authorize a final delivery.
+        final_raw=(E/'archive_node0.json').exists() and (E/'archive_node1.json').exists()
+        if final_raw:
+            latest_archive=max(json.loads((E/f'archive_node{n}.json').read_text())['utc'] for n in [0,1])
+            if summary['generated_utc'] < latest_archive:
+                raise RuntimeError('New final archives arrived during rendering; refresh from the complete archive before delivery')
+        state.update(state='complete' if complete and final_raw else 'interim_report_verified',
+                     experiments_complete=bool(complete and final_raw),passed=True,
+                     files=[{'path':str(R/f'reports/report.{lang}.{ext}'),
+                             'sha256':sha(R/f'reports/report.{lang}.{ext}')} for lang in ['zh','en'] for ext in ['md','html','pdf']])
+        sys.path.insert(0,str(R))
+        from report_coverage import audit as coverage_audit
+        coverage=coverage_audit()
+        coverage_path=R/'evidence/coverage_clarification_20261017/audit.json'
+        coverage_path.parent.mkdir(parents=True,exist_ok=True)
+        write(coverage_path,coverage)
+        state.update(execution_complete=bool(complete and final_raw),
+                     evidence_coverage_complete=coverage['full_evidence_coverage'],
+                     completion_semantics='Executor termination and verified delivery do not imply complete experimental evidence coverage.',
+                     coverage_audit=str(coverage_path),coverage_audit_sha256=sha(coverage_path))
+        save()
+        write(E/('delivery_'+str(int(datetime.datetime.now().timestamp()))+'.json'),state)
+        print(json.dumps({k:state[k] for k in ['state','passed','experiments_complete']}))
+    except BaseException as exc:
+        state.update(state='failed',error=type(exc).__name__+': '+str(exc));save();raise
+
+
+if __name__=='__main__':main()

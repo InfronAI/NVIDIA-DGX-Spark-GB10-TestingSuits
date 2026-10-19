@@ -1,0 +1,65 @@
+"""Offline incident identity and missing-measurement regression checks."""
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from reconcile import associated_receipts
+from analyze import block_summary
+from metrics import block_rate_ci
+from continuation import validate_previous
+
+
+class IncidentEvidence(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name)
+        (self.root/'evidence').mkdir()
+        (self.root/'runs/requests/case').mkdir(parents=True)
+        self.payload={'model':'fixed-model','messages':[{'role':'user','content':'unique prompt'}]}
+        self.results=[{'id':'case','state':'http_error','start_epoch':100,'end_epoch':105}]
+        self.save('runs/requests/case/request.json',self.payload)
+        self.save('evidence/failure_associations.json',{'associations':[{'case_id':'case','request_id':'rid','log_id':17}]})
+        self.save('evidence/gateway_502_window_logs.json',[{'id':17,'request_id':'rid','type':6,'created_at':104}])
+        self.save('evidence/gateway_502_log_contents.json',[{'id':17,'original_request_json':json.dumps(self.payload)}])
+
+    def save(self,path,obj):
+        (self.root/path).write_text(json.dumps(obj))
+
+    def test_exact_reviewed_failure_is_associated(self):
+        self.assertEqual(associated_receipts(self.root,self.results),{'case':'rid'})
+        self.assertNotIn('request_id',self.results[0])
+
+    def test_different_payload_cannot_be_associated_by_time(self):
+        self.save('runs/requests/case/request.json',{'model':'another-model'})
+        with self.assertRaises(AssertionError):associated_receipts(self.root,self.results)
+
+    def test_same_payload_outside_window_is_rejected(self):
+        self.results[0].update(start_epoch=200,end_epoch=205)
+        with self.assertRaises(AssertionError):associated_receipts(self.root,self.results)
+
+    def test_missing_token_count_never_becomes_zero_throughput(self):
+        block={'id':'b','start_epoch':1,'end_epoch':5,'request_ids':['a','b']}
+        rows={'a':{'phase':'P3','state':'received','usage':{'completion_tokens':100}},'b':{'phase':'P3','state':'received','usage':None}}
+        summary=block_summary(block,rows)
+        self.assertIsNone(summary['output_tokens'])
+        self.assertIsNone(summary['output_tokens_s'])
+        self.assertIsNone(block_rate_ci([summary,summary]))
+
+class Continuation(unittest.TestCase):
+    def setUp(self):
+        self.old={'id':'block','request_ids':['ok','failed'],'sent':2,'completed':1,'planned':3}
+        self.ledger={'entries':{'ok':{'state':'received'},'failed':{'state':'http_error'}}}
+        self.resolution={'continue_unsent_block':'block','partial_block_sha256':'sha','service_unchanged':True,'no_replay':True,'reviewed_failed_cases':['failed']}
+    def test_reviewed_failures_can_be_retained_without_replay(self):
+        self.assertTrue(validate_previous(self.old,self.ledger,self.resolution,'sha'))
+    def test_unknown_outcomes_are_never_resumed(self):
+        self.ledger['entries']['failed']['state']='unknown'
+        with self.assertRaises(AssertionError):validate_previous(self.old,self.ledger,self.resolution,'sha')
+    def test_new_failure_does_not_inherit_review(self):
+        self.resolution['reviewed_failed_cases']=[]
+        with self.assertRaises(AssertionError):validate_previous(self.old,self.ledger,self.resolution,'sha')
+    def test_different_partial_receipt_invalidates_review(self):
+        with self.assertRaises(AssertionError):validate_previous(self.old,self.ledger,self.resolution,'another')
+
+
+if __name__=='__main__':unittest.main()

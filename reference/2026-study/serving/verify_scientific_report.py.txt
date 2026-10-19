@@ -1,0 +1,153 @@
+"""Offline validation of ordering, links, chart population and bilingual deliverables."""
+import json,re,subprocess,urllib.parse,fcntl
+from html.parser import HTMLParser
+from pathlib import Path
+from pypdf import PdfReader
+import pypdfium2 as pdf
+from common import ROOT,dump,utc,digest
+from report_chart_catalog import CHARTS
+
+class Scan(HTMLParser):
+    def __init__(self):
+        super().__init__();self.links=[];self.ids=[];self.figures=[];self.h2=[];self.txt=[];self.skip=0;self.heading=False
+    def handle_starttag(self,t,a):
+        a=dict(a)
+        if t in ['script','style']:self.skip+=1
+        if 'href' in a:self.links.append(a['href'])
+        if 'id' in a:self.ids.append(a['id'])
+        if t=='figure':self.figures.append(a.get('id'))
+        if t=='h2':self.heading=True
+    def handle_endtag(self,t):
+        if t in ['script','style']:self.skip-=1
+        if t=='h2':self.heading=False
+    def handle_data(self,d):
+        if not self.skip:self.txt.append(d)
+        if self.heading:self.h2.append(d)
+
+def main():
+    lock=(ROOT/'runs/report.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX)
+    out=ROOT/'reports';qa={'utc':utc(),'languages':{}}
+    for lang in ['zh','en']:
+        html=(out/f'report.{lang}.html').read_text();s=Scan();s.feed(html);visible=' '.join(s.txt)
+        missing=[]
+        for href in s.links:
+            u=urllib.parse.urlparse(href)
+            if u.scheme:continue
+            if not u.path and u.fragment and u.fragment not in s.ids:missing.append(href)
+            if u.path and not (out/urllib.parse.unquote(u.path)).exists():missing.append(href)
+        assert not missing,missing
+        markdown=(out/f'report.{lang}.md').read_text()
+        assert all(f'<a id="section-{i:02d}"></a>' in markdown for i in range(1,16))
+        assert ('测试计划第03节' if lang=='zh' else 'Section 03 of the test plan') in markdown
+        assert ('长度分布见第01节' if lang=='zh' else 'Section 01 documents the six public benchmarks') not in markdown
+        expected=['figure-'+name for token,name in CHARTS if '<!--'+token+'-->' in markdown]
+        assert len(s.h2)==15 and set(s.figures)==set(expected),(s.figures,expected)
+        assert len(s.figures)==len(expected)
+        assert len(s.ids)==len(set(s.ids))
+        assert s.h2[0].startswith('01 · '+('研究背景、摘要与结论' if lang=='zh' else 'Research background, abstract and findings'))
+        assert s.h2[1].startswith('02 · '+('实验对象与部署配置' if lang=='zh' else 'Experimental system and deployment'))
+        intro=html.split('<h2 id="section-01">',1)[1].split('<h2 id="section-02">',1)[0]
+        system=html.split('<h2 id="section-02">',1)[1].split('<h2 id="section-03">',1)[0]
+        from bs4 import BeautifulSoup
+        overview=BeautifulSoup(intro,'html.parser').select_one('table.study-overview')
+        assert overview and len(overview.select('tbody tr'))==12
+        assert len(overview.select('tbody tr td:first-child a[href^="#section-"]'))==12
+        assert overview.select('strong.metric-value'), 'Opening values must retain emphasis'
+        identity_title='模型身份与权重来源' if lang=='zh' else 'Model identity and weight provenance'
+        assert identity_title not in intro and identity_title in system
+        assert '262,144' in system and '0.5.21' in system
+        main=Scan();main.feed(html.split('<h2 id="section-15">')[0])
+        assert not re.search(r'\bP[0-8](?:\b|_)',' '.join(main.txt))
+        assert not re.search(r'\|\s*---',visible),'Unrendered Markdown table'
+        assert all('<!--'+token+'-->' not in html for token,_ in CHARTS)
+        assert '只有一个 12 请求区组' not in visible and 'one 12-request block' not in visible
+        assert 'one-token cap' not in visible and '1 token 输出上限预热' not in visible
+        assert 'id="cost-tool"' in html and 'cost-calculator-slot' not in html
+        assert all('id="'+anchor+'"' in html for anchor in ['ownership-cost','investment-returns','cost-api','cost-sale','cost-sold','cost-fee'])
+        assert all(name in s.figures for name in ['figure-investment_self','figure-investment_sales'])
+        if lang=='en':assert not re.search('[\u4e00-\u9fff]',visible.replace('中文',''))
+        assert html.index('id="section-04"')<html.index('id="section-06"')<html.index('id="section-07"')<html.index('id="figure-capacity"')<html.index('id="section-10"')<html.index('id="section-11"')<html.index('id="section-12"')<html.index('id="section-13"')<html.index('id="section-15"')
+        from hardware_completion_report import S as active_hardware
+        if (active_hardware/'analysis/summary.json').exists():
+            assert ('资源条件与比较方法' if lang=='zh' else 'Resource conditions and comparison') in visible
+            assert ('1070' in visible or '1,070' in visible)
+        else:
+            assert ('GPU微基准：待执行' if lang=='zh' else 'GPU microbenchmarks: not executed') in visible
+        check=subprocess.run(['/opt/homebrew/bin/node','--check',str(out/f'interaction.{lang}.js')],capture_output=True,text=True);assert check.returncode==0,check.stderr
+        r=PdfReader(out/f'report.{lang}.pdf');page_texts=[p.extract_text() or '' for p in r.pages];alltext='\n'.join(page_texts)
+        assert '| ---' not in alltext and len(alltext)>10000
+        doc=pdf.PdfDocument(out/f'report.{lang}.pdf');review=out/'scientific_review';review.mkdir(exist_ok=True);wanted={0,1,len(doc)-1}
+        terms=['SGLang启动','SGLang launch','缓存命中与稳定性','Cache reuse and stability','缓存验证顺序','Cache evaluation sequence','证据覆盖','Evidence coverage','时间观察','Time observation','整体结论与后续工作','Overall conclusions and next work','附录C：测试代码','Appendix C: test code','典型输入','缓存比例：从','指标定义','八类业务','Typical input/output','Cache ratios:','Metric definitions','Eight business shapes','正文等待｜','双节点资源｜','已核对 API','设备成本的利用率','成本结构结论','Input/output lengths and visible','Concurrency and node resources','Two normalizations','Cost sensitivity','Cost structure.','附录：测试代码与数据磁盘路径','Appendix: test code and data disk paths','回本与投资回报','payback and investment returns','自用累计现金流','Self-use cumulative cash','售卖投资回报','Sales ROI sensitivity','自用结论','Self-use finding','售卖情景结论','Sales scenario finding']
+        terms.extend(['GPU计算、内存与算子','GPU compute, memory and operators','双机通信与系统协同','Two-node communication and cooperation','综合瓶颈分析','Integrated bottleneck analysis','理解硬件结果','Concepts needed to read hardware'])
+        for i,p in enumerate(r.pages):
+            if any(k in page_texts[i] for k in terms):wanted.add(i)
+        for i in sorted(wanted):doc[i].render(scale=1.3).to_pil().save(review/f'final-{lang}-{i+1}.png')
+        qa['languages'][lang]={'sections':len(s.h2),'figures':len(s.figures),'tables':len(re.findall(r'<table\b',html)),'pages':len(r.pages),'missing_links':missing,'internal_codes_in_main_text':False,'unrendered_tables':False,'definition_before_results_before_conclusion':True,'javascript_syntax':'passed','rendered_review_pages':[x+1 for x in sorted(wanted)],'pdf_text_chars':len(alltext),'sha256':{ext:digest(out/f'report.{lang}.{ext}') for ext in ['md','html','pdf']}}
+    a=json.loads((out/'analysis.json').read_text());qa['snapshot_utc']=a['generated_utc']
+    diagnostics=json.loads((out/'diagnostics.json').read_text());assert diagnostics['generated_utc']==a['generated_utc']
+    assert diagnostics['tco_inputs']['purchase_cost']==10000
+    for r in diagnostics['costs']:
+        if r['cost_usd'] is not None:
+            assert r['matched']==r['requests']
+            if r['output_tokens']:assert abs(r['usd_per_million_generated']-1e6*r['cost_usd']/r['output_tokens'])<1e-9
+    for r in diagnostics['resources']:
+        assert 0<=r['gpu_coverage']<=1+1e-8 and 0<=r['power_coverage']<=1+1e-8
+    returns=diagnostics['investment_scenarios']
+    assert returns and {r['use'] for r in returns}=={'self_use','sale'}
+    assert {r['horizon_years'] for r in returns}=={1,3,5}
+    for r in returns:
+        net=r['gross_benefit_usd_year']-r['fees_usd_year']-r['energy_usd_year']-r['other_usd_year']
+        assert abs(r['cumulative_net_cash_usd']-(r['horizon_years']*net-r['capex_usd']))<1e-6
+        assert abs(r['roi_fraction']-r['cumulative_net_cash_usd']/r['capex_usd'])<1e-9
+    qa['investment_scenarios']=len(returns)
+    qa['source_calls']=a['total_sent'];qa['source_complete']=a['total_complete']
+    index=json.loads((out/'artifact-index.json').read_text());assert index['file_count']==len(index['files'])
+    assert all(Path(x['absolute_path']).is_absolute() for x in index['files'])
+    qa['file_inventory_count']=index['file_count']
+    manifest=json.loads((ROOT/'plans/gpu_system/manifest.json').read_text())
+    assert manifest['state']=='planned_not_executed' and not manifest['execution_activated']
+    assert manifest['new_hardware_runs']==0 and not manifest['executor_implemented']
+    assert len(manifest['modules'])==10 and all(x['state']=='planned_not_executed' for x in manifest['modules'])
+    assert manifest['serving_limits_unchanged']=={'actual_attempts':8171,'concurrency':8,'cumulative_budget_usd':500,'deadline_cst':'2026-10-16 12:40:53'}
+    frozen=json.loads((ROOT/'evidence/gpu_system_revision/protected_inputs_before.json').read_text())
+    changed=[p for p,h in frozen['files'].items() if digest(ROOT/p)!=h]
+    amendments=json.loads((ROOT/'evidence/hardware_report_validation/protected_amendments.json').read_text())['changes']
+    allowed={x['path']:x for x in amendments}
+    assert set(changed)==set(allowed),(changed,list(allowed))
+    for path in changed:
+        x=allowed[path];assert digest(Path(x['original_archive']))==frozen['files'][path]==x['original_sha256']
+        assert digest(ROOT/path)==x['current_sha256']
+    qa['documented_serving_amendments']=amendments
+    source_dir=ROOT/'evidence/gpu_system_revision/sources'
+    sources=json.loads((source_dir/'manifest.json').read_text())['sources']
+    assert len(sources)==6 and all(x.get('status')==200 and digest(source_dir/x['file'])==x['sha256'] for x in sources)
+    qa['gpu_protocol']={'original_design_state':manifest['state'],'modules':10,'unchanged_protected_files':len(frozen['files'])-len(changed),'primary_source_snapshots':len(sources)}
+    if (active_hardware/'analysis/summary.json').exists():
+        actual=json.loads((active_hardware/'analysis/summary.json').read_text())
+        qa['gpu_protocol']['execution']={k:actual.get(k) for k in ['state','phase','archived_counts','paired_collective_trials','paired_overlap_trials']}
+        qa['gpu_protocol']['evidence_root']=str(active_hardware)
+    qa['plans']={}
+    for lang in ['zh','en']:
+        plan=ROOT/'test_plan';s=Scan();html=(plan/f'test-plan.{lang}.html').read_text();s.feed(html)
+        assert len(s.h2)==10 and len(s.figures)==7 and len(s.ids)==len(set(s.ids))
+        missing=[]
+        for href in s.links:
+            u=urllib.parse.urlparse(href)
+            if u.scheme:continue
+            if not u.path and u.fragment and u.fragment not in s.ids:missing.append(href)
+            if u.path and not (plan/urllib.parse.unquote(u.path)).exists():missing.append(href)
+        assert not missing,missing
+        visible=' '.join(s.txt)
+        if lang=='en':assert not re.search('[\u4e00-\u9fff]',visible.replace('中文',''))
+        assert not re.search(r'\|\s*---',visible)
+        reader=PdfReader(plan/f'test-plan.{lang}.pdf')
+        text='\n'.join(p.extract_text() or '' for p in reader.pages)
+        assert ('GPU与双机系统实验' if lang=='zh' else 'GPU and two-node system experiments') in text
+        assert len(text)>15000 and '| ---' not in text
+        mirror=ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/test_plan'
+        assert digest(mirror/f'test-plan.{lang}.pdf')==digest(plan/f'test-plan.{lang}.pdf')
+        assert '<base href="'+plan.as_uri()+'/">' in (mirror/f'test-plan.{lang}.html').read_text()
+        qa['plans'][lang]={'sections':10,'figures':7,'pages':len(reader.pages),'links_valid':True,'original_bookmark_updated':True,'sha256':{ext:digest(plan/f'test-plan.{lang}.{ext}') for ext in ['md','html','pdf']}}
+    dump(out/'scientific_qa.json',qa);print(json.dumps(qa,ensure_ascii=False))
+
+if __name__=='__main__':main()

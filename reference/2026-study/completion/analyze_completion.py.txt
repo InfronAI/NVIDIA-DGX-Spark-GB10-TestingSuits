@@ -1,0 +1,171 @@
+"""Offline analysis of the independent completion arm, never pooling historical attempts."""
+import collections
+import csv
+import datetime
+import io
+import json
+import re
+from pathlib import Path
+import statistics
+import sys
+
+ROOT=Path(__file__).resolve().parent;OUT=ROOT/'analysis';PARENT=ROOT.parent
+sys.path.insert(0,str(PARENT/'engine_split_20261016'))
+from analyze_engine import timing,trace_summary
+
+
+def read(path,default=None):return json.loads(path.read_text()) if path.exists() else default
+def med(values):return statistics.median(values) if values else None
+def pct(values,q):
+    if not values:return None
+    a=sorted(values);k=(len(a)-1)*q;i=int(k);return a[i]+(a[min(i+1,len(a)-1)]-a[i])*(k-i)
+def csv_file(path,rows):
+    if not rows:return
+    fields=sorted(set().union(*(set(row) for row in rows)))
+    with path.open('w') as f:
+        w=csv.DictWriter(f,fields);w.writeheader();w.writerows(rows)
+
+
+def analyze():
+    OUT.mkdir(exist_ok=True);raw=ROOT/'raw/node0';manifest=read(ROOT/'manifest.json');native=[]
+    for case in manifest['native_requests']:
+        p=raw/'native'/case['id']/'result.json';result=read(p,{})
+        row={**case,'state':result.get('state','pending'),'actual_output':None,'decode_token_s':None,'profiled':False}
+        if result.get('state')=='complete':
+            m=result['meta'];t=timing(m)
+            assert m['prompt_tokens']==case['input'] and m['completion_tokens']==case['output'] and result['done']
+            row.update(t,actual_output=m['completion_tokens'],loopback_elapsed_s=result['elapsed_s'],
+                       mtp_accept_rate=m.get('spec_accept_rate'),attempt=result['attempt'],
+                       source=str(p),stream_interval=result['stream_interval'])
+            output=raw/'native'/case['id']/f"attempt_{result['attempt']}"/'output.txt'
+            if output.exists():
+                text=output.read_text();run=longest=0;last=None
+                for char in text:
+                    run=run+1 if char==last else 1;longest=max(longest,run);last=char
+                row.update(visible_chars=len(text),trailing_whitespace_chars=len(text)-len(text.rstrip()),longest_same_char_run=longest)
+        elif result:
+            row.update(error=result.get('error'),classification=result.get('classification'),http_status=result.get('http_status'),source=str(p))
+        native.append(row)
+    native_groups=[]
+    grouped=collections.defaultdict(list)
+    for row in native:grouped[(row['stage'],row['input'],row['output'])].append(row)
+    for (stage,i,o),rows in grouped.items():
+        valid=[r for r in rows if r['state']=='complete'];rates=[r['decode_token_s'] for r in valid if r['decode_token_s'] is not None]
+        native_groups.append({'stage':stage,'input':i,'output':o,'planned':len(rows),'complete':len(valid),
+                              'decode_median':med(rates),'decode_min':min(rates) if rates else None,'decode_max':max(rates) if rates else None,
+                              'e2e_median':med([r['engine_e2e_s'] for r in valid]),'mtp_accept_rate':med([r['mtp_accept_rate'] for r in valid if r['mtp_accept_rate'] is not None])})
+    pairs=[];profiles=[]
+    for pair in (raw/'profiles').glob('*'):
+        arms={}
+        for arm in ['profiled','unprofiled']:
+            paths=sorted((pair/arm).glob('attempt_*/result.json'),key=lambda p:int(p.parent.name.split('_')[-1]))
+            candidates=[read(p) for p in paths]
+            good=[x for x in candidates if x.get('state')=='complete']
+            if good:arms[arm]=good[-1]
+        if len(arms)==2:
+            a,b=arms['unprofiled'],arms['profiled']
+            ta=[timing(x['meta']) for x in a['requests']];tb=[timing(x['meta']) for x in b['requests']]
+            pairs.append({'id':pair.name,'input':a['input'],'concurrency':a['concurrency'],'repeat':a['repeat'],
+                          'unprofiled_elapsed_s':a['elapsed_s'],'profiled_elapsed_s':b['elapsed_s'],
+                          'elapsed_ratio':b['elapsed_s']/a['elapsed_s'],'unprofiled_ttft_s':med([x['engine_ttft_s'] for x in ta]),
+                          'profiled_ttft_s':med([x['engine_ttft_s'] for x in tb]),
+                          'unprofiled_cached':sum(x['cached_tokens'] for x in ta),'profiled_cached':sum(x['cached_tokens'] for x in tb)})
+    for rank in [0,1]:
+        for path in (ROOT/'raw'/f'node{rank}'/'traces').rglob('*.trace.json.gz'):
+            row=trace_summary(path);row['node']=rank;profiles.append(row)
+    cache=[]
+    for p in (raw/'cache').glob('*/result.json'):
+        d=read(p)
+        if d['state']!='complete':continue
+        for role,r in zip(['first','repeat'],d['requests']):
+            m=r['meta'];t=timing(m)
+            cache.append({'pair':d['repeat'],'role':role,'input':d['input'],**t,'cached_fraction':m['cached_tokens']/m['prompt_tokens'] if m.get('cached_tokens') is not None else None})
+    fp64=[];counters=[]
+    for rank in [0,1]:
+        hardware=ROOT/'raw'/f'node{rank}'/'hardware';d=read(hardware/'fp64_results.json',{})
+        fp64.extend(dict(row,node=rank) for row in d.get('rows',[]) if row.get('validated'))
+        for record in read(hardware/'counter_results.json',{}).get('records',[]):
+            if record.get('profile_returncode')!=0:continue
+            text=record.get('profile_stdout','');lines=text.splitlines();start=next((i for i,line in enumerate(lines) if '"Metric Name"' in line and '"Metric Value"' in line),None)
+            if start is None:continue
+            for metric in csv.DictReader(io.StringIO('\n'.join(lines[start:]))):
+                name=metric.get('Metric Name');value=metric.get('Metric Value','')
+                if name not in record['metrics'] or value in ['','n/a']:continue
+                try:value=float(value.replace(',',''))
+                except ValueError:continue
+                counters.append({'node':rank,'mode':record['mode'],'round':record['round'],'metric':name,'value':value,'unit':metric.get('Metric Unit'),'kernel':metric.get('Kernel Name'),'profile_returncode':record['profile_returncode']})
+    public=ROOT/'public';billing=read(public/'evidence/billing_latest.json',{});origins=read(public/'evidence/origin_usage.json',{}).get('records',{})
+    original={x['case_id']:x['original_usage'] for x in origins.values()};results={}
+    for p in (public/'runs/requests').glob('*/result.json'):
+        d=read(p);results[d['id']]=d
+    blocks=[]
+    block_raw={}
+    for p in (public/'runs/blocks').glob('*.json'):
+        if p.name.endswith(('.before.json','.after.json')):continue
+        b=read(p);rs=[results[i] for i in b.get('request_ids',[]) if i in results];valid=[x for x in rs if x['state']=='received']
+        if not b.get('start_epoch'):continue
+        block_raw[b['id']]=b
+        duration=b['end_epoch']-b['start_epoch'];tokens=[original[x['id']]['completion_tokens'] for x in valid if x['id'] in original]
+        row={'id':b['id'],'planned':b.get('planned'),'offered':b.get('offered'),'sent':b['sent'],'complete':b['completed'],
+             'elapsed_s':duration,'local_rejections':b.get('local_rejections',0),'original_usage_n':len(tokens),
+             'output_tokens':sum(tokens),'output_token_s':sum(tokens)/duration if len(tokens)==len(valid) and duration>0 else None,
+             'ttft_median':med([x['timing']['first_visible_s'] for x in valid if x['timing'].get('first_visible_s') is not None]),
+             'ttft_p95':pct([x['timing']['first_visible_s'] for x in valid if x['timing'].get('first_visible_s') is not None],.95),
+             'continuous_s':b.get('observed_continuous_s'),'complete_continuous_window':b.get('complete_continuous_window',False),'source':str(p)}
+        blocks.append(row)
+    interference=[];soak_windows=[]
+    def planned_wait(row,key):
+        planned=(row.get('schedule') or {}).get('planned_epoch')
+        if planned is None:return None
+        if key=='e2e':return row['end_epoch']-planned
+        first=row['timing'].get('first_visible_s')
+        return row['start_epoch']-planned+first if first is not None else None
+    for pair in range(5):
+        arms={}
+        for mode in ['isolated','mixed']:
+            key=f'gc17_P7b_pair{pair}_{mode}';b=block_raw.get(key)
+            if not b:continue
+            rows=[results[i] for i in b['request_ids'] if i in results and '_short' in i and results[i]['state']=='received']
+            arrivals_path=public/'runs/arrivals'/f'{key}.jsonl'
+            arrivals=[json.loads(line) for line in arrivals_path.read_text().splitlines()] if arrivals_path.exists() else []
+            offered=sum(x['state']=='offered' and '_short' in x['id'] for x in arrivals)
+            waits=[planned_wait(x,'ttft') for x in rows];waits=[v for v in waits if v is not None]
+            arms[mode]={'offered':offered,'complete':len(rows),'ttft_n':len(waits),'ttft_median':med(waits),'ttft_p95':pct(waits,.95),
+                'e2e_median':med([planned_wait(x,'e2e') for x in rows]),'retried':sum(bool(x.get('retry_index')) for x in rows)}
+        if arms:
+            matched=all(arms.get(mode,{}).get('offered')==arms.get(mode,{}).get('complete')==arms.get(mode,{}).get('ttft_n')==32 for mode in ['isolated','mixed'])
+            ratio=arms['mixed']['ttft_median']/arms['isolated']['ttft_median'] if matched and arms['isolated']['ttft_median']>0 else None
+            interference.append({'pair':pair,'arms':arms,'fully_observed':matched,'short_ttft_ratio':ratio})
+    for key,b in block_raw.items():
+        if not key.startswith('gc17_soak_'):continue
+        rows=[results[i] for i in b['request_ids'] if i in results]
+        arrivals_path=public/'runs/arrivals'/f'{key}.jsonl'
+        arrivals=[json.loads(line) for line in arrivals_path.read_text().splitlines()] if arrivals_path.exists() else []
+        for window in range(12):
+            lo=b['start_epoch']+window*300;hi=lo+300
+            cohort=[x for x in rows if lo<=(x.get('schedule') or {}).get('planned_epoch',-1)<hi]
+            valid=[x for x in cohort if x['state']=='received'];waits=[planned_wait(x,'ttft') for x in valid];waits=[x for x in waits if x is not None]
+            credited=[x for x in rows if x['state']=='received' and lo<=x['end_epoch']<hi]
+            tokens=[original[x['id']]['completion_tokens'] for x in credited if x['id'] in original]
+            offered=sum(x['state']=='offered' and lo<=x.get('planned_epoch',-1)<hi for x in arrivals)
+            full=b['end_epoch']>=hi
+            soak_windows.append({'block':key,'window_start_s':window*300,'complete_window':full,'offered':offered,
+                'complete_by_arrival_cohort':len(valid),'ttft_n':len(waits),'ttft_median_s':med(waits),'ttft_p95_s':pct(waits,.95),
+                'response_credit_output_token_s':sum(tokens)/300 if full and len(tokens)==len(credited) else None,
+                'completed_in_time_window':len(credited),'observed_continuous_s':b.get('observed_continuous_s')})
+    public_summary={'state':read(public/'status.json',{}),'requests':len(results),'complete':sum(x['state']=='received' for x in results.values()),'blocks':blocks,'interference':interference,'soak_windows':soak_windows,'billing':{k:v for k,v in billing.items() if k!='rows'}}
+    summary={'generated_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'supervisor':read(ROOT/'supervisor_status.json',{}),
+             'native_state':read(raw/'native_status.json',{}),'native_requests':native,'native_groups':native_groups,
+             'native_max_completed_output':max((x['actual_output'] for x in native if x['actual_output'] is not None),default=0),
+             'profile_state':read(raw/'profile_status.json',{}),'profile_pairs':pairs,'traces':profiles,'cache':cache,
+             'hardware_state':read(raw/'hardware/status.json',{}),'fp64':fp64,'counters':counters,'public':public_summary,
+             'resource_limits':['H200 not supplied','outlet energy not measured','physical DRAM bytes not available from current counter interface'],
+             'historical_results_pooled':False}
+    summary['completion_ready']=(summary['native_state'].get('state') in ['complete','complete_with_rejections'] and summary['profile_state'].get('state')=='complete' and public_summary['state'].get('state')=='complete' and summary['hardware_state'].get('state')=='complete' and read(raw/'hardware/restoration.json',{}).get('configuration_equal') is True)
+    (OUT/'summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
+    for name,rows in [('native_requests',native),('native_groups',native_groups),('profile_pairs',pairs),('cache',cache),('fp64',fp64),('counters',counters),('public_blocks',blocks),('soak_windows',soak_windows)]:csv_file(OUT/(name+'.csv'),rows)
+    print(json.dumps({'native_complete':sum(x['state']=='complete' for x in native),'native_planned':len(native),'max_output':summary['native_max_completed_output'],'profile_pairs':len(pairs),'fp64_rounds':len(fp64),'public_complete':public_summary['complete']}))
+    return summary
+
+
+if __name__=='__main__':analyze()

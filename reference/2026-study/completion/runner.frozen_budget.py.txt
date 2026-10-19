@@ -1,0 +1,242 @@
+"""P3 bounded Infron requests, durable receipts and streaming measurements."""
+import argparse
+import asyncio
+import codecs
+import fcntl
+import hashlib
+import json
+import os
+import re
+import statistics
+import time
+from pathlib import Path
+
+import httpx
+from insightloop.config.loader import load_settings
+from common import ROOT, MODEL, PHASE_LIMITS, append, digest, dump, read_rows, utc
+from cf_retry import policy, is_cf_error
+
+def quantile(values, p):
+    if not values:return None
+    x=sorted(values);k=(len(x)-1)*p;i=int(k)
+    return x[i]+(x[min(i+1,len(x)-1)]-x[i])*(k-i)
+
+class Events:
+    """SSE data parser; event timestamps are client receipt times, not GPU token times."""
+    def __init__(self, result, emit):
+        self.result=result;self.emit=emit;self.decoder=codecs.getincrementaldecoder('utf-8')();self.buffer='';self.lines=[];self.times=[]
+
+    def event(self,t):
+        if not self.lines:return
+        raw='\n'.join(self.lines);self.lines=[];self.emit({'elapsed_s':t,'data':raw})
+        r=self.result
+        if raw=='[DONE]':r['done']=True;r['timing']['done_s']=t;return
+        try:j=json.loads(raw)
+        except ValueError:r.setdefault('parse_errors',[]).append(raw[:500]);return
+        if not isinstance(j,dict):r.setdefault('parse_errors',[]).append('non-object event');return
+        for name in ['request_id','provider','model','id']:
+            if j.get(name):r['response_'+name]=j[name]
+        if j.get('usage') is not None:r['usage']=j['usage']
+        if j.get('error'):r['stream_error']=j['error']
+        for choice in j.get('choices',[]):
+            if choice.get('finish_reason'):r['finish_reason']=choice['finish_reason']
+            d=choice.get('delta') or {}
+            content=d.get('content') or '';reason=d.get('reasoning') or d.get('reasoning_content') or ''
+            tools=d.get('tool_calls') or []
+            if content or reason or tools:
+                r['timing'].setdefault('first_generated_s',t);r['timing']['last_generated_s']=t;self.times.append(t)
+            if content:r['timing'].setdefault('first_visible_s',t);r['content']+=content
+            if reason:r['timing'].setdefault('first_reasoning_s',t);r['reasoning']+=reason
+            if tools:r.setdefault('tool_deltas',[]).append(tools)
+
+    def feed(self,data,t,final=False):
+        self.buffer+=self.decoder.decode(data,final=final)
+        while '\n' in self.buffer:
+            line,self.buffer=self.buffer.split('\n',1);line=line.rstrip('\r')
+            if line.startswith('data:'):self.lines.append(line[5:].removeprefix(' '))
+            elif line=='':self.event(t)
+        if final:
+            if self.buffer.startswith('data:'):self.lines.append(self.buffer[5:].removeprefix(' ').rstrip('\r'))
+            self.buffer='';self.event(t)
+
+def integrity(content):
+    if not content.strip():return ['empty_visible_content']
+    issues=[];s=content.strip()
+    if len(s)>=64 and max((s.count(ch) for ch in set(s) if not ch.isalnum() and not ch.isspace()),default=0)/len(s)>.95:
+        issues.append('single_punctuation_over_95_percent')
+    # Exact repeated fragments only; candidate flag, not a semantic correctness judgment.
+    if re.search(r'(.{1,64}?)\1{7,}',s,re.S):
+        for match in re.finditer(r'(.{1,64}?)\1{7,}',s,re.S):
+            if len(match.group())>=256:issues.append('repeated_fragment_256_chars');break
+    return issues
+
+class Runner:
+    def __init__(self, root=ROOT, require_monitor=True):
+        self.root=Path(root);self.guard=asyncio.Lock();self.limit=asyncio.Semaphore(8);self.require_monitor=require_monitor
+        self.run_info=json.loads((self.root/'run.json').read_text());self.path=self.root/'runs/ledger.json'
+        if self.path.exists():self.ledger=json.loads(self.path.read_text())
+        else:
+            self.ledger={'run_id':self.run_info['run_id'],'created_utc':utc(),'ceiling_usd':500,'prior_reserved_usd':self.run_info['prior_reserved_usd'],'deadline_epoch':self.run_info['deadline_epoch'],'entries':{}}
+            dump(self.path,self.ledger)
+        self.errors=0;self.stop=None;self.active=0;self.max_active=0
+        self.retry_policy=policy(self.root);self.cooldown_until=0
+
+    def reserved(self):
+        return self.ledger['prior_reserved_usd']+sum(x['reserved_usd'] for x in self.ledger['entries'].values())
+
+    def stopping(self):
+        if self.stop:return self.stop
+        if (self.root/'STOP').exists():return (self.root/'STOP').read_text()
+        if time.time()>=self.ledger['deadline_epoch']:return 'original deadline reached'
+        if self.require_monitor:
+            f=self.root/'monitor/status.json'
+            if not f.exists():return 'monitor has not started'
+            j=json.loads(f.read_text())
+            if j.get('status')!='running' or (not (self.root/'protocol/public_monitor_policy.json').exists() and time.time()-j.get('raw_ok_epoch',0)>30) or time.time()-j.get('dashboard_ok_epoch',0)>20:
+                self.stop='monitor not healthy/fresh'
+                return self.stop
+        return self.stop
+
+    async def case(self, client, case, schedule=None):
+        if not self.retry_policy.get('enabled'):return await self._attempt(client,case,schedule)
+        logical=case['id'];attempt_ids=[];first_epoch=None
+        for index in range(self.retry_policy['max_retries']+1):
+            ident=logical if index==0 else logical+'__retry'+str(index)
+            path=self.root/'runs/requests'/ident/'result.json'
+            if ident in self.ledger['entries']:
+                if not path.exists():return {'id':ident,'state':'not_replayed','reason':'unknown prior outcome'}
+                result=json.loads(path.read_text())
+                if not is_cf_error(result):return {'id':ident,'state':'not_replayed'}
+            else:
+                while time.time()<self.cooldown_until and not self.stopping():await asyncio.sleep(min(1,self.cooldown_until-time.time()))
+                attempt=dict(case,id=ident,retry_of=logical if index else None,retry_index=index)
+                result=await self._attempt(client,attempt,schedule)
+            attempt_ids.append(ident)
+            first_epoch=first_epoch or result.get('start_epoch')
+            outcome={'logical_id':logical,'attempt_ids':attempt_ids,'retry_count':index,'final_attempt_id':ident,'state':result['state'],'first_send_epoch':first_epoch,'end_epoch':result.get('end_epoch'),'including_retry_e2e_s':result['end_epoch']-first_epoch if result.get('end_epoch') and first_epoch else None,'utc':utc()}
+            outcome['including_retry_ttft_visible_s']=(result.get('start_epoch',0)-first_epoch+result['timing']['first_visible_s']) if first_epoch and result.get('timing',{}).get('first_visible_s') is not None else None
+            dump(self.root/'runs/logical_outcomes'/f'{logical}.json',outcome)
+            if not is_cf_error(result):return result
+            if index==self.retry_policy['max_retries']:
+                self.stop='Cloudflare retry limit exhausted for '+logical
+                (self.root/'STOP').write_text(self.stop);return result
+            delay=self.retry_policy['backoff_seconds'][min(index,len(self.retry_policy['backoff_seconds'])-1)]
+            self.cooldown_until=max(self.cooldown_until,time.time()+delay)
+            append(self.root/'runs/retry_events.jsonl',{'utc':utc(),'logical_id':logical,'failed_attempt_id':ident,'retry_index_next':index+1,'backoff_seconds':delay,'cooldown_until':self.cooldown_until})
+        raise AssertionError('retry loop exhausted without receipt')
+
+    async def _attempt(self, client, case, schedule=None):
+        ident=case['id'];phase=case['phase'];folder=self.root/'runs/requests'/ident
+        assert re.fullmatch('[A-Za-z0-9_.-]+',ident) and phase in PHASE_LIMITS
+        p={'model':MODEL,'provider':{'only':['infron/cn'],'allow_fallbacks':False},'temperature':0,'reasoning_effort':case.get('effort','none'),'max_tokens':case['max_tokens'],'messages':case['messages'],'stream':True,'stream_options':{'include_usage':True}}
+        if 'ignore_eos' in case:
+            assert type(case['ignore_eos']) is bool
+            p['ignore_eos']=case['ignore_eos']
+        body=json.dumps(p,ensure_ascii=False,separators=(',',':')).encode()
+        # Separate billed-token ceiling after observed reasoning-count normalization inflation.
+        reserve=(max(len(body)+1024,case.get('input_bound',0))+2*p['max_tokens']+4)/1e6
+        async with self.limit:
+            async with self.guard:
+                if ident in self.ledger['entries'] or (folder/'started.json').exists():return {'id':ident,'state':'not_replayed'}
+                why=self.stopping()
+                if why:self.stop=why;return {'id':ident,'state':'not_sent','reason':why}
+                count=sum(x['phase']==phase and not x.get('retry_of') for x in self.ledger['entries'].values())
+                retry_count=sum(bool(x.get('retry_of')) for x in self.ledger['entries'].values())
+                if (not case.get('retry_of') and count>=PHASE_LIMITS[phase]) or len(self.ledger['entries'])>=8171 or (case.get('retry_of') and retry_count>=self.retry_policy.get('max_total_retries',0)):self.stop='request ceiling';return {'id':ident,'state':'not_sent','reason':self.stop}
+                if self.reserved()+reserve>500:self.stop='cumulative reservation ceiling';return {'id':ident,'state':'not_sent','reason':self.stop}
+                folder.mkdir(parents=True,exist_ok=True)
+                self.ledger['entries'][ident]={'phase':phase,'state':'started','reserved_usd':reserve,'started_utc':utc(),'retry_of':case.get('retry_of'),'retry_index':case.get('retry_index',0)}
+                dump(self.path,self.ledger)
+                with (folder/'started.json').open('x') as f:
+                    json.dump({'utc':utc(),'request_sha256':hashlib.sha256(body).hexdigest(),'reserved_usd':reserve,'case':{k:v for k,v in case.items() if k!='messages'},'schedule':schedule},f);f.flush();os.fsync(f.fileno())
+                (folder/'request.json').write_bytes(body)
+                self.active+=1;self.max_active=max(self.max_active,self.active)
+            start=time.perf_counter();start_epoch=time.time()
+            r={'id':ident,'phase':phase,'cell':case.get('cell'),'block':case.get('block'),'prompt_id':case.get('prompt_id'),'suite':case.get('suite'),'warmup':case.get('warmup',False),'condition_concurrency':case.get('concurrency'),'target_input_tokens':case.get('target_input_tokens'),'local_prompt_tokens':case.get('local_prompt_tokens'),'effort':p['reasoning_effort'],'output_cap':p['max_tokens'],'started_utc':utc(),'start_epoch':start_epoch,'schedule':schedule,'state':'unknown','timing':{},'content':'','reasoning':'','usage':None,'done':False,'finish_reason':None,'request_id':None}
+            raw=(folder/'response.sse').open('wb');events=(folder/'events.jsonl').open('w');chunks=(folder/'chunks.jsonl').open('w')
+            r.update(retry_of=case.get('retry_of'),retry_index=case.get('retry_index',0))
+            parser=Events(r,lambda e:events.write(json.dumps(e,ensure_ascii=False)+'\n'));offset=0
+            try:
+                async with asyncio.timeout(case.get('timeout_s',300)):
+                    async with client.stream('POST','/v1/chat/completions',content=body,headers={'Content-Type':'application/json'}) as response:
+                        r['status']=response.status_code;r['timing']['headers_s']=time.perf_counter()-start
+                        r['request_id']=response.headers.get('x-infron-request-id') or response.headers.get('x-request-id')
+                        r['response_headers']={k:v for k,v in response.headers.items() if k in ['content-type','date','x-infron-request-id','x-request-id','cf-ray','content-encoding']}
+                        if response.status_code!=200:
+                            r['body']=(await response.aread()).decode(errors='replace');r['state']='http_error'
+                        else:
+                            async for chunk in response.aiter_bytes():
+                                elapsed=time.perf_counter()-start;raw.write(chunk);chunks.write(json.dumps({'elapsed_s':elapsed,'offset':offset,'length':len(chunk)})+'\n');offset+=len(chunk);parser.feed(chunk,elapsed)
+                            parser.feed(b'',time.perf_counter()-start,final=True)
+                            r['state']='received' if r['done'] and r['finish_reason'] and not r.get('stream_error') and not r.get('parse_errors') else 'incomplete'
+            except TimeoutError:r['state']='timeout';r['error']='total request deadline exceeded'
+            except Exception as e:r['state']='transport_error';r['error']=type(e).__name__+': '+str(e)
+            finally:raw.close();events.close();chunks.close()
+            r['timing']['e2e_s']=time.perf_counter()-start;r['ended_utc']=utc();r['end_epoch']=time.time()
+            r['expected_context_rejection']=bool(case.get('expected_http')==400 and r.get('status')==400 and re.search(r'(context|input|prompt|sequence).{0,120}(length|long|limit|exceed)|exceed.{0,120}(context|token)',r.get('body',''),re.I|re.S))
+            usage=r.get('usage') or {};n=usage.get('completion_tokens');times=parser.times
+            r['usage_available']=bool(usage);r['generated_event_count']=len(times)
+            gaps=[b-a for a,b in zip(times,times[1:])]
+            r['chunk_intervals']={'count':len(gaps),'p50_s':quantile(gaps,.5),'p95_s':quantile(gaps,.95),'max_s':max(gaps) if gaps else None,'over_200ms_count':sum(x>.2 for x in gaps),'over_1s_count':sum(x>1 for x in gaps),'over_200ms_total_s':sum(x for x in gaps if x>.2),'over_1s_total_s':sum(x for x in gaps if x>1)}
+            if n is not None and n>1 and times:
+                r['timing']['tpot_compat_s']=(r['timing']['e2e_s']-times[0])/(n-1)
+                r['timing']['decode_tpot_approx_s']=(times[-1]-times[0])/(n-1) if len(times)>1 else None
+                r['timing']['terminal_delay_s']=r['timing']['e2e_s']-times[-1]
+            r['first_event_token_count']=None
+            r['first_event_token_count_note']='Not supplied by SSE; fragment BPE counts are not assumed exact token boundaries.'
+            r['truncated']=r['finish_reason']=='length'
+            r['integrity_flags']=integrity(r['content']) if r['state']=='received' and case.get('integrity_check',True) else []
+            r['estimated_list_usd']=(usage.get('prompt_tokens',0)*.16+usage.get('completion_tokens',0)*.47)/1e6 if usage else None
+            dump(folder/'result.json',r)
+            async with self.guard:
+                self.active-=1
+                good=r['state']=='received' or r['expected_context_rejection']
+                retryable=self.retry_policy.get('enabled') and is_cf_error(r)
+                self.errors=0 if good or retryable else self.errors+1
+                if self.errors>=3:self.stop='three consecutive transport/protocol failures'
+                if r['state'] in ['timeout','transport_error','incomplete']:self.stop='unknown or incomplete request outcome requires receipt review'
+                if n is not None and n>2*p['max_tokens']+4:self.stop='reported completion tokens exceed conservative billed-token ceiling'
+                if r.get('status') in [401,402,403,429]:self.stop='authentication, balance or rate-limit response '+str(r['status'])
+                if self.stop:(self.root/'STOP').write_text(self.stop)
+                entry=self.ledger['entries'][ident]
+                entry.update(state=r['state'],request_id=r.get('response_request_id') or r.get('request_id'),estimated_list_usd=r['estimated_list_usd'],end_utc=r['ended_utc'])
+                dump(self.path,self.ledger)
+                dump(self.root/'runs/status.json',{'updated_utc':utc(),'pid':os.getpid(),'phase':phase,'last_id':ident,'sent':len(self.ledger['entries']),'completed':sum(x['state']!='started' for x in self.ledger['entries'].values()),'active':self.active,'max_active':self.max_active,'reserved_usd':self.reserved(),'stop':self.stop})
+            print(json.dumps({'id':ident,'state':r['state'],'status':r.get('status'),'tokens':n,'seconds':round(r['timing']['e2e_s'],3),'ttft':r['timing'].get('first_generated_s'),'reserved_usd':round(self.reserved(),4)}),flush=True)
+            return r
+
+    async def closed(self,client,cases,concurrency,block_id):
+        assert 1<=concurrency<=8
+        start=time.time();begin=utc();q=asyncio.Queue();results=[]
+        previous_attempts=set(self.ledger['entries'])
+        for c in cases:q.put_nowait(c)
+        async def worker():
+            while not q.empty() and not self.stopping():
+                result=await self.case(client,q.get_nowait());results.append(result)
+        await asyncio.gather(*(worker() for _ in range(concurrency)))
+        block={'id':block_id,'started_utc':begin,'start_epoch':start,'end_epoch':time.time(),'concurrency':concurrency,'planned':len(cases),'sent':sum('start_epoch' in r for r in results),'completed':sum(r.get('state')=='received' for r in results),'request_ids':[r['id'] for r in results if 'start_epoch' in r],'stop':self.stopping()}
+        block['all_new_attempt_ids']=sorted(set(self.ledger['entries'])-previous_attempts)
+        block['actual_new_attempts']=len(block['all_new_attempt_ids'])
+        dump(self.root/'runs/blocks'/f'{block_id}.json',block)
+        return results
+
+def client():
+    s=load_settings();base=(s.model_probe_base_url or 'https://api.example.invalid/v1').removesuffix('/v1').rstrip('/')
+    return httpx.AsyncClient(base_url=base,headers={'Authorization':'Bearer '+s.model_probe_api_key,'User-Agent':'Infron-Performance-Research/3.0','Accept':'text/event-stream','Connection':'keep-alive'},trust_env=False,timeout=httpx.Timeout(600,connect=30),limits=httpx.Limits(max_connections=8,max_keepalive_connections=8))
+
+async def execute_file(name):
+    plan=ROOT/'plans'/name
+    frozen=json.loads((ROOT/'plans/frozen.json').read_text())
+    assert frozen[name]['sha256']==digest(plan),'Plan hash mismatch'
+    cases=read_rows(plan);runner=Runner()
+    async with client() as api:
+        await runner.closed(api,cases,1,Path(name).stem)
+
+def main():
+    ap=argparse.ArgumentParser();ap.add_argument('plan');a=ap.parse_args()
+    locks=[]
+    for p in [ROOT/'runs/runner.lock',ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/runs/runner.lock']:
+        f=p.open('a');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
+    asyncio.run(execute_file(a.plan))
+
+if __name__=='__main__':main()

@@ -1,0 +1,107 @@
+"""One bounded privileged recheck of the previously denied one-block counter probe.
+
+Invoked only after the sustained experiment and verified service restoration.
+The password is read from stdin into RAM, never from argv or a disk file.
+"""
+import csv
+import fcntl
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+from gpu_system_guard import owned_process, utc, write_json
+
+ROOT = Path(__file__).resolve().parent
+OUT = ROOT / 'counter_retry_20261017'
+METRICS = ['sm__warps_active.avg.pct_of_peak_sustained_active',
+           'lts__t_sector_hit_rate.pct', 'dram__bytes_read.sum', 'dram__bytes_write.sum']
+
+
+def parse_metrics(stdout):
+    lines = stdout.splitlines()
+    start = next((i for i, line in enumerate(lines) if '"Metric Name"' in line and '"Metric Value"' in line), None)
+    if start is None:
+        return []
+    return [{'metric': row['Metric Name'], 'value': row['Metric Value'],
+             'unit': row.get('Metric Unit'), 'kernel': row.get('Kernel Name')}
+            for row in csv.DictReader(io.StringIO('\n'.join(lines[start:])))
+            if row.get('Metric Name') in METRICS]
+
+
+def run(config):
+    OUT.mkdir(exist_ok=True)
+    lock = (OUT / 'execution.lock').open('a')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    result_path = OUT / 'result.json'
+    if result_path.exists():
+        return json.loads(result_path.read_text())
+    password = config.pop('password')
+    receipt = dict(started_utc=utc(), state='preflight', resource_condition='restored_model_resident_idle',
+                   scope='Single-block FMA diagnostic; not representative hardware or model throughput',
+                   administrative_invocation=True, driver_permission_configuration_changed=False,
+                   metrics_requested=METRICS, kernel_launch_count=1, timeout_seconds=90)
+    try:
+        assert password, 'administrative credential unavailable'
+        assert time.time() + 110 < config['load_deadline_epoch'], 'fixed load deadline reserve'
+        assert not (ROOT / 'STOP_COUNTER_RETRY').exists(), 'explicit counter stop'
+        for p in ROOT.glob('child_*.json'):
+            assert not owned_process(ROOT, json.loads(p.read_text())), 'benchmark child still active'
+        proof = json.loads((ROOT / 'service_restoration_verification.json').read_text()) if config['rank'] == 0 else config['restoration_proof']
+        assert proof.get('state') == 'verified' and proof.get('configuration_equal'), 'restoration not verified'
+        assert proof['utc'] >= config['attempt_started_utc'], 'stale restoration proof'
+        binary = ROOT / 'counter_probe'
+        assert binary.is_file() and not binary.is_symlink()
+        assert hashlib.sha256(binary.read_bytes()).hexdigest() == config['binary_sha256'], 'counter binary changed'
+        receipt['binary_sha256'] = config['binary_sha256']
+        receipt['harness_sha256'] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        receipt['kernel_source_sha256'] = hashlib.sha256((ROOT/'kernels.cu').read_bytes()).hexdigest()
+        version = subprocess.run(['/usr/local/cuda/bin/ncu','--version'],capture_output=True,text=True,timeout=10)
+        receipt['profiler_version'] = version.stdout.strip()
+        sample = subprocess.run(['nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=10)
+        temperature = float(sample.stdout.strip().splitlines()[0])
+        assert sample.returncode == 0 and temperature < 75, 'diagnostic cooling admission failed'
+        receipt['temperature_before_c'] = temperature
+        command = ['/usr/local/cuda/bin/ncu', '--clock-control', 'none', '--cache-control', 'none',
+                   '--csv', '--metrics', ','.join(METRICS), '--launch-count', '1', str(binary)]
+        receipt.update(state='running', argv=command)
+        write_json(OUT / 'state.json', receipt)
+        # GNU timeout runs under the same elevated identity and also kills a stuck child.
+        p = subprocess.Popen(['sudo', '-S', '-p', '', '--', '/usr/bin/timeout', '--foreground', '--kill-after=5s', '90s', *command],
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
+        p.stdin.write(password + '\n'); p.stdin.close(); p.stdin = None
+        end = time.monotonic() + 100
+        stopped = None
+        while p.poll() is None:
+            t = subprocess.run(['nvidia-smi', '--query-gpu=temperature.gpu', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=5)
+            current_temperature = float(t.stdout.strip().splitlines()[0]) if t.returncode == 0 and t.stdout.strip() else None
+            if (ROOT/'STOP_COUNTER_RETRY').exists() or current_temperature is None or current_temperature >= 85 or time.monotonic() >= end:
+                stopped = 'diagnostic stopped by user/temperature/timeout guard'
+                subprocess.run(['sudo','-S','-p','','--','/bin/kill','-TERM','--','-'+str(p.pid)],input=password+'\n',capture_output=True,text=True,timeout=10)
+                break
+            time.sleep(1)
+        stdout, stderr = p.communicate(timeout=10)
+        stdout = stdout.replace(password, '[redacted]')
+        stderr = stderr.replace(password, '[redacted]')
+        metrics = parse_metrics(stdout)
+        complete = p.returncode == 0 and {x['metric'] for x in metrics} == set(METRICS) and all(x['value'] not in ['', 'n/a'] for x in metrics)
+        receipt.update(state='measured' if complete else 'unavailable_after_retry', returncode=p.returncode,
+                       stdout=stdout, stderr=stderr, metrics=metrics, completed_utc=utc())
+        if stopped:
+            receipt.update(state='unavailable_after_retry', error=stopped)
+    except BaseException as exc:
+        message=type(exc).__name__ + ': ' + str(exc)
+        receipt.update(state='unavailable_after_retry', error=(message.replace(password, '[redacted]') if password else message)[:600], completed_utc=utc())
+    finally:
+        password = None
+    write_json(result_path, receipt)
+    write_json(OUT / 'state.json', receipt)
+    return receipt
+
+
+if __name__ == '__main__':
+    run(json.load(sys.stdin))

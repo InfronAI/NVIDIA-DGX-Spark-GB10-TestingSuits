@@ -1,0 +1,1249 @@
+{
+  "compute": [
+    {
+      "label": "FP32 GEMM",
+      "nodes": [
+        {
+          "kind": "gemm",
+          "precision": "fp32",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float32",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 0,
+          "condition_id": "d3911843e9ec2690",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 18.387498565888883,
+            "min": 18.161222534705004,
+            "max": 18.47921242774233
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 59796.72622680664,
+            "min": 59499.918195936414,
+            "max": 60541.718800862625
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 7.136608473956585,
+            "min": 6.566616421979335,
+            "max": 8.048547897487879
+          }
+        },
+        {
+          "kind": "gemm",
+          "precision": "fp32",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float32",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 1,
+          "condition_id": "d3911843e9ec2690",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 18.217189919052846,
+            "min": 17.94403533630813,
+            "max": 18.29667206961893
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 60355.75421651204,
+            "min": 60093.53086683484,
+            "max": 61274.49078030056
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.992890525402294,
+            "min": 6.200001937233739,
+            "max": 7.392832129779789
+          }
+        }
+      ]
+    },
+    {
+      "label": "TF32 allowed",
+      "nodes": [
+        {
+          "kind": "gemm",
+          "precision": "tf32_allowed",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float32",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 0,
+          "condition_id": "0c09ad1c729e39df",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 33.103256482044884,
+            "min": 24.014638399944776,
+            "max": 38.586102196303806
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 33236.01162433624,
+            "min": 28495.01673380534,
+            "max": 45785.05865732829
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.288525219133589,
+            "min": 5.78264007344842,
+            "max": 6.636850432389312
+          }
+        },
+        {
+          "kind": "gemm",
+          "precision": "tf32_allowed",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float32",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 1,
+          "condition_id": "0c09ad1c729e39df",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 37.17248485657558,
+            "min": 33.210131237395565,
+            "max": 38.53329158613516
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 29578.693707784016,
+            "min": 28534.069697062176,
+            "max": 33107.717037200935
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 5.963236213170199,
+            "min": 5.582193908695546,
+            "max": 6.257777891328765
+          }
+        }
+      ]
+    },
+    {
+      "label": "FP16",
+      "nodes": [
+        {
+          "kind": "gemm",
+          "precision": "fp16",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float16",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 0,
+          "condition_id": "7efd6127e73ce4e7",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 93.23592896291017,
+            "min": 91.82697892799678,
+            "max": 93.95260983931566
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 11792.790179782445,
+            "min": 11702.8322007921,
+            "max": 11973.731909857855
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.922388759752114,
+            "min": 6.813622571320997,
+            "max": 7.117911526519391
+          }
+        },
+        {
+          "kind": "gemm",
+          "precision": "fp16",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.float16",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 1,
+          "condition_id": "7efd6127e73ce4e7",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 92.66681186820348,
+            "min": 91.58894332572282,
+            "max": 92.98644257802418
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 11865.215472982389,
+            "min": 11824.429425326261,
+            "max": 12004.851108127168
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.923636108768559,
+            "min": 6.652199145820406,
+            "max": 7.1292245087938175
+          }
+        }
+      ]
+    },
+    {
+      "label": "BF16",
+      "nodes": [
+        {
+          "kind": "gemm",
+          "precision": "bf16",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.bfloat16",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 0,
+          "condition_id": "83e0c1bea0a335b9",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 94.33771610483592,
+            "min": 93.50430237622047,
+            "max": 94.78305114501504
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 11655.058860778809,
+            "min": 11600.29788547092,
+            "max": 11758.941565619576
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.790318296436747,
+            "min": 6.648455746471882,
+            "max": 6.970878975051972
+          }
+        },
+        {
+          "kind": "gemm",
+          "precision": "bf16",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "dtype": "torch.bfloat16",
+          "backend": "PyTorch matmul / cuBLAS selection; tensor instructions not profiler-verified",
+          "node": 1,
+          "condition_id": "83e0c1bea0a335b9",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_tflops": {
+            "n": 10,
+            "median": 94.07654564665107,
+            "min": 93.63239830464337,
+            "max": 94.42095828291434
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 11687.415144178603,
+            "min": 11644.783613416885,
+            "max": 11742.854478624133
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 6.754906563502219,
+            "min": 6.6680898372497825,
+            "max": 6.917132607971628
+          }
+        }
+      ]
+    },
+    {
+      "label": "FP8 E4M3",
+      "nodes": [
+        {
+          "kind": "low_precision",
+          "precision": "fp8_e4m3",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "backend": "PyTorch _scaled_mm, FP8 E4M3 operands, BF16 output",
+          "output_allocation": "inside timed library call",
+          "node": 0,
+          "condition_id": "56f84b275a900843",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 192.63585581429973,
+            "min": 192.0693750183467,
+            "max": 195.61608210094965
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 5707.720523410374,
+            "min": 5620.762955515007,
+            "max": 5724.554618199665
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 11.006126327342109,
+            "min": 10.897938369048967,
+            "max": 11.203177725999721
+          }
+        },
+        {
+          "kind": "low_precision",
+          "precision": "fp8_e4m3",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "backend": "PyTorch _scaled_mm, FP8 E4M3 operands, BF16 output",
+          "output_allocation": "inside timed library call",
+          "node": 1,
+          "condition_id": "56f84b275a900843",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 191.8761950817846,
+            "min": 191.37574577610724,
+            "max": 193.22172956617575
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 5730.318069458008,
+            "min": 5690.413962470161,
+            "max": 5745.3029030247735
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 10.97289986271215,
+            "min": 10.754055498788754,
+            "max": 11.078410898335278
+          }
+        }
+      ]
+    },
+    {
+      "label": "NVFP4",
+      "nodes": [
+        {
+          "kind": "low_precision",
+          "precision": "nvfp4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "backend": "FlashInfer explicit CUTLASS NVFP4; unity block/global scales; BF16 output",
+          "node": 0,
+          "condition_id": "2c8d070ca1a5bb2e",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 157.3816812702445,
+            "min": 148.4852459267851,
+            "max": 160.43896866642731
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 6986.274507310656,
+            "min": 6853.145697177985,
+            "max": 7404.854407677283
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 49.47087197648123,
+            "min": 48.88966718378166,
+            "max": 52.46461588902386
+          },
+          "quantize_and_pack_wall_s": {
+            "n": 5,
+            "median": 0.006361652980558574,
+            "min": 0.006317278021015227,
+            "max": 41.59189656499075
+          }
+        },
+        {
+          "kind": "low_precision",
+          "precision": "nvfp4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "dense",
+          "backend": "FlashInfer explicit CUTLASS NVFP4; unity block/global scales; BF16 output",
+          "node": 1,
+          "condition_id": "2c8d070ca1a5bb2e",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 148.0241973339467,
+            "min": 143.41950219392356,
+            "max": 161.21333199835234
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 7427.918188912528,
+            "min": 6820.227670669555,
+            "max": 7666.402483319904
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 50.762928523389355,
+            "min": 49.708750365035876,
+            "max": 54.75223188113887
+          },
+          "quantize_and_pack_wall_s": {
+            "n": 5,
+            "median": 0.0063594760140404105,
+            "min": 0.006065303983632475,
+            "max": 41.87532738695154
+          }
+        }
+      ]
+    },
+    {
+      "label": "FP16 2:4",
+      "nodes": [
+        {
+          "kind": "low_precision",
+          "precision": "fp16_sparse_2of4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "structured 2:4",
+          "backend": "SparseSemiStructuredTensorCUSPARSELT",
+          "output_allocation": "inside timed library call",
+          "node": 0,
+          "condition_id": "5b0d20a9284aa96b",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 39.33294822349602,
+            "min": 39.24515910686303,
+            "max": 39.44557430919175
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 27953.95914713541,
+            "min": 27874.14423624675,
+            "max": 28016.49051242404
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 8991.058778418746,
+            "min": 8312.7301121648,
+            "max": 10638.08805419184
+          },
+          "sparse_compression_wall_s": {
+            "n": 5,
+            "median": 0.004394888994283974,
+            "min": 0.004367335990536958,
+            "max": 0.004622909997124225
+          }
+        },
+        {
+          "kind": "low_precision",
+          "precision": "fp16_sparse_2of4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "structured 2:4",
+          "backend": "SparseSemiStructuredTensorCUSPARSELT",
+          "output_allocation": "inside timed library call",
+          "node": 1,
+          "condition_id": "5b0d20a9284aa96b",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 39.47890184224523,
+            "min": 39.375597875550866,
+            "max": 39.64615371211912
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 27850.613276163742,
+            "min": 27733.12225341796,
+            "max": 27923.68083530002
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 9523.497999503485,
+            "min": 9155.231875774916,
+            "max": 10935.52053175194
+          },
+          "sparse_compression_wall_s": {
+            "n": 5,
+            "median": 0.004401603015139699,
+            "min": 0.004357638012152165,
+            "max": 0.004462532000616193
+          }
+        }
+      ]
+    },
+    {
+      "label": "BF16 2:4",
+      "nodes": [
+        {
+          "kind": "low_precision",
+          "precision": "bf16_sparse_2of4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "structured 2:4",
+          "backend": "SparseSemiStructuredTensorCUSPARSELT",
+          "output_allocation": "inside timed library call",
+          "node": 0,
+          "condition_id": "5d5cb9ce43ae8771",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 39.28097297527956,
+            "min": 39.02590200807643,
+            "max": 39.68545939796615
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 27990.94687567817,
+            "min": 27705.654525756832,
+            "max": 28173.89403449165
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 8986.208849819377,
+            "min": 8028.649860837808,
+            "max": 10278.02272033619
+          },
+          "sparse_compression_wall_s": {
+            "n": 5,
+            "median": 0.004383114981465042,
+            "min": 0.00437319598859176,
+            "max": 0.004959164012689143
+          }
+        },
+        {
+          "kind": "low_precision",
+          "precision": "bf16_sparse_2of4",
+          "shape": [
+            8192,
+            8192,
+            8192
+          ],
+          "sparsity": "structured 2:4",
+          "backend": "SparseSemiStructuredTensorCUSPARSELT",
+          "output_allocation": "inside timed library call",
+          "node": 1,
+          "condition_id": "5d5cb9ce43ae8771",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_tflops": {
+            "n": 5,
+            "median": 39.40921223776087,
+            "min": 38.81638521005292,
+            "max": 40.02195340087598
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 27899.863137139215,
+            "min": 27472.71270751953,
+            "max": 28325.966517130535
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 9619.665730861016,
+            "min": 7491.6987198068655,
+            "max": 11284.08594619638
+          },
+          "sparse_compression_wall_s": {
+            "n": 5,
+            "median": 0.004383093968499452,
+            "min": 0.004373460018541664,
+            "max": 0.004824419040232897
+          }
+        }
+      ]
+    }
+  ],
+  "scalar": [
+    {
+      "kind": "scalar_fma",
+      "threads": 256,
+      "chains": 8,
+      "sm_multiplier": 4,
+      "sparsity": "dense",
+      "node": 0,
+      "condition_id": "e8fdd24e313b7283",
+      "n": 5,
+      "rounds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "effective_tflops": {
+        "n": 5,
+        "median": 28.014878569077407,
+        "min": 27.97103511433109,
+        "max": 28.04159445795155
+      },
+      "mean_device_interval_us": {
+        "n": 5,
+        "median": 114.98266765844785,
+        "min": 114.87312095716372,
+        "max": 115.16289829222625
+      },
+      "host_submission_us_per_call": {
+        "n": 5,
+        "median": 3.126736680362991,
+        "min": 3.098653230104169,
+        "max": 3.164843460521109
+      }
+    },
+    {
+      "kind": "scalar_fma",
+      "threads": 256,
+      "chains": 8,
+      "sm_multiplier": 4,
+      "sparsity": "dense",
+      "node": 1,
+      "condition_id": "e8fdd24e313b7283",
+      "n": 5,
+      "rounds": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "effective_tflops": {
+        "n": 5,
+        "median": 27.97835954511016,
+        "min": 27.938476637272384,
+        "max": 28.06008665403599
+      },
+      "mean_device_interval_us": {
+        "n": 5,
+        "median": 115.13274989573078,
+        "min": 114.79741711833518,
+        "max": 115.29710491453933
+      },
+      "host_submission_us_per_call": {
+        "n": 5,
+        "median": 3.158527958715132,
+        "min": 3.080559360467981,
+        "max": 3.2072416872829566
+      }
+    }
+  ],
+  "memory": [
+    {
+      "kind": "copy",
+      "mode": null,
+      "nodes": [
+        {
+          "kind": "copy",
+          "stride": 1,
+          "working_set_bytes": 8589934592,
+          "sparsity": "dense",
+          "dtype": "float32",
+          "backend": "PyTorch copy/add",
+          "node": 0,
+          "condition_id": "fe5a990f5818eec5",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_gb_s": {
+            "n": 10,
+            "median": 223.41439620748798,
+            "min": 222.74786507907794,
+            "max": 223.7359349533297
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 38448.43814991138,
+            "min": 38393.18254258898,
+            "max": 38563.48786530671
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 8.340185525378695,
+            "min": 7.276554781667612,
+            "max": 8.862780372577685
+          }
+        },
+        {
+          "kind": "copy",
+          "stride": 1,
+          "working_set_bytes": 8589934592,
+          "sparsity": "dense",
+          "dtype": "float32",
+          "backend": "PyTorch copy/add",
+          "node": 1,
+          "condition_id": "fe5a990f5818eec5",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_gb_s": {
+            "n": 10,
+            "median": 226.95350866051172,
+            "min": 226.3134159530707,
+            "max": 227.87520660195258
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 37848.87356228299,
+            "min": 37695.78410961009,
+            "max": 37955.923009801794
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 8.19229710571192,
+            "min": 7.121185599653809,
+            "max": 8.9694038723354
+          }
+        }
+      ]
+    },
+    {
+      "kind": "triad",
+      "mode": null,
+      "nodes": [
+        {
+          "kind": "triad",
+          "stride": 1,
+          "working_set_bytes": 8589934584,
+          "sparsity": "dense",
+          "dtype": "float32",
+          "backend": "PyTorch copy/add",
+          "node": 0,
+          "condition_id": "d17217751c645d32",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_gb_s": {
+            "n": 10,
+            "median": 214.88112455532638,
+            "min": 213.76139077583866,
+            "max": 215.26553469671154
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 39975.2882498282,
+            "min": 39903.900994194875,
+            "max": 40184.68701397931
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 8.47323961486971,
+            "min": 8.02925960333259,
+            "max": 9.246552104337349
+          }
+        },
+        {
+          "kind": "triad",
+          "stride": 1,
+          "working_set_bytes": 8589934584,
+          "sparsity": "dense",
+          "dtype": "float32",
+          "backend": "PyTorch copy/add",
+          "node": 1,
+          "condition_id": "d17217751c645d32",
+          "n": 10,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "effective_gb_s": {
+            "n": 10,
+            "median": 217.66430918796058,
+            "min": 217.07059670572403,
+            "max": 218.13269702104932
+          },
+          "mean_device_interval_us": {
+            "n": 10,
+            "median": 39464.139161286526,
+            "min": 39379.39933494286,
+            "max": 39572.07799840856
+          },
+          "host_submission_us_per_call": {
+            "n": 10,
+            "median": 8.191724730379603,
+            "min": 7.573924786238758,
+            "max": 8.46340683185392
+          }
+        }
+      ]
+    },
+    {
+      "kind": "native_bandwidth",
+      "mode": "read",
+      "nodes": [
+        {
+          "kind": "native_bandwidth",
+          "working_set_bytes": 8589934592,
+          "mode": "read",
+          "sparsity": "dense",
+          "node": 0,
+          "condition_id": "8c59522bdc281c90",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_gb_s": {
+            "n": 5,
+            "median": 110.04437963986778,
+            "min": 109.87970724365113,
+            "max": 110.21404973266408
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 78058.82154192243,
+            "min": 77938.65312848771,
+            "max": 78175.8052280971
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 4.421574495998877,
+            "min": 4.034289824111122,
+            "max": 4.498075993199434
+          }
+        },
+        {
+          "kind": "native_bandwidth",
+          "working_set_bytes": 8589934592,
+          "mode": "read",
+          "sparsity": "dense",
+          "node": 1,
+          "condition_id": "8c59522bdc281c90",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_gb_s": {
+            "n": 5,
+            "median": 110.08535387525909,
+            "min": 108.8879632651908,
+            "max": 110.79425325525175
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 78029.76771763393,
+            "min": 77530.50667898996,
+            "max": 78887.82501220703
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 4.256002804530519,
+            "min": 3.957709330799324,
+            "max": 4.801146652815598
+          }
+        }
+      ]
+    },
+    {
+      "kind": "native_bandwidth",
+      "mode": "write",
+      "nodes": [
+        {
+          "kind": "native_bandwidth",
+          "working_set_bytes": 8589934592,
+          "mode": "write",
+          "sparsity": "dense",
+          "node": 0,
+          "condition_id": "5e8dd256c69b12b3",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_gb_s": {
+            "n": 5,
+            "median": 192.6262481629802,
+            "min": 191.8114484008874,
+            "max": 193.0711626101016
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 44593.790690104164,
+            "min": 44491.02846781413,
+            "max": 44783.22156270345
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 4.073995417760064,
+            "min": 3.977373125962913,
+            "max": 4.489328906250496
+          }
+        },
+        {
+          "kind": "native_bandwidth",
+          "working_set_bytes": 8589934592,
+          "mode": "write",
+          "sparsity": "dense",
+          "node": 1,
+          "condition_id": "5e8dd256c69b12b3",
+          "n": 5,
+          "rounds": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "effective_gb_s": {
+            "n": 5,
+            "median": 192.86660284570175,
+            "min": 191.5086469845428,
+            "max": 193.06423221746692
+          },
+          "mean_device_interval_us": {
+            "n": 5,
+            "median": 44538.21690877279,
+            "min": 44492.62555440267,
+            "max": 44854.029973347984
+          },
+          "host_submission_us_per_call": {
+            "n": 5,
+            "median": 3.9899993377427263,
+            "min": 3.642664523795247,
+            "max": 4.204671616510798
+          }
+        }
+      ]
+    }
+  ],
+  "rdma": [
+    {
+      "device": "roceP2p1s0f1",
+      "n": 3,
+      "gbits_s_median": 109.03,
+      "gb_s_median": 13.62875,
+      "range_gbits_s": [
+        109.01,
+        109.03
+      ]
+    },
+    {
+      "device": "rocep1s0f1",
+      "n": 3,
+      "gbits_s_median": 108.94,
+      "gb_s_median": 13.6175,
+      "range_gbits_s": [
+        108.94,
+        108.94
+      ]
+    }
+  ],
+  "collectives": [
+    {
+      "operation": "all_gather",
+      "message_bytes": 1073741824,
+      "latency_us": {
+        "n": 10,
+        "median": 26937.74569661994,
+        "min": 26728.54739741275,
+        "max": 27666.850528201543
+      },
+      "algorithm_gb_s": {
+        "n": 10,
+        "median": 39.860164946318065,
+        "min": 38.80968753221502,
+        "max": 40.17209794588146
+      },
+      "bus_gb_s": {
+        "n": 10,
+        "median": 19.930082473159032,
+        "min": 19.40484376610751,
+        "max": 20.08604897294073
+      }
+    },
+    {
+      "operation": "all_reduce",
+      "message_bytes": 1073741824,
+      "latency_us": {
+        "n": 10,
+        "median": 49220.54872058687,
+        "min": 49108.87145996094,
+        "max": 49520.339602515814
+      },
+      "algorithm_gb_s": {
+        "n": 10,
+        "median": 21.814910585119087,
+        "min": 21.682844516386353,
+        "max": 21.864518407339798
+      },
+      "bus_gb_s": {
+        "n": 10,
+        "median": 21.814910585119087,
+        "min": 21.682844516386353,
+        "max": 21.864518407339798
+      }
+    },
+    {
+      "operation": "reduce_scatter",
+      "message_bytes": 1073741824,
+      "latency_us": {
+        "n": 10,
+        "median": 25631.791615486138,
+        "min": 25365.138435363773,
+        "max": 26000.334405899044
+      },
+      "algorithm_gb_s": {
+        "n": 10,
+        "median": 41.89115177536755,
+        "min": 41.29723130623988,
+        "max": 42.33140011185596
+      },
+      "bus_gb_s": {
+        "n": 10,
+        "median": 20.945575887683773,
+        "min": 20.64861565311994,
+        "max": 21.16570005592798
+      }
+    }
+  ],
+  "specification_scope": "H200 SXM per GPU; DGX H200 NIC configuration separately identified",
+  "summary_sha256": "a141ee91ad4e8d10ca9a82b3a09d80ba30cde7d135ae0d8675906bd9a77a058e",
+  "source_manifest": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/sources.json"
+}

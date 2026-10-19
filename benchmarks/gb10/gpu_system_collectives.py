@@ -1,0 +1,164 @@
+"""Two-rank native NCCL SUM/AllGather microbenchmarks with a TCP control channel.
+
+The control channel is outside CUDA-event intervals. Source and destination
+buffers are separate, so repeated SUM does not overflow its own input.
+"""
+import argparse
+import base64
+import ctypes as C
+import gc
+import glob
+import json
+import math
+import os
+from pathlib import Path
+import socket
+import time
+
+from gpu_system_guard import memory_check, sample_guard, utc, write_json
+from gpu_system_bench import emit
+
+
+class UniqueId(C.Structure):
+    _fields_ = [('internal', C.c_char * 128)]
+
+
+class Control:
+    def __init__(self, rank, host, port):
+        if rank == 0:
+            server = socket.socket(); server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind((host, port)); server.listen(1); server.settimeout(120)
+            self.sock, _ = server.accept(); server.close()
+        else:
+            until = time.monotonic() + 90
+            while True:
+                try:
+                    self.sock = socket.create_connection((host, port), timeout=5); break
+                except OSError:
+                    if time.monotonic() >= until: raise
+                    time.sleep(1)
+        self.sock.settimeout(120); self.file = self.sock.makefile('rwb', buffering=0)
+
+    def exchange(self, value):
+        self.file.write(json.dumps(value).encode() + b'\n')
+        data = self.file.readline(100000)
+        if not data: raise RuntimeError('peer control connection ended')
+        return json.loads(data)
+
+
+def nccl_library():
+    import site
+    paths = [p for d in site.getsitepackages() for p in glob.glob(d + '/nvidia/nccl/lib/libnccl.so.2')]
+    if len(paths) != 1: raise RuntimeError('one pinned NCCL library is required')
+    lib = C.CDLL(paths[0]); ptr = C.c_void_p; count = C.c_size_t; integer = C.c_int
+    lib.ncclGetErrorString.argtypes = [integer]; lib.ncclGetErrorString.restype = C.c_char_p
+    lib.ncclGetUniqueId.argtypes = [C.POINTER(UniqueId)]
+    lib.ncclCommInitRank.argtypes = [C.POINTER(ptr), integer, UniqueId, integer]
+    lib.ncclGetVersion.argtypes = [C.POINTER(integer)]
+    lib.ncclAllReduce.argtypes = [ptr, ptr, count, integer, integer, ptr, ptr]
+    lib.ncclAllGather.argtypes = [ptr, ptr, count, integer, ptr, ptr]
+    lib.ncclReduceScatter.argtypes = [ptr, ptr, count, integer, integer, ptr, ptr]
+    lib.ncclCommDestroy.argtypes = [ptr]
+    lib.ncclCommAbort.argtypes = [ptr]
+    return lib, paths[0]
+
+
+def checked(lib, code):
+    if code != 0: raise RuntimeError('NCCL: ' + lib.ncclGetErrorString(code).decode())
+
+
+def run(root, rank):
+    sample_guard(root)
+    import torch
+    torch.set_num_threads(1); torch.cuda.set_device(0)
+    if not memory_check(512*1024**2)['allowed']:
+        raise RuntimeError('insufficient memory reserve for NCCL initialization')
+    lib, path = nccl_library(); version = C.c_int(); checked(lib, lib.ncclGetVersion(C.byref(version)))
+    control = Control(rank, os.environ.get('SPARKBENCH_MASTER_ADDR', '127.0.0.1'), int(os.environ.get('SPARKBENCH_MASTER_PORT', '18571')))
+    uid = UniqueId()
+    if rank == 0: checked(lib, lib.ncclGetUniqueId(C.byref(uid)))
+    peer = control.exchange({'unique_id': base64.b64encode(bytes(uid)).decode() if rank == 0 else None})
+    if rank == 1: uid = UniqueId.from_buffer_copy(base64.b64decode(peer['unique_id']))
+    comm = C.c_void_p(); checked(lib, lib.ncclCommInitRank(C.byref(comm), 2, uid, rank))
+    write_json(root / 'metadata_communication.json', {
+        'utc': utc(), 'rank': rank, 'nranks': 2, 'nccl_version': version.value,
+        'library': path, 'dtype': 'ncclFloat32=7', 'op': 'ncclSum=0',
+        'environment': {k: v for k, v in os.environ.items() if k.startswith('NCCL_')},
+        'transport_proof': 'Inspect nccl.log; no RDMA or GPUDirect claim from interface names alone',
+        'size_definition': 'AllReduce: full input; AllGather: full output; ReduceScatter: full input',
+        'timing_boundary': 'CUDA events around native NCCL submissions; TCP control and correctness checks excluded',
+    })
+    completed = skipped = 0
+    try:
+        for repeat in range(10):
+            for kind in ['all_reduce', 'all_gather', 'reduce_scatter']:
+                for exp in range(3, 31):
+                    size = 2 ** exp; count = size // 4
+                    sample_guard(root)
+                    needed = int(size * (2 if kind == 'all_reduce' else 1.5)) + 256*1024**2
+                    mem = memory_check(needed); other = control.exchange({'allowed': mem['allowed'], 'key': [repeat, kind, size]})
+                    if other['key'] != [repeat, kind, size]: raise RuntimeError('collective schedule mismatch')
+                    row = {'kind': 'communication', 'operation': kind, 'rank': rank, 'round': repeat+1, 'message_bytes': size, 'memory_guard': mem}
+                    if not mem['allowed'] or not other['allowed']:
+                        emit(root, {**row, 'state': 'skipped_memory_guard', 'peer_allowed': other['allowed']}); skipped += 1; continue
+                    ins = count // 2 if kind == 'all_gather' else count
+                    outs = count // 2 if kind == 'reduce_scatter' else count
+                    src = torch.full((ins,), rank+1, device='cuda', dtype=torch.float32)
+                    dst = torch.empty(outs, device='cuda', dtype=torch.float32)
+                    stream = torch.cuda.current_stream(); stream_ptr = C.c_void_p(stream.cuda_stream)
+                    if kind == 'all_reduce':
+                        invoke = lambda: lib.ncclAllReduce(src.data_ptr(), dst.data_ptr(), count, 7, 0, comm, stream_ptr)
+                    elif kind == 'all_gather':
+                        invoke = lambda: lib.ncclAllGather(src.data_ptr(), dst.data_ptr(), count//2, 7, comm, stream_ptr)
+                    else:
+                        invoke = lambda: lib.ncclReduceScatter(src.data_ptr(), dst.data_ptr(), count//2, 7, 0, comm, stream_ptr)
+                    for _ in range(5): checked(lib, invoke())
+                    torch.cuda.synchronize()
+                    start = torch.cuda.Event(enable_timing=True); end = torch.cuda.Event(enable_timing=True)
+                    device = submit = 0.; iterations = 0; wall_start = time.perf_counter()
+                    batch = max(1, min(256, (16*1024**2)//size))
+                    while True:
+                        sample_guard(root)
+                        control.exchange({'begin': iterations})
+                        start.record(); before = time.perf_counter()
+                        for _ in range(batch): checked(lib, invoke())
+                        submit += time.perf_counter()-before
+                        end.record(); end.synchronize(); device += start.elapsed_time(end)/1000; iterations += batch
+                        peer = control.exchange({'elapsed': device})
+                        if min(device, peer['elapsed']) >= 1: break
+                    if kind == 'all_gather':
+                        valid = bool((dst[:outs//2] == 1).all().item() and (dst[outs//2:] == 2).all().item())
+                    else:
+                        valid = bool((dst == 3).all().item())
+                    peer = control.exchange({'valid': valid})
+                    if not valid or not peer['valid']: raise RuntimeError('collective numerical validation failed')
+                    alg = size*iterations/device/1e9; factor = 1.0 if kind == 'all_reduce' else .5
+                    emit(root, {**row, 'state': 'measured', 'cuda_interval_s': device, 'iterations': iterations,
+                                'mean_device_interval_us': device/iterations*1e6, 'algorithm_gb_s': alg,
+                                'bus_gb_s': alg*factor, 'bus_factor': factor,
+                                'host_submission_us_per_call': submit/iterations*1e6,
+                                'wall_s_including_control': time.perf_counter()-wall_start,
+                                'validation': {'passed': True, 'checked_elements': outs, 'expected': 'rank-ordered 1/2' if kind == 'all_gather' else 3}})
+                    completed += 1; invoke = None; del src, dst; gc.collect(); torch.cuda.empty_cache()
+        checked(lib, lib.ncclCommDestroy(comm))
+    except BaseException:
+        lib.ncclCommAbort(comm)
+        raise
+    finally:
+        control.file.close(); control.sock.close()
+    return {'measured': completed, 'skipped': skipped, 'rounds': 10}
+
+
+def main():
+    ap = argparse.ArgumentParser(); ap.add_argument('--root', required=True); ap.add_argument('--rank', type=int, choices=[0, 1], required=True)
+    a = ap.parse_args(); root = Path(a.root)
+    try:
+        result = run(root, a.rank)
+        write_json(root / 'communication_result.json', {'state': 'complete', 'utc': utc(), **result})
+    except BaseException as exc:
+        write_json(root / 'communication_result.json', {'state': 'stopped', 'utc': utc(), 'error': str(exc)[:1000]})
+        raise
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,210 @@
+{
+  "execution_complete": true,
+  "full_evidence_coverage": false,
+  "definition": "Terminal execution is distinct from valid measurement coverage; conditional request caps are not mandatory sample counts.",
+  "fixed_coverage": [
+    {
+      "zh": "单节点硬件轮次",
+      "en": "Single-node hardware rounds",
+      "valid": 3740,
+      "planned": 3740
+    },
+    {
+      "zh": "双机集合通信",
+      "en": "Two-node collective trials",
+      "valid": 840,
+      "planned": 840
+    },
+    {
+      "zh": "计算与通信重叠",
+      "en": "Compute/communication pairs",
+      "valid": 120,
+      "planned": 120
+    },
+    {
+      "zh": "原生固定长输出",
+      "en": "Native fixed-output requests",
+      "valid": 16,
+      "planned": 16
+    },
+    {
+      "zh": "GPU剖析配对",
+      "en": "GPU profiling pairs",
+      "valid": 9,
+      "planned": 9
+    },
+    {
+      "zh": "64K缓存配对",
+      "en": "64K cache pairs",
+      "valid": 3,
+      "planned": 3
+    },
+    {
+      "zh": "FP64矩阵轮次",
+      "en": "FP64 matrix rounds",
+      "valid": 30,
+      "planned": 30
+    },
+    {
+      "zh": "代表性计数器",
+      "en": "Counter profiles",
+      "valid": 12,
+      "planned": 12
+    },
+    {
+      "zh": "公网连续一小时",
+      "en": "Continuous public hour",
+      "valid": 1,
+      "planned": 1
+    }
+  ],
+  "public_length": {
+    "planned": 299,
+    "sent": 291,
+    "complete": 290,
+    "noncomplete_sent": 1,
+    "not_sent": 8,
+    "exact_length_qualified": 0
+  },
+  "interference": {
+    "candidate_pairs": 5,
+    "executed_pairs": 3,
+    "fully_observed_pairs": 0,
+    "incomplete_pairs": 3,
+    "not_admitted_pairs": 2,
+    "incomplete_reason": "Short-request local admission rejection; neither arm may be imputed.",
+    "not_admitted_reason": "32 fixed-rate arrivals did not fit the 180-second candidate window."
+  },
+  "continuous_hour": [
+    {
+      "offered": 600,
+      "sent": 599,
+      "complete": 599,
+      "local_rejections": 1,
+      "continuous_s": 3600.1072932910174
+    }
+  ],
+  "resource_limits": [
+    "H200 not supplied",
+    "outlet energy not measured",
+    "physical DRAM bytes not available from current counter interface",
+    "Strict per-token timestamps unavailable from aggregated SSE events"
+  ],
+  "initial_phases": [
+    {
+      "phase": "P0",
+      "cap": 12,
+      "sent": 12,
+      "logical_sent": 12,
+      "retry_attempts": 0,
+      "complete": 12,
+      "expected_context_rejections": 0,
+      "failed": 0,
+      "pending": 0,
+      "warmup_sent": 12
+    },
+    {
+      "phase": "P1",
+      "cap": 720,
+      "sent": 726,
+      "logical_sent": 720,
+      "retry_attempts": 6,
+      "complete": 718,
+      "expected_context_rejections": 0,
+      "failed": 8,
+      "pending": 0,
+      "warmup_sent": 0
+    },
+    {
+      "phase": "P2",
+      "cap": 1440,
+      "sent": 1440,
+      "logical_sent": 1440,
+      "retry_attempts": 0,
+      "complete": 1435,
+      "expected_context_rejections": 0,
+      "failed": 5,
+      "pending": 0,
+      "warmup_sent": 156
+    },
+    {
+      "phase": "P3",
+      "cap": 360,
+      "sent": 360,
+      "logical_sent": 360,
+      "retry_attempts": 0,
+      "complete": 360,
+      "expected_context_rejections": 0,
+      "failed": 0,
+      "pending": 0,
+      "warmup_sent": 0
+    },
+    {
+      "phase": "P4",
+      "cap": 37,
+      "sent": 39,
+      "logical_sent": 37,
+      "retry_attempts": 2,
+      "complete": 36,
+      "expected_context_rejections": 0,
+      "failed": 3,
+      "pending": 0,
+      "warmup_sent": 0
+    },
+    {
+      "phase": "P5",
+      "cap": 90,
+      "sent": 90,
+      "logical_sent": 90,
+      "retry_attempts": 0,
+      "complete": 90,
+      "expected_context_rejections": 0,
+      "failed": 0,
+      "pending": 0,
+      "warmup_sent": 0
+    },
+    {
+      "phase": "P6",
+      "cap": 512,
+      "sent": 512,
+      "logical_sent": 512,
+      "retry_attempts": 0,
+      "complete": 507,
+      "expected_context_rejections": 0,
+      "failed": 5,
+      "pending": 0,
+      "warmup_sent": 137
+    },
+    {
+      "phase": "P7",
+      "cap": 2000,
+      "sent": 783,
+      "logical_sent": 783,
+      "retry_attempts": 0,
+      "complete": 783,
+      "expected_context_rejections": 0,
+      "failed": 0,
+      "pending": 0,
+      "warmup_sent": 80
+    },
+    {
+      "phase": "P8",
+      "cap": 3000,
+      "sent": 930,
+      "logical_sent": 929,
+      "retry_attempts": 1,
+      "complete": 925,
+      "expected_context_rejections": 0,
+      "failed": 5,
+      "pending": 0,
+      "warmup_sent": 96
+    }
+  ],
+  "source_sha256": {
+    "reports/analysis.json": "5f172a229a8c114a1f89a9f0871d2079adc31627c350068750183988b8e1c11b",
+    "reports/length_analysis.json": "6a0a054c7f56135a7831a3c4794ee6910d0753dd5c8845eb7aafd3e5cc5e178c",
+    "hardware_unloaded_confirmed_20261016/analysis/summary.json": "a141ee91ad4e8d10ca9a82b3a09d80ba30cde7d135ae0d8675906bd9a77a058e",
+    "gap_completion_20261017/analysis/summary.json": "2a4e02adb2239d46fa7f223064461c37cc7ab392e49e83134d2155f5396943b6",
+    "gap_completion_20261017/public/manifest.json": "3f8166cd4ad630929422143d44dcf82fe53b117eb577378648c9545716907cb9"
+  }
+}

@@ -1,0 +1,58 @@
+"""Read-only node inventory. No CUDA kernels, installations or service changes."""
+import datetime
+import importlib.util
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+
+
+def capture(argv, timeout=12):
+    try:
+        p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        return {"returncode": p.returncode, "stdout": p.stdout, "stderr": p.stderr}
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return {"error": str(e)}
+
+
+def inventory():
+    out = {
+        "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "mode": "read_only_inventory_no_gpu_workload",
+        "platform": platform.platform(),
+        "tools": {name: shutil.which(name) for name in [
+            "nvcc", "ncu", "cuobjdump", "cmake", "g++", "gcc", "nvbandwidth",
+            "all_reduce_perf", "ib_write_bw", "mpirun", "python3", "docker", "timeout",
+        ]},
+        "python_modules": {name: bool(importlib.util.find_spec(name)) for name in ["torch", "numpy"]},
+        "launchers": [],
+    }
+    for p in Path('/proc').glob('[0-9]*/cmdline'):
+        try:
+            args = p.read_bytes().decode().split('\0')
+            if 'sglang.launch_server' in args:
+                out['launchers'].append({
+                    'pid': int(p.parent.name),
+                    'python': args[0],
+                    'executable': os.readlink(p.parent / 'exe'),
+                    'cwd': os.readlink(p.parent / 'cwd'),
+                })
+        except (OSError, UnicodeError):
+            pass
+    commands = {
+        'identity': ['id'], 'hostname': ['hostname'], 'cpu': ['lscpu', '-J'],
+        'memory': ['free', '-b'], 'gpu': ['nvidia-smi', '-q', '-x'],
+        'containers': ['docker', 'ps', '--format', '{{json .}}'],
+        'net': ['ip', '-j', 'addr'], 'route': ['ip', '-j', 'route'],
+        'rdma': ['rdma', 'link'], 'nvcc': ['nvcc', '--version'],
+    }
+    for key, argv in commands.items():
+        out[key] = capture(argv)
+    out['meminfo'] = Path('/proc/meminfo').read_text()
+    return out
+
+
+if __name__ == '__main__':
+    print(json.dumps(inventory()))

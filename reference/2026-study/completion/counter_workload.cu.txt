@@ -1,0 +1,50 @@
+#include <cuda_runtime.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#define CUDA(x) do { auto e=(x); if(e!=cudaSuccess){fprintf(stderr,"CUDA: %s\n",cudaGetErrorString(e));return 2;} } while(0)
+
+__global__ void triad(const float* a,const float* b,float* c,size_t n){
+  for(size_t i=blockIdx.x*blockDim.x+threadIdx.x;i<n;i+=gridDim.x*blockDim.x)c[i]=a[i]+2.0f*b[i];
+}
+__global__ void initialize(float* a,float* b,size_t n){
+  for(size_t i=blockIdx.x*blockDim.x+threadIdx.x;i<n;i+=gridDim.x*blockDim.x){a[i]=float(i%1021)*.001f;b[i]=float(i%1023)*.002f;}
+}
+__global__ void fma_chains(float* out,int iterations){
+  unsigned i=blockIdx.x*blockDim.x+threadIdx.x;
+  float a0=.01f,a1=.02f,a2=.03f,a3=.04f,a4=.05f,a5=.06f,a6=.07f,a7=.08f;
+  for(int j=0;j<iterations;j++){
+    a0=fmaf(a0,1.000001f,.00001f);a1=fmaf(a1,1.000001f,.00001f);
+    a2=fmaf(a2,1.000001f,.00001f);a3=fmaf(a3,1.000001f,.00001f);
+    a4=fmaf(a4,1.000001f,.00001f);a5=fmaf(a5,1.000001f,.00001f);
+    a6=fmaf(a6,1.000001f,.00001f);a7=fmaf(a7,1.000001f,.00001f);
+  }
+  out[i]=a0+a1+a2+a3+a4+a5+a6+a7;
+}
+int main(int argc,char**argv){
+  if(argc!=2)return 1;
+  cudaDeviceProp prop;CUDA(cudaGetDeviceProperties(&prop,0));
+  const bool memory=strcmp(argv[1],"triad")==0;
+  const size_t n=memory?((size_t)256<<20)/sizeof(float):prop.multiProcessorCount*4*256;
+  float *a=nullptr,*b=nullptr,*c=nullptr;
+  CUDA(cudaMalloc(&c,n*sizeof(float)));
+  if(memory){CUDA(cudaMalloc(&a,n*sizeof(float)));CUDA(cudaMalloc(&b,n*sizeof(float)));initialize<<<prop.multiProcessorCount*8,256>>>(a,b,n);CUDA(cudaGetLastError());}
+  cudaEvent_t start,stop;CUDA(cudaEventCreate(&start));CUDA(cudaEventCreate(&stop));
+  double sum=0;const int iterations=32768;
+  for(int r=0;r<8;r++){
+    CUDA(cudaEventRecord(start));
+    if(memory)triad<<<prop.multiProcessorCount*8,256>>>(a,b,c,n);
+    else fma_chains<<<prop.multiProcessorCount*4,256>>>(c,iterations);
+    CUDA(cudaGetLastError());CUDA(cudaEventRecord(stop));CUDA(cudaEventSynchronize(stop));
+    float ms;CUDA(cudaEventElapsedTime(&ms,start,stop));if(r>=3)sum+=ms;
+  }
+  float first,last;CUDA(cudaMemcpy(&first,c,sizeof(float),cudaMemcpyDeviceToHost));CUDA(cudaMemcpy(&last,c+n-1,sizeof(float),cudaMemcpyDeviceToHost));
+  float expected=0;
+  if(!memory){float vals[8]={.01f,.02f,.03f,.04f,.05f,.06f,.07f,.08f};for(int j=0;j<iterations;j++)for(auto&v:vals)v=std::fma(v,1.000001f,.00001f);for(float v:vals)expected+=v;}
+  float expected_last=memory?float((n-1)%1021)*.001f+2.0f*(float((n-1)%1023)*.002f):expected;
+  if(!std::isfinite(first)||fabsf(first-expected)>1e-5f||fabsf(last-expected_last)>1e-5f)return 3;
+  printf("{\"mode\":\"%s\",\"validated\":true,\"mean_ms\":%.9f,\"sm_count\":%d,\"logical_bytes_per_launch\":%zu,\"flops_per_launch\":%.0f,\"working_set_bytes\":%zu,\"warmup_launches\":3,\"measured_launches\":5}\n",argv[1],sum/5,prop.multiProcessorCount,memory?3*n*sizeof(float):0,memory?0.0:double(n)*iterations*8*2,memory?3*n*sizeof(float):n*sizeof(float));
+  CUDA(cudaFree(c));if(a)CUDA(cudaFree(a));if(b)CUDA(cudaFree(b));return 0;
+}

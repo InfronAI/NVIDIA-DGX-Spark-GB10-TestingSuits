@@ -1,0 +1,71 @@
+"""Derived figures with explicit fixed-condition and denominator provenance."""
+import json,re
+import numpy as np
+from common import ROOT
+
+
+def draw(diagnostics,lang,save):
+    from plots import plt
+    from matplotlib.patches import FancyBboxPatch
+    from hardware_completion_report import data
+    from hardware_h200_report import evidence
+    h=data();e=evidence(h);T=lambda z,en:z if lang=='zh' else en
+    # Same unit, shape and implementation, paired only by node-condition (not by time).
+    labels=[];ratios=[]
+    for x in e['compute']:
+        labels.append(x['label']);ratios.append(x['nodes'][1]['effective_tflops']['median']/x['nodes'][0]['effective_tflops']['median'])
+    for x,label in zip(e['memory'],[T('复制','Copy'),T('三元运算','Triad'),T('读取','Read'),T('写入','Write')]):
+        labels.append(label);ratios.append(x['nodes'][1]['effective_gb_s']['median']/x['nodes'][0]['effective_gb_s']['median'])
+    fig,ax=plt.subplots(figsize=(10,4.7));ys=np.arange(len(labels))
+    ax.hlines(ys,1,ratios,color='#70A6FF',linewidth=3);ax.scatter(ratios,ys,color='#004AB9',zorder=3)
+    for y,v in zip(ys,ratios):ax.text(v+.007,y,f'{v:.3f}×',va='center',fontsize=8)
+    ax.axvline(1,color='#6E7A8A',ls='--');ax.set_yticks(ys,labels);ax.invert_yaxis();ax.set_xlim(min(.9,min(ratios)-.04),max(1.1,max(ratios)+.12));ax.set_xlabel(T('节点1 / 节点0：实测中位数之比','Node 1 / node 0: ratio of measured medians'));ax.set_title(T('固定条件的节点间一致性','Between-node consistency at fixed conditions'));save(fig,'review_node_parity',lang)
+    # Two panels keep throughput and per-request pacing separate (no misleading dual axis).
+    gs=sorted(diagnostics['natural'],key=lambda g:int(re.search(r'_c(\d+)',g['key'])[1]));cs=[int(re.search(r'_c(\d+)',g['key'])[1]) for g in gs]
+    base=next(g['tps'] for c,g in zip(cs,gs) if c==1)
+    fig,axes=plt.subplots(1,2,figsize=(10,3.6))
+    for ax,vals,title,unit in [(axes[0],[g['tps']/base for g in gs],T('合计吞吐增长','Aggregate throughput growth'),T('相对并发1（倍）','Relative to C=1 (×)')),(axes[1],[g['tpot_ms']['p50'] for g in gs],T('单请求生成节奏','Per-request generation pace'),T('每词元耗时中位数（ms）','Median estimated time per output token (ms)'))]:
+        ax.plot(cs,vals,marker='o',color='#004AB9')
+        for c,v,g in zip(cs,vals,gs):ax.annotate(f'{v:.2f}\n'+T(f"{g['blocks']}区组",f"{g['blocks']} blocks"),(c,v),xytext=(0,8),textcoords='offset points',ha='center',fontsize=8)
+        ax.set_xticks(cs);ax.set_xlabel(T('并发请求数','Concurrent requests'));ax.set_ylabel(unit);ax.set_ylim(0,max(vals)*1.35);ax.set_title(title)
+    save(fig,'review_concurrency',lang)
+    # Durations are not pooled; no common completion percentage across unlike suites.
+    fig,ax=plt.subplots(figsize=(10,3.9));labels=[];observed=[];targets=[]
+    for phase,zh,en,target in [('compute','计算','Compute',60),('bandwidth','带宽','Bandwidth',60),('mixed','混合','Mixed',120)]:
+        for node in [0,1]:
+            x=next((x for x in h['soak'] if x['node']==node and x['phase']==phase),{'elapsed_s':0})
+            labels.append(T(f'{zh} · 节点{node}',f'{en} · node {node}'));observed.append(x['elapsed_s']/60);targets.append(target)
+    ys=np.arange(len(labels));ax.barh(ys,targets,color='#E5EDF9',height=.62,label=T('计划时长','Planned duration'));ax.barh(ys,[min(v,t) for v,t in zip(observed,targets)],color='#004AB9',height=.62,label=T('已归档时长','Archived duration'))
+    for y,v,t in zip(ys,observed,targets):ax.text(min(v,t)+1,y,f'{v:.1f} / {t} min',va='center',fontsize=8)
+    ax.set_yticks(ys,labels);ax.invert_yaxis();ax.set_xlim(0,146);ax.set_xlabel(T('独立阶段正式时间（分钟）','Formal time in each independent phase (minutes)'));ax.legend(loc='lower right');save(fig,'review_sustained',lang)
+    # Topology schematic: each arrow names its boundary, and no lines encode relative speed.
+    fig,axes=plt.subplots(1,2,figsize=(11,4.7))
+    for i,ax in enumerate(axes):
+        ax.set_xlim(0,10);ax.set_ylim(0,10);ax.axis('off')
+        def box(x,y,w,text):
+            ax.add_patch(FancyBboxPatch((x,y),w,1.25,boxstyle='round,pad=.15',facecolor='#E5EDF9',edgecolor='#004AB9'))
+            ax.text(x+w/2,y+.625,text,ha='center',va='center',fontsize=9)
+        if i==0:
+            ax.set_title('DGX Spark / GB10',fontweight='bold');box(.7,7.6,8.6,T('CPU/GPU共享LPDDR5x · 128 GB','CPU/GPU-shared LPDDR5x · 128 GB'));box(2.6,4.6,4.8,'GB10 GPU');box(.7,1.2,8.6,T('另一台Spark的GPU','GPU in a second Spark'))
+            ax.annotate('',(5,5.9),(5,7.45),arrowprops={'arrowstyle':'<->','color':'#004AB9','lw':2});ax.text(5.3,6.6,'273 GB/s',fontsize=9,va='center')
+            ax.annotate('',(5,2.6),(5,4.45),arrowprops={'arrowstyle':'<->','color':'#004AB9','lw':2});ax.text(.3,3.5,T('RoCE · 25 GB/s 单向端口标称','RoCE · 25 GB/s nominal one-way port'),fontsize=8,bbox={'facecolor':'white','edgecolor':'none'})
+            ax.text(5,.25,T('跨机路径；无GPU间外部NVLink','Cross-node path; no external GPU NVLink'),ha='center',fontsize=8)
+        else:
+            ax.set_title('H200 SXM',fontweight='bold');box(.7,7.6,8.6,T('GPU本地HBM3e · 141 GB','GPU-local HBM3e · 141 GB'));box(2.6,4.6,4.8,'H200 GPU');box(.7,1.2,8.6,T('同一NVLink域的其他GPU','Other GPUs in the NVLink domain'))
+            ax.annotate('',(5,5.9),(5,7.45),arrowprops={'arrowstyle':'<->','color':'#004AB9','lw':2});ax.text(5.3,6.6,'4,800 GB/s',fontsize=9,va='center')
+            ax.annotate('',(5,2.6),(5,4.45),arrowprops={'arrowstyle':'<->','color':'#004AB9','lw':2});ax.text(.3,3.5,T('NVLink · 450 GB/s 发送方向总和','NVLink · 450 GB/s aggregate transmit'),fontsize=8,bbox={'facecolor':'white','edgecolor':'none'})
+            ax.text(5,.25,T('每GPU全部链路；非单对GPU实测','All links per GPU; not measured for one pair'),ha='center',fontsize=8)
+    save(fig,'review_fabric_map',lang)
+    engine=json.loads((ROOT/'engine_split_20261016/analysis/summary.json').read_text())
+    inputs=[1024,8192,32768,65536,131072];cs=[1,2,4,8]
+    fig,axes=plt.subplots(1,2,figsize=(10,4.2))
+    for ax,key,title in zip(axes,['decode_request_median_token_s','decode_window_token_s'],[T('单请求解码速率','Per-request decode rate'),T('并发解码窗口吞吐','Concurrent decode-window throughput')]):
+        grid=np.full((len(inputs),len(cs)),np.nan)
+        for g in engine['groups']:
+            if g['stage']=='decode' and g['input'] in inputs and g['concurrency'] in cs:grid[inputs.index(g['input']),cs.index(g['concurrency'])]=g[key]
+        cmap=plt.get_cmap('Blues').copy();cmap.set_bad('#EDF1F7');im=ax.imshow(np.ma.masked_invalid(grid),cmap=cmap,vmin=0,vmax=float(np.nanmax(grid)),aspect='auto')
+        for y in range(len(inputs)):
+            for x in range(len(cs)):
+                v=grid[y,x];ax.text(x,y,'—' if np.isnan(v) else f'{v:.1f}',ha='center',va='center',color='white' if not np.isnan(v) and v>np.nanmax(grid)*.6 else '#263040')
+        ax.set_xticks(range(len(cs)),cs);ax.set_yticks(range(len(inputs)),[f'{v//1024}K' for v in inputs]);ax.set_xlabel(T('并发','Concurrency'));ax.set_ylabel(T('输入词元','Input tokens'));ax.set_title(title);ax.grid(False);fig.colorbar(im,ax=ax,label='token/s',shrink=.8)
+    save(fig,'review_decode_grid',lang)

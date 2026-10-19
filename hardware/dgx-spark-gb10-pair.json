@@ -1,0 +1,14 @@
+{
+  "id": "dgx-spark-gb10-pair",
+  "nodes": 2,
+  "soc": "NVIDIA GB10 Blackwell",
+  "compute_capability": "12.1 / sm_121",
+  "memory_per_node_gb": 128,
+  "memory_type": "coherent LPDDR5x unified CPU/GPU memory",
+  "nominal_memory_bandwidth_gb_s": 273,
+  "hbm": false,
+  "nvlink": false,
+  "scale_out": "ConnectX-7 Ethernet/RDMA; measured transport recorded per experiment",
+  "source": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html",
+  "reference_date": "2026-10-17"
+}

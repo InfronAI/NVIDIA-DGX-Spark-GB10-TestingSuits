@@ -1,0 +1,213 @@
+"""Semantic number emphasis for the offline report; never changes measured values."""
+import re
+
+from bs4 import BeautifulSoup
+
+
+CSS = """
+.document .metric-value,.document .key-figure{
+  font-weight:600;color:var(--inf-brand);font-variant-numeric:tabular-nums lining-nums;
+}
+.document .key-figure{background:var(--inf-blue-50);border-radius:3px;padding:0 .14em}
+.document .key-figure.return-positive{color:var(--inf-success);background:var(--inf-functional-success-subtle)}
+.document .key-figure.return-negative{color:var(--inf-danger);background:var(--inf-functional-danger-subtle)}
+.document .metric-table td{font-variant-numeric:tabular-nums lining-nums}
+.document .metric-table .metric-cell{color:var(--inf-neutral-800)}
+.document .metric-table .metric-range{color:var(--inf-text-muted);font-size:.92em}
+.document .metric-table .comparison-primary{background:var(--inf-blue-50)}
+.document .metric-table .comparison-secondary{background:var(--inf-blue-100)}
+.document .metric-table .comparison-reference{background:var(--inf-neutral-50)}
+.document .metric-table th.comparison-primary,
+.document .metric-table th.comparison-secondary{border-top:3px solid var(--inf-brand);color:var(--inf-blue-800)}
+.document .metric-table th.comparison-reference{border-top:3px solid var(--inf-neutral-550);color:var(--inf-neutral-700)}
+.document .comparison-reference .metric-value{color:var(--inf-neutral-700)}
+.document .metric-table .comparison-baseline{background:var(--inf-neutral-25)}
+.document .metric-table .comparison-repeat{background:var(--inf-blue-50)}
+.document .metric-table .metric-missing{color:var(--inf-text-muted);font-weight:400}
+.document .metric-table .result-positive .metric-value{color:var(--inf-success)}
+.document .metric-table .result-negative .metric-value{color:var(--inf-danger)}
+.document .metric-table .result-positive{background:var(--inf-functional-success-subtle)}
+.document .metric-table .result-negative{background:var(--inf-functional-danger-subtle)}
+.document .metric-table .focus-row td{border-top:1px solid var(--inf-blue-200);border-bottom:1px solid var(--inf-blue-200)}
+.document .metric-table .focus-row td:first-child{border-left:3px solid var(--inf-brand);font-weight:600}
+.document .finding-paragraph{border-left:3px solid var(--inf-brand);padding:8px 14px;background:var(--inf-neutral-25)}
+@media screen{.document .metric-table tbody tr:hover td{box-shadow:inset 0 0 0 9999px var(--inf-alpha-action-a10)}}
+@media print{
+  .document .metric-table,.document .metric-value,.document .key-figure{
+    print-color-adjust:exact;-webkit-print-color-adjust:exact;
+  }
+  .document .key-figure{padding:0 .08em}
+  .document .finding-paragraph{padding:5px 9px}
+}
+"""
+
+# Keep identifiers, source links, formula code, existing emphasis and uncertainty
+# intervals intact. The median stays prominent while its range remains adjacent.
+PROTECTED = re.compile(
+    r'(`[^`]*`|\*\*[^*]+\*\*|\[[^\]\n]*\]\([^\n)]*\)|'
+    r'<[^>]*>|\b\d+\.\d+\.\d+(?:[.\w-]*)|'
+    r'\b\d{4}-\d\d-\d\d(?:[T ][\d:.+Z-]+)?|'
+    r'\[[\d,.\s+−–-]+\](?:;\s*n=\d+)?|\bn=\d+)'
+)
+POINT = r'[+−-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?'
+VALUE = r'(?:US\$|\$|≈)?' + POINT + r'(?:\s*[–→/／:×]\s*' + POINT + r')*'
+UNIT = (
+    r'(?:[PTGMK]?FLOP/s|[TGMK]?B/s|[GMK]iB|[TGMK]B|[GT]b/s|'
+    r'(?:tokens?|词元)/s|(?:million\s+)?tokens?|词元|'
+    r'(?:[GMK])?(?:Hz|Wh)|kWh|ms|μs|µs|ns|s|W|°C|%|K|M|'
+    r'years?|minutes?|seconds?|hours?|requests?|rounds?|calls?|'
+    r'条|次|层|核|年|分钟|秒|小时|倍)'
+)
+BOUNDARY = r'(?:(?<![A-Za-z0-9_.])|(?<=GPU)|(?<=TDP))'
+NUMBER = re.compile(BOUNDARY + VALUE + r'(?:\s*' + UNIT + r')?(?![A-Za-z0-9_.])')
+QUANTITY = re.compile(BOUNDARY + r'(?:' + VALUE + r'\s*' + UNIT + r'|US\$' + POINT + r')(?![A-Za-z0-9_.])')
+NOTE_HEADER = re.compile(r'解释|含义|背景|定义|来源|测量条件|适用条件|适用范围|Interpret|Meaning|Background|Definition|Source|Measurement condition|Applicab', re.I)
+RESULT_HEADER = re.compile(r'结果|观察|观测|结论|Result|Observation|Finding|Conclusion', re.I)
+
+
+def highlight(text, *, quantities=False, limit=None):
+    """Add Markdown emphasis without rewriting a single source character."""
+    chunks = PROTECTED.split(text)
+    remaining = limit
+    pattern = QUANTITY if quantities else NUMBER
+    for index in range(0, len(chunks), 2):
+        def mark(match):
+            nonlocal remaining
+            if remaining is not None:
+                if remaining <= 0:
+                    return match[0]
+                remaining -= 1
+            return '**' + match[0] + '**'
+        chunks[index] = pattern.sub(mark, chunks[index])
+    return ''.join(chunks)
+
+
+def emphasize_markdown(doc):
+    """Target result/parameter cells and numeric findings, excluding code/examples."""
+    lines = doc.splitlines(keepends=True)
+    section = 0
+    headers = []
+    fence = False
+    previous_nonempty = ''
+    for index, line in enumerate(lines):
+        if line.startswith('```'):
+            fence = not fence
+        if fence or line.startswith('```'):
+            continue
+        heading = re.match(r'## (\d+)', line)
+        if heading:
+            section = int(heading[1])
+        if line.startswith('|'):
+            if index + 1 < len(lines) and re.match(r'^\|\s*:?-+', lines[index + 1]):
+                headers = [x.strip() for x in line.strip().strip('|').split('|')]
+                continue
+            if re.match(r'^\|\s*:?-+', line) or section in (0, 4, 13, 15):
+                continue
+            # Method examples and prose definitions are not result tables.
+            if section == 3 and not any(re.search(r'候选数|最短|输入.*输出上限|输入.*Output|Input.*cap|Shared target|共享目标|Selected|Min / median', h, re.I) for h in headers):
+                continue
+            cells = line.split('|')
+            for column, cell in enumerate(cells[1:-1]):
+                header = headers[column] if column < len(headers) else ''
+                if column == 0 and not (section == 3 and re.search(r'共享目标|Shared target', header, re.I)):
+                    continue
+                starts_numeric = bool(re.match(r'^\s*(?:US\$|\$|≈)?[+−-]?\d', cell))
+                if (NOTE_HEADER.search(header) and not RESULT_HEADER.search(header)
+                        and not starts_numeric and section not in (1, 2, 10)):
+                    continue
+                # Long descriptive cells retain emphasis only on quantities;
+                # short numeric cells also emphasize unitless rates/counts.
+                cells[column + 1] = highlight(cell, quantities=section not in (1, 2) and not starts_numeric)
+                if section == 2:
+                    cells[column + 1] = re.sub(r'(SGLang\s+)(\d+\.\d+\.\d+)', r'\1**\2**', cells[column + 1])
+            lines[index] = '|'.join(cells)
+            continue
+        if (section in (1, 2, 5, 6, 7, 8, 9, 10, 11, 12) and line.strip()
+                and not line.startswith(('#', '<', '[', '!', '    '))
+                and not previous_nonempty.startswith('<!--')):
+            lines[index] = highlight(line, quantities=True, limit=7)
+        if line.strip():
+            previous_nonempty = line.strip()
+    result = ''.join(lines)
+    assert result.replace('**', '') == doc.replace('**', ''), 'Emphasis changed source text'
+    return result
+
+
+def decorate_html(body):
+    """Apply comparison roles; numerical magnitude alone never implies 'better'."""
+    soup = BeautifulSoup(body, 'html.parser')
+    counts = {'key_figures': 0, 'table_values': 0, 'comparison_tables': 0,
+              'positive_returns': 0, 'negative_returns': 0}
+    for strong in soup.find_all('strong'):
+        if not re.search(r'\d', strong.get_text()) or strong.find_parent(['pre', 'code', 'th']):
+            continue
+        cell = strong.find_parent('td')
+        name = 'metric-value' if cell else 'key-figure'
+        strong['class'] = list(strong.get('class', [])) + [name]
+        counts['table_values' if cell else 'key_figures'] += 1
+    for table in soup.find_all('table'):
+        values = table.select('.metric-value')
+        if not values:
+            continue
+        table['class'] = ['metric-table']
+        header_cells = table.select('thead th')
+        headers = [x.get_text(' ', strip=True) for x in header_cells]
+        if headers and headers[0] in ('测试领域', 'Test domain'):
+            table['class'].append('study-overview')
+        reference = [i for i, h in enumerate(headers) if 'H200' in h]
+        node_columns = [i for i, h in enumerate(headers) if re.search(r'节点\s*[01]|Node\s*[01]|DGX Spark / GB10', h, re.I)]
+        first_columns = [i for i, h in enumerate(headers) if re.search(r'^首次首字|^First.*(?:content|TTFT)', h, re.I)]
+        repeat_columns = [i for i, h in enumerate(headers) if re.search(r'^重复首字|^Repeat.*(?:content|TTFT)', h, re.I)]
+        financial = [i for i, h in enumerate(headers) if re.search(r'ROI|累计净收益|Cumulative net|Net cumulative', h, re.I)]
+        comparison = bool(reference or len(node_columns) >= 2 or (first_columns and repeat_columns) or financial)
+        counts['comparison_tables'] += int(comparison)
+        all_rows = table.select('tr')
+        for row in all_rows:
+            cells = row.find_all(['td', 'th'], recursive=False)
+            for i, cell in enumerate(cells):
+                classes = []
+                if cell.select('.metric-value'):
+                    classes.append('metric-cell')
+                if i in reference:
+                    classes.append('comparison-reference')
+                elif (reference or len(node_columns) >= 2) and i in node_columns:
+                    classes.append('comparison-primary' if i == node_columns[0] else 'comparison-secondary')
+                elif i in first_columns:
+                    classes.append('comparison-baseline')
+                elif i in repeat_columns:
+                    classes.append('comparison-repeat')
+                text = cell.get_text(' ', strip=True)
+                if cell.name == 'td' and text in ('—', '未测', 'Unmeasured', 'Not measured', '不适用', 'Not applicable', '原生不支持', 'No native support'):
+                    classes.append('metric-missing')
+                if cell.name == 'td' and i in financial:
+                    number = re.search(r'[+−-]?\d[\d,]*(?:\.\d+)?', text)
+                    if number:
+                        n = float(number[0].replace(',', '').replace('−', '-'))
+                        if n != 0:
+                            state = 'positive' if n > 0 else 'negative'
+                            classes.append('result-' + state)
+                            counts[state + '_returns'] += 1
+                if classes:
+                    cell['class'] = classes
+        # Mark the observed endpoints of the short-prompt concurrency sweep;
+        # retain every intermediate row and both latency/throughput columns.
+        if headers and headers[0] in ('并发', 'Concurrency') and any('95' in h for h in headers):
+            rows = table.select('tbody tr')
+            if len(rows) > 1:
+                rows[0]['class'] = ['focus-row']
+                rows[-1]['class'] = ['focus-row']
+    for p in soup.find_all('p'):
+        lead = p.find('strong', recursive=False)
+        if lead and re.search(r'^(自用结论|售卖情景结论|Self-use finding|Sales scenario finding)', lead.get_text()):
+            p['class'] = ['finding-paragraph']
+        if 'ROI' in p.get_text():
+            for strong in p.select('.key-figure'):
+                value = strong.get_text().strip()
+                if re.fullmatch(r'[+−-]\d+(?:\.\d+)?%', value):
+                    state = 'positive' if value.startswith('+') else 'negative'
+                    strong['class'].append('return-' + state)
+    # Keep uncertainty and n next to each highlighted median, at normal weight.
+    rendered = str(soup)
+    rendered = re.sub(r'(</strong>)(\s*\[[\d,.\s+−–-]+\](?:;\s*n=\d+)?)',
+                      r'\1<span class="metric-range">\2</span>', rendered)
+    return rendered, counts

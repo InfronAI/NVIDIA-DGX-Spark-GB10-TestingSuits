@@ -1,0 +1,232 @@
+"""Finite completion guard: observe existing GPU retries, retry collection/rendering.
+
+Never starts a model request or replays a completed GPU experiment. The only
+additional GPU work is the declared, one-shot counter diagnostic after restore.
+"""
+import base64
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+S = Path(__file__).resolve().parent
+R = S.parent
+sys.path.insert(0, str(S))
+from collect import primary
+from gpu_system_guard import utc, write_json
+
+E = S / 'evidence/overnight_completion'
+EXPECTED = {'base': 1070, 'extensions': 800, 'communication': 840, 'overlap': 120}
+
+
+def read(path):
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def process_running(pid, entry):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    p = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True, text=True)
+    return p.returncode == 0 and str(entry) in p.stdout
+
+
+def fresh_restoration(state, proof):
+    started = state.get('resume_receipt', {}).get('utc', '')
+    return bool(started and proof.get('state') == 'verified' and proof.get('configuration_equal')
+                and proof.get('utc', '') >= started)
+
+
+def counter_outcomes_resolved(counter):
+    nodes=counter.get('nodes',{})
+    return bool(counter.get('completed_utc') and set(nodes)=={'0','1'}
+                and all(x.get('state') in ['measured','unavailable_after_retry'] for x in nodes.values()))
+
+
+def coverage_audit(summary, state):
+    coverage = summary.get('coverage_by_suite', {})
+    missing = []
+    if not {'single','extensions','communication','soak'}.issubset(state.get('completed_phases', [])):
+        missing.append('unfinished_phases')
+    nodes = []
+    for rank in (0, 1):
+        for suite, expected in EXPECTED.items():
+            c = coverage.get(str(rank), {}).get(suite, {})
+            measured = c.get('measured', 0)
+            nodes.append(dict(node=rank, suite=suite, expected=expected, measured=measured))
+            if measured != expected or any(v for k, v in c.items() if k != 'measured'):
+                missing.append(f'node{rank}/{suite}')
+        for phase, seconds in [('compute', 3600), ('bandwidth', 3600), ('mixed', 7200)]:
+            rows = [x for x in summary.get('soak', []) if x['node'] == rank and x['phase'] == phase]
+            if not rows or max(x['elapsed_s'] for x in rows) < seconds:
+                missing.append(f'node{rank}/{phase}')
+            if phase == 'mixed' and rows:
+                pid = state.get('nodes', {}).get(str(rank), {}).get('children', {}).get('soak', {}).get('pid')
+                if any(x.get('execution_pid') != pid for x in rows):
+                    missing.append(f'node{rank}/mixed_stale_execution')
+    if summary.get('paired_collective_trials') != 840:
+        missing.append('paired_collectives')
+    if summary.get('paired_overlap_trials') != 120:
+        missing.append('paired_overlap')
+    # A corrected API/validation probe only resolves when the same condition and
+    # repeat has a validated measurement; preserve the original failed record.
+    valid_keys = {(g['node'], g['condition_id'], n) for g in summary.get('groups', []) for n in g['rounds']}
+    recovered = []
+    for row in summary.get('excluded_api_probes', []):
+        key = (row['node_index'], row['condition_id'], row['round'])
+        recovered.append(dict(node=key[0], condition_id=key[1], round=key[2],
+                              prior_state=row.get('state'), recovered=key in valid_keys))
+        if key not in valid_keys:
+            missing.append('unresolved_prior_probe/' + str(key))
+    return dict(utc=utc(), complete=not missing, missing=missing, matrix_coverage=nodes,
+                recovered_probes=recovered, soak=summary.get('soak', []))
+
+
+def node_call(rank, script):
+    if rank == 0:
+        return primary(script)
+    return primary("import subprocess,sys\np=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=6','benchmark@192.0.2.11','python3 -'],input=" + repr(script) + ",text=True,capture_output=True,timeout=20)\nsys.stdout.write(p.stdout);sys.exit(p.returncode)")
+
+
+def counter_retries(state, proof, auth):
+    previous = read(E / 'counter_retries.json')
+    if previous.get('completed_utc'):
+        return previous
+    root = read(S / 'launch.json')['remote_root']
+    code = base64.b64encode((S / 'counter_retry_remote.py').read_bytes()).decode()
+    result = dict(started_utc=previous.get('started_utc', utc()), nodes=previous.get('nodes', {}),
+                  method_source='https://developer.nvidia.com/ERR_NVGPUCTRPERM')
+    # Existing public/model tests stay closed. A GET of source counters confirms idle.
+    idle = json.loads(primary("import sys,json\nsys.path.insert(0," + repr(root) + ")\nfrom gpu_system_guard import engine_idle\nprint(json.dumps(engine_idle()))"))
+    if not idle.get('idle'):
+        raise RuntimeError('restored model not idle for counter diagnostic')
+    for rank in (0, 1):
+        if str(rank) in result['nodes']:
+            continue
+        if (S / 'STOP').exists() or time.time() + 120 >= auth['load_deadline_epoch']:
+            result['nodes'][str(rank)] = dict(state='not_run', reason='user_stop_or_fixed_window')
+            continue
+        inventory = json.loads(node_call(rank, "from pathlib import Path\nimport hashlib,json\np=Path(" + repr(root + '/counter_probe') + ")\nprint(json.dumps({'binary_sha256':hashlib.sha256(p.read_bytes()).hexdigest()}))"))
+        config = dict(rank=rank, binary_sha256=inventory['binary_sha256'], restoration_proof=proof,
+                      attempt_started_utc=state['resume_receipt']['utc'], load_deadline_epoch=auth['load_deadline_epoch'],
+                      password=os.environ.get('QWEN_GPU_SSH_PASSWORD', ''))
+        # File/launch locks and a persistent receipt make a lost launch response safe.
+        script = """from pathlib import Path
+import base64,fcntl,json,subprocess,sys,os
+r=Path(__ROOT__);out=r/'counter_retry_20261017';out.mkdir(exist_ok=True)
+sys.path.insert(0,str(r));from gpu_system_guard import write_json,utc
+lock=(out/'launch.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX)
+receipt=out/'launch.json'
+if receipt.exists():print(receipt.read_text());raise SystemExit(0)
+p=r/'counter_retry_remote.py';p.write_bytes(base64.b64decode(__CODE__))
+compile(p.read_text(),str(p),'exec')
+write_json(receipt,{'state':'launching','utc':utc()})
+with (out/'runner.log').open('ab') as log:
+ child=subprocess.Popen(['python3',str(p)],stdin=subprocess.PIPE,stdout=log,stderr=log,start_new_session=True)
+ child.stdin.write(json.dumps(__CONFIG__).encode());child.stdin.close()
+d={'pid':child.pid,'state':'registered','utc':utc()};write_json(receipt,d);print(json.dumps(d))
+""".replace('__ROOT__', repr(root)).replace('__CODE__', repr(code)).replace('__CONFIG__', repr(config))
+        node_call(rank, script)
+        config['password'] = None
+        script = None
+        until = min(time.time() + 180, auth['load_deadline_epoch'])
+        while time.time() < until:
+            if (S/'STOP').exists():
+                node_call(rank, "from pathlib import Path\nPath("+repr(root+'/STOP_COUNTER_RETRY')+").write_text('local user stop')\nprint('{}')")
+            item = json.loads(node_call(rank, "from pathlib import Path\np=Path(" + repr(root + '/counter_retry_20261017/result.json') + ");print(p.read_text() if p.exists() else '{}')"))
+            if item:
+                result['nodes'][str(rank)] = item
+                break
+            time.sleep(5)
+        else:
+            raise RuntimeError('counter diagnostic outcome not yet collected')
+        write_json(E / 'counter_retries.json', result)
+    result['completed_utc'] = utc()
+    write_json(E / 'counter_retries.json', result)
+    return result
+
+
+def launch(entry, args, log):
+    env = {k: v for k, v in os.environ.items() if k != 'QWEN_GPU_SSH_PASSWORD'}
+    with log.open('ab') as f:
+        p = subprocess.Popen([sys.executable, str(entry), *args], stdin=subprocess.DEVNULL,
+                             stdout=f, stderr=subprocess.STDOUT, env=env, start_new_session=True)
+    return p.pid
+
+
+def main():
+    E.mkdir(parents=True, exist_ok=True)
+    lock = (S / 'overnight_finish.lock').open('a')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    auth = read(S / 'authorization.json')
+    state_path = S / 'overnight_finish_status.json'
+    progress = read(state_path)
+    progress.update(pid=os.getpid(), started_utc=progress.get('started_utc', utc()), state='observing_existing_run')
+    report_attempts = progress.get('report_attempts', 0)
+    collector_restarts = progress.get('collector_restarts', 0)
+    diagnostic_errors = progress.get('diagnostic_errors', 0)
+    last_report_pid = progress.get('report_pid')
+    def save(**kw):
+        progress.update(kw, utc=utc()); write_json(state_path, progress)
+    while time.time() < auth['deadline_epoch'] + 3600:
+        try:
+            live = read(S / 'status.json'); collector = read(S / 'collector_status.json')
+            retry = read(S / 'retry_supervisor_status.json'); proof = read(S / 'service_restoration_verification.json')
+            save(remote_state=live.get('state'), attempt=retry.get('attempt'), phase=live.get('phase'))
+            if (collector.get('state') != 'archived_terminal' and retry.get('state') == 'running'
+                    and collector_restarts < 3 and not process_running(collector.get('pid'), S / 'collect.py')):
+                pid = launch(S / 'collect.py', [], E / 'collector_recovery.log')
+                collector_restarts += 1
+                save(collector_restarts=collector_restarts, recovered_collector_pid=pid)
+                time.sleep(30); continue
+            if live.get('state') not in ('batch_complete', 'stopped') or collector.get('state') != 'archived_terminal':
+                time.sleep(15); continue
+            if live['state'] == 'stopped' and retry.get('state') in ('running', 'retry_backoff', 'preflight') and not (S / 'STOP').exists():
+                time.sleep(15); continue
+            if not fresh_restoration(live, proof):
+                save(state='restoration_not_verified'); time.sleep(30); continue
+            counter = read(E / 'counter_retries.json')
+            if live['state'] == 'batch_complete' and not counter.get('completed_utc') and diagnostic_errors < 3:
+                save(state='retrying_counter_diagnostic')
+                try:
+                    counter = counter_retries(live, proof, auth)
+                except Exception as exc:
+                    diagnostic_errors += 1
+                    save(diagnostic_errors=diagnostic_errors, last_error=type(exc).__name__)
+                    time.sleep(30); continue
+            required_after = max(live.get('completed_utc', ''), counter.get('completed_utc', ''))
+            final = read(S / 'finalization.json')
+            render_current = final.get('passed') and final.get('reason') == 'terminal' and final.get('started_utc', '') >= required_after
+            latest = read(S / 'latest_render_launch.json')
+            if not render_current:
+                save(state='finalizing_report')
+                if process_running(last_report_pid, S / 'finalize.py') or process_running(latest.get('pid'), S / 'finalize.py'):
+                    time.sleep(15); continue
+                if report_attempts >= 3:
+                    save(state='report_failed_after_retries'); return
+                last_report_pid = launch(S / 'finalize.py', ['--reason', 'terminal'], E / 'report_recovery.log')
+                report_attempts += 1
+                save(report_attempts=report_attempts, report_pid=last_report_pid)
+                time.sleep(30); continue
+            audit = coverage_audit(read(S / 'analysis/summary.json'), live)
+            audit['counter_retry_resolved']=counter_outcomes_resolved(counter)
+            if not audit['counter_retry_resolved']:
+                audit['missing'].append('counter_diagnostic_recheck')
+                audit['complete']=False
+            write_json(E / 'completion_audit.json', audit)
+            complete = audit['complete'] and live['state'] == 'batch_complete'
+            save(state='complete' if complete else 'ended_with_gaps', coverage_complete=complete,
+                 restoration_verified=True, report_validated=True, report_utc=final['utc'],
+                 counter_diagnostic={n: v['state'] for n, v in counter.get('nodes', {}).items()}, missing=audit['missing'])
+            return
+        except Exception as exc:
+            save(last_error=type(exc).__name__, state='control_retry')
+            time.sleep(30)
+    save(state='fixed_completion_window_ended')
+
+
+if __name__ == '__main__':
+    main()

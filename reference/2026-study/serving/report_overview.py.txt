@@ -1,0 +1,118 @@
+"""Opening findings derived from archived results; no workload or network calls."""
+import json
+from collections import defaultdict
+from statistics import median
+
+from common import ROOT
+
+
+def summary(lang, hardware):
+    from build_report import table
+
+    T = lambda zh, en: zh if lang == 'zh' else en
+    read = lambda name: json.loads((ROOT / name).read_text())
+    d = read('reports/diagnostics.json')
+    engine = read('engine_split_20261016/analysis/summary.json')
+    cache = read('reports/cache_analysis.json')
+    lengths = read('reports/length_analysis.json')
+    natural = {x['key']: x for x in d['natural']}
+    c1, c8 = natural['P1_c1_none'], natural['P1_c8_none']
+    prefill = [x['prefill_uncached_token_s'] for x in engine['groups']
+               if x['stage'] == 'prefill' and x['concurrency'] == 1]
+    decode = [x['decode_request_median_token_s'] for x in engine['groups']
+              if x['stage'] == 'decode' and x['concurrency'] == 1]
+    span = lambda values, digits=1: f'{min(values):,.{digits}f}–{max(values):,.{digits}f}'
+    matrix = lambda precision: [x['effective_tflops']['median'] for x in hardware['groups']
+                               if x.get('precision') == precision and x.get('shape') == [8192]*3]
+    copies = [x['effective_gb_s']['median'] for x in hardware['groups']
+              if x['kind'] == 'copy' and x['stride'] == 1 and x['working_set_bytes'] == 8*2**30]
+    stream_pairs = defaultdict(list)
+    for x in hardware['extended_comparisons']['streams']:
+        stream_pairs[x['node'], x['streams']].append(x['serial_over_parallel'])
+    stream_range = span([median(v) for v in stream_pairs.values()], 2)
+    allreduce = next(x['bus_gb_s']['median'] for x in hardware['collectives']
+                     if x['operation'] == 'all_reduce' and x['message_bytes'] == 2**30)
+    retained = next(x['counter_fraction'] for x in cache['groups']
+                    if x['family'] == 'retention' and x['role'] == 'probe'
+                    and x['input_target'] == 32768 and x['target_delay_s'] == 300)
+    periodic = [x['counter_fraction'] for x in cache['groups']
+                if x['family'] == 'periodic' and x['role'] == 'probe']
+    max_output = max(x['actual_output'] for x in lengths['rows'] if x['output_attained'])
+    mixed = sorted((x for x in hardware['soak'] if x['phase'] == 'mixed'), key=lambda x:x['node'])
+    cooling = ' / '.join(f"{100*x['thermal_backoff_s_completed_calls']/x['elapsed_s']:.1f}%" for x in mixed)
+    own = next(x for x in d['investment_scenarios'] if x['cell'] == c8['key']
+               and x['use'] == 'self_use' and x['utilization'] == .75 and x['horizon_years'] == 5)
+    sale = next(x for x in d['investment_scenarios'] if x['cell'] == c8['key']
+                and x['use'] == 'sale' and x['utilization'] == .75
+                and x['horizon_years'] == 5 and x['price_multiple'] == 2)
+    # Links use the final chapter order, after the deployment chapter is split out.
+    row = lambda zh, en, section, tests, finding: [
+        f'[{T(zh,en)}](#section-{section:02d})', tests, finding]
+    rows = [
+        row('GPU计算', 'GPU compute', 6,
+            T('通用FP32乘加；FP32／允许TF32／FP16／BF16／FP8／NVFP4矩阵；结构化稀疏。',
+              'Scalar FP32; FP32/TF32-allowed/FP16/BF16/FP8/NVFP4 matrices; structured sparsity.'),
+            T(f'8,192³稠密矩阵：BF16 **{span(matrix("bf16"),2)}**、FP8 **{span(matrix("fp8_e4m3"),2)} TFLOP/s**。速率取决于规模、数据与库路径。',
+              f'8,192³ dense matrices: BF16 **{span(matrix("bf16"),2)}**, FP8 **{span(matrix("fp8_e4m3"),2)} TFLOP/s**. Rates depend on shape, data and library path.')),
+        row('内存与CPU/GPU协同', 'Memory and CPU/GPU sharing', 6,
+            T('连续／跨步读写、随机访问、共享内存、统一内存首次访问及CPU资源竞争。',
+              'Contiguous/strided access, pointer chasing, shared/managed memory and CPU contention.'),
+            T(f'8 GiB连续复制为 **{span(copies,0)} GB/s**（读＋写字节口径）；CPU竞争可降低GPU数据供给。不是物理DRAM事务带宽。',
+              f'8 GiB contiguous copy: **{span(copies,0)} GB/s**, counting reads plus writes. CPU contention can reduce GPU data supply; this is not physical DRAM traffic.')),
+        row('独立算子与执行效率', 'Operators and execution', 6,
+            T('归一化、Softmax、归约、注意力；内核启动、CUDA Graphs与多执行流。',
+              'Normalization, softmax, reduction, attention; launches, CUDA Graphs and streams.'),
+            T(f'已建立逐规模耗时基线；多流配对耗时比为 **{stream_range}倍**，并行收益需按具体条件判断。',
+              f'Per-size latency baselines are established. Serial/parallel time ratios span **{stream_range}×**; benefits depend on the tested condition.')),
+        row('双机通信与重叠', 'Two-node communication', 7,
+            T('RDMA网络；NCCL聚合、收集、分发；计算与通信串行／重叠对照。',
+              'RDMA; AllReduce/AllGather/ReduceScatter; serial versus overlapped compute and communication.'),
+            T(f'1 GiB AllReduce总线带宽 **{allreduce:.2f} GB/s**；完成 **{hardware["paired_collective_trials"]}次**通信、**{hardware["paired_overlap_trials"]}次**重叠试验。本次NCCL未启用GPU直接网络访问。',
+              f'1 GiB AllReduce bus bandwidth: **{allreduce:.2f} GB/s**; **{hardware["paired_collective_trials"]}** collective and **{hardware["paired_overlap_trials"]}** overlap trials. NCCL GPU-direct networking was disabled.')),
+        row('引擎内部阶段', 'Engine stages', 8,
+            T('预填充（处理输入）、解码（生成输出）、排队与双节点GPU时间线。',
+              'Prefill (input processing), decode (generation), queues and two-node GPU timelines.'),
+            T(f'单并发预填充 **{span(prefill,0)}词元/s**；固定256输出的解码为 **{span(decode)}词元/s**。限于已测合成输入，计时含引擎调度。',
+              f'At concurrency one, prefill is **{span(prefill,0)} tokens/s** and decode with 256 outputs is **{span(decode)} tokens/s**. Synthetic inputs; timings include engine scheduling.')),
+        row('公网服务与到达负载', 'Public serving and arrivals', 8,
+            T('六套题库共60条提示；并发1／2／4／8、思考档位、独立到达与达标吞吐。',
+              '60 prompts from six datasets; concurrency 1/2/4/8, reasoning settings, open arrivals and goodput.'),
+            T(f'短提示并发1→8：合计 **{c1["tps"]:.1f}→{c8["tps"]:.1f}词元/s**，正文首字95分位 **{c1["ttft"]["p95"]:.2f}→{c8["ttft"]["p95"]:.2f}秒**；高到达率出现排队拒绝。',
+              f'Short prompts, concurrency 1→8: **{c1["tps"]:.1f}→{c8["tps"]:.1f} tokens/s**, first-content p95 **{c1["ttft"]["p95"]:.2f}→{c8["ttft"]["p95"]:.2f} s**. Higher arrival rates cause queue rejections.')),
+        row('输入／输出与业务形态', 'Lengths and business shapes', 8,
+            T('1K–256K长度设计空间；八类业务输入／输出比例、长上下文与实际生成量。',
+              '1K–256K length design space; eight business shapes, input/output ratios and realized lengths.'),
+            T(f'长输入的等待更长；长度扩展完成 **{lengths["complete"]}/{lengths["planned"]}次**，达到预设目标的最大输出为 **{max_output:,}词元**。256K实际输出尚未验证。',
+              f'Longer inputs increase waiting. **{lengths["complete"]}/{lengths["planned"]}** extension calls completed; the largest attained output target was **{max_output:,} tokens**. Actual 256K generation is unverified.')),
+        row('前缀缓存与保留', 'Prefix cache and retention', 8,
+            T('六档共享比例；首次／复用、空闲保留、竞争恢复和周期复用。',
+              'Six prefix-sharing ratios; first/repeat, idle retention, pressure/recovery and periodic reuse.'),
+            T(f'32K名义等待300秒组缓存词元比例 **{retained:.1%}**；8K周期复测六轮均约 **{min(periodic):.0%}**。结论限于这些有效窗口，不代表长期命中率。',
+              f'32K inputs with a nominal 300 s wait: **{retained:.1%}** cached-token fraction; six 8K periodic rounds were about **{min(periodic):.0%}**. These windows do not establish long-term hit rates.')),
+        row('持续性能与温度', 'Sustained work and thermals', 9,
+            T('分段计算、带宽与混合负载；频率、温度、功率、自动退避及性能保持。',
+              'Separate compute, bandwidth and mixed phases; clocks, temperature, power, cooling and retention.'),
+            T(f'两节点分别完成 **60／60／120分钟**；混合阶段冷却占时为 **{cooling}**（节点0／1）。退避影响墙钟吞吐；三阶段不等于连续4小时业务验证。',
+              f'Both nodes completed **60/60/120 minutes**. Mixed-phase cooling occupied **{cooling}** (nodes 0/1). Cooling affects wall-clock throughput; phases do not establish four-hour continuous serving.')),
+        row('可观测性与瓶颈解释', 'Observability and attribution', 6,
+            T('客户端、引擎与节点监控；GPU阶段剖析、硬件缓存和内存计数器诊断。',
+              'Client/engine/node telemetry, GPU profiling, hardware-cache and memory-counter diagnostics.'),
+            T('已区分各层计时边界；硬件计数器仅部分可读，缺少代表性负载的物理内存流量，尚不能确定模型的唯一瓶颈。',
+              'Timing boundaries are separated. Counters are partly readable; representative physical-memory traffic is missing, so a unique model bottleneck is not established.')),
+        row('H200技术对照', 'H200 reference', 10,
+            T('按计算、内存供给、容量、设备互联、跨节点网络和功率逐项对照。',
+              'Compute, memory supply/capacity, device links, network and power compared by function.'),
+            T('H200标称内存带宽更高，互联与功耗边界不同。本项采用官方规格参照，未进行同模型H200实测，不给出推理加速排名。',
+              'H200 has higher specified memory bandwidth and different link/power boundaries. This is an official-specification reference without matched H200 inference measurements.')),
+        row('成本与投资回报', 'Cost and investment return', 11,
+            T('实付API费用；双机US$10,000采购、电费、自用／售卖的1／3／5年回报。',
+              'Paid API charges; US$10,000 hardware, electricity, self-use/sales and 1/3/5-year returns.'),
+            T(f'短提示并发8、75%有效生产比例情景：自用回本 **{own["payback_years"]:.2f}年**、五年ROI **{own["roi_fraction"]:+.1%}**；按参考API综合价2倍售卖，回本 **{sale["payback_years"]:.2f}年**。未计其他运营费。',
+              f'For short prompts at concurrency eight and 75% productive utilization, self-use payback is **{own["payback_years"]:.2f} years**, five-year ROI **{own["roi_fraction"]:+.1%}**; sales at twice the blended API reference give **{sale["payback_years"]:.2f}-year** payback. Other operating costs are excluded.')),
+    ]
+    intro = T('下表概括本次实际测量及辅助分析。点击领域名称可查看详细结果；计算和内存带宽范围取自相同条件下两节点的中位数。题库仅作性能负载，不评价模型答案正确性。',
+              'The table summarizes completed measurements and supporting analyses. Domain links lead to detailed results; compute and memory-bandwidth ranges span the two node medians under fixed conditions. Prompt banks are workloads, not answer-quality tests.')
+    return ('### '+T('测试领域、测试项与主要结论', 'Test domains, items and principal findings')+
+            '\n\n'+intro+'\n\n<div id="study-overview"></div>\n'+
+            table([T('测试领域','Test domain'),T('涵盖的测试项','Tests covered'),
+                   T('主要结论与适用范围','Principal finding and scope')],rows))

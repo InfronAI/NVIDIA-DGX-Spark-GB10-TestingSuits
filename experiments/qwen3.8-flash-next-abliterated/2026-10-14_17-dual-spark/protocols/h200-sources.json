@@ -1,0 +1,58 @@
+[
+  {
+    "name": "spark_hardware",
+    "url": "https://docs.nvidia.com/dgx/dgx-spark/hardware.html",
+    "retrieved_utc": "2026-10-16T12:04:21.477817+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/spark_hardware.html",
+    "sha256": "02675731cdfcae028528d8fd9e6cf77fcde24c9524cb42eb1a22acb9ebc68d9b"
+  },
+  {
+    "name": "spark_network",
+    "url": "https://docs.nvidia.com/dgx/dgx-spark/spark-clustering.html",
+    "retrieved_utc": "2026-10-16T12:04:21.648233+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/spark_network.html",
+    "sha256": "e054126b42035cb6641435f49656cf081f81bbee4e5c13c8a8c5bc5f77ab106c"
+  },
+  {
+    "name": "h200",
+    "url": "https://www.nvidia.com/en-us/data-center/h200/",
+    "retrieved_utc": "2026-10-16T12:04:22.208627+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/h200.html",
+    "sha256": "e71a9e7ea8e2e27eb96863bff42c04b478bea5475d5cbc08b9af8470b8f0ced1"
+  },
+  {
+    "name": "dgx_h200",
+    "url": "https://docs.nvidia.com/dgx/dgxh100-user-guide/introduction-to-dgxh100.html",
+    "retrieved_utc": "2026-10-16T12:04:22.458758+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/dgx_h200.html",
+    "sha256": "aa3dd7e72e910b03e697dfe7cfb76efc04bb9382f0c73cf620eba348eea6c945"
+  },
+  {
+    "name": "hopper",
+    "url": "https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html",
+    "retrieved_utc": "2026-10-16T12:04:22.630650+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/hopper.html",
+    "sha256": "5201e5f17c41cd8f86bcc486a42e5f97b7f86dff2c196895f5db5de39d89120f"
+  },
+  {
+    "name": "nccl_bandwidth",
+    "url": "https://raw.githubusercontent.com/NVIDIA/nccl-tests/master/doc/PERFORMANCE.md",
+    "retrieved_utc": "2026-10-16T12:04:23.316394+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/nccl_bandwidth.md",
+    "sha256": "2242493053a6f9d5db1c6542a8ce7740be919778645125b94eeae440efd31edf"
+  },
+  {
+    "name": "nvfp4_architecture_20261017",
+    "url": "https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/",
+    "retrieved_utc": "2026-10-17T02:08:20.684420+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/nvfp4_architecture_20261017.html",
+    "sha256": "d41d73796a150c69a0ed4fe2af3d140b6f96eab1d206a5dfc6424d794ecbe2aa"
+  },
+  {
+    "name": "nvfp4_emulation_nim_2_0_13_20261017",
+    "url": "https://docs.nvidia.com/nim/large-language-models/_2.0.13/2.0.13/reference/advanced-configuration.html",
+    "retrieved_utc": "2026-10-17T02:08:20.305635+00:00",
+    "path": "workspace/export/qwen38_perf_p3_20261014_0905/evidence/h200_comparison/nvfp4_emulation_nim_2_0_13_20261017.html",
+    "sha256": "393eabef8961b913470bd3a4b5a4c6aa99fffdc6ce3004b172c20eef4a9becac"
+  }
+]

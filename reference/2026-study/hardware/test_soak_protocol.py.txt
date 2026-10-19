@@ -1,0 +1,19 @@
+import json,tempfile,unittest
+from pathlib import Path
+from soak_protocol import schedule,latest_execution
+class SoakProtocolTest(unittest.TestCase):
+ def test_default_unchanged(self):
+  with tempfile.TemporaryDirectory() as d:self.assertEqual(schedule(Path(d)),[('compute',3600),('bandwidth',3600),('mixed',7200)])
+ def valid(self):return {'reason':'user_resume_mixed_without_temperature_cutoff','completed_soak_phases':['compute','bandwidth'],'remaining_soak_phases':['mixed'],'mixed_seconds':7200,'restoration_verified':True}
+ def test_mixed_only(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d);(p/'resume_authorization.json').write_text(json.dumps(self.valid()));self.assertEqual(schedule(p),[('mixed',7200)])
+ def test_invalid_resume_rejected(self):
+  for change in [{'completed_soak_phases':[]},{'mixed_seconds':1},{'restoration_verified':False}]:
+   with self.subTest(change=change),tempfile.TemporaryDirectory() as d:
+    p=Path(d);(p/'resume_authorization.json').write_text(json.dumps(dict(self.valid(),**change)))
+    with self.assertRaises(RuntimeError):schedule(p)
+ def test_new_baseline_excludes_old_partial(self):
+  rows=[dict(node_index=0,kind='sustained',phase='mixed',execution_pid=1,utc='2026-10-16T11:00:00+00:00'),dict(node_index=0,kind='soak_baseline',phase='mixed',execution_pid=2,utc='2026-10-16T12:00:00+00:00')]
+  self.assertEqual(latest_execution(rows,0,'mixed'),2);self.assertIsNone(latest_execution(rows,1,'mixed'));self.assertIsNone(latest_execution(rows,0,'compute'))
+if __name__=='__main__':unittest.main()

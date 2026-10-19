@@ -1,0 +1,142 @@
+"""Local artifact inventory and bilingual report appendix; reads metadata only."""
+import base64
+import csv
+import datetime as dt
+import hashlib
+import html
+import json
+import os
+from pathlib import Path
+from urllib.parse import quote
+from common import ROOT, dump, utc
+
+OLD=ROOT.parent/'qwen38_abliterated_eval_20261014_mtp'
+REPO=ROOT.parents[1]
+OUT=ROOT/'reports'
+CACHE=None
+SHARED=[REPO/p for p in [
+ 'src/insightloop/config/loader.py','src/insightloop/config/dotenv.py',
+ 'src/insightloop/config/gmail_accounts.py','src/insightloop/runtime/clickhouse.py',
+ 'src/insightloop/datasources/clickhouse.py','src/insightloop/datasources/cache.py',
+ 'src/insightloop/datasources/types.py','pyproject.toml','uv.lock',
+ 'export/tasks/20261014-qwen38-abliterated-evaluation/task.md']]
+CATEGORIES={
+ 'code':('本轮测试代码','Current test code'), 'plans':('固定方案与请求负载','Frozen protocol and workloads'),
+ 'requests':('逐请求原始数据','Per-request raw data'), 'runs':('区组、运行与校验记录','Blocks, run state and validation'),
+ 'monitor':('节点与客户端监控','Node and client telemetry'), 'results':('分析结果与图表','Analysis and figures'),
+ 'evidence':('配置、账单与源码证据','Configuration, billing and source evidence'),
+ 'source_data':('原始数据集','Original datasets'), 'model_sources':('模型与题集来源','Model and dataset provenance'),
+ 'source_plan':('测试方案与研究资料','Protocol and research references'),
+ 'source_archive':('来源目录其他归档','Other source-root archives'), 'shared':('共享代码与环境清单','Shared code and environment manifests')}
+
+def category(path,root_name,relative):
+    parts=relative.parts
+    if root_name=='shared':return 'shared'
+    if root_name=='source':
+        return {'datasets':'source_data','sources':'model_sources','test_plan':'source_plan'}.get(parts[0],'source_archive')
+    if len(parts)==1 and path.suffix=='.py':return 'code'
+    if parts[:2]==('runs','requests'):return 'requests'
+    return {'plans':'plans','protocol':'plans','runs':'runs','monitor':'monitor','reports':'results','evidence':'evidence'}.get(parts[0],'runs')
+
+def inventory(a):
+    global CACHE
+    if CACHE is not None and CACHE['performance_snapshot_utc']==a['generated_utc']:return CACHE
+    started=utc();rows=[]
+    def add(p,root_name,relative):
+        if p.name.startswith('artifact-index') or p.name in {'.DS_Store'} or p.suffix in {'.tmp','.lock','.pyc'}:return
+        if p.name=='.env' or p.name.startswith('.env.') or p.suffix in {'.token','.key','.pem'}:return
+        if p.is_symlink():return
+        try:stat=p.stat()
+        except FileNotFoundError:return
+        row={'category':category(p,root_name,relative),'root':root_name,'absolute_path':str(p),
+             'size_bytes':stat.st_size,'modified_utc':dt.datetime.fromtimestamp(stat.st_mtime,dt.timezone.utc).isoformat(),
+             'sha256':hashlib.sha256(p.read_bytes()).hexdigest() if p.suffix in {'.py','.js','.cjs','.mjs','.sh','.go'} else ''}
+        rows.append(row)
+    for name,root in [('current',ROOT),('source',OLD)]:
+        for parent,dirs,files in os.walk(root):
+            dirs[:]=sorted(x for x in dirs if x not in {'__pycache__','.git','.venv','node_modules'})
+            for filename in sorted(files):
+                p=Path(parent)/filename;add(p,name,p.relative_to(root))
+    for p in SHARED:
+        if p.is_file():add(p,'shared',p.relative_to(REPO))
+    rows.sort(key=lambda r:(r['root'],r['category'],r['absolute_path']))
+    result={'scan_started_utc':started,'scan_finished_utc':utc(),'performance_snapshot_utc':a['generated_utc'],
+      'roots':{'current':str(ROOT),'source':str(OLD),'shared':str(REPO)},'file_count':len(rows),
+      'scope':'Current experiment tree and source tree recursively; explicitly listed shared source/dependency files. Index artifacts, bytecode, dependency installations, lock/temp files and credentials excluded.',
+      'consistency':'File metadata observed during scan; live files may grow. Inventory inclusion does not imply experimental completion. Source-code hashes are computed; raw data sizes are metadata, not content hashes.',
+      'files':rows}
+    dump(OUT/'artifact-index.json',result)
+    path=OUT/'artifact-index.csv';temp=path.with_suffix('.csv.tmp')
+    with temp.open('w',encoding='utf-8-sig',newline='') as f:
+        writer=csv.DictWriter(f,fieldnames=['category','root','absolute_path','size_bytes','modified_utc','sha256']);writer.writeheader();writer.writerows(rows)
+    temp.replace(path)
+    for lang in ['zh','en']:write_browser(result,lang)
+    CACHE=result
+    return result
+
+def write_browser(index,lang):
+    T=lambda z,e:z if lang=='zh' else e
+    design=REPO/'docs/design/infron-design-system'
+    tokens='\n'.join((design/'tokens'/f).read_text() for f in ['colors.css','typography.css','spacing.css'])
+    logo='data:image/png;base64,'+base64.b64encode((design/'assets/logo-flat/horizontal-default.png').read_bytes()).decode()
+    fonts=os.path.relpath(OLD/'assets/fonts/general-sans',OUT)
+    css=f"@font-face{{font-family:'General Sans';src:url('{fonts}/GeneralSans-Regular.woff2')}}"+'''
+    *{box-sizing:border-box}body{margin:0;color:var(--inf-neutral-900);background:var(--inf-neutral-25);font-family:'General Sans',system-ui,sans-serif;line-height:1.6}header{padding:20px 4%;background:white;display:flex;justify-content:space-between;border-bottom:1px solid var(--inf-border)}header img{width:132px;object-fit:contain}main{max-width:1450px;margin:0 auto;padding:30px 4%}h1{font-size:30px;color:var(--inf-brand)}a{color:var(--inf-link);text-decoration:none}a:hover{text-decoration:underline}.tools{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}input,select,button{font:inherit;padding:10px 14px;border:1px solid var(--inf-border-interactive);background:white;border-radius:12px}input{flex:1;min-width:250px}button{border-radius:40px;cursor:pointer}button:disabled{opacity:.4;cursor:default}input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--inf-focus-ring)}table{width:100%;border-collapse:collapse;background:white;font-size:12px;table-layout:fixed}th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--inf-border);vertical-align:top;overflow-wrap:anywhere}th{background:var(--inf-neutral-100)}tr:nth-child(even){background:var(--inf-blue-50)}th:nth-child(1){width:16%}th:nth-child(2){width:59%}th:nth-child(3){width:10%}th:nth-child(4){width:15%}.pager{display:flex;align-items:center;gap:18px;margin:18px 0}.meta{color:var(--inf-text-muted);font-size:13px}.paths{padding:12px;background:white;border:1px solid var(--inf-border);border-radius:16px;overflow-wrap:anywhere;font-size:12px}.paths p{margin:5px}.count{font-weight:600;color:var(--inf-brand)}@media(max-width:650px){main{padding:20px 12px}table{font-size:11px}td,th{padding:8px 5px}th:nth-child(4),td:nth-child(4){display:none}th:nth-child(2){width:68%}}
+    '''
+    title=T('测试代码与数据：逐文件路径索引','Test code and data: complete file index')
+    data=[[r['category'],r['absolute_path'],r['size_bytes'],r['modified_utc'],quote(os.path.relpath(r['absolute_path'],OUT),safe='/')] for r in index['files']]
+    labels={k:T(*v) for k,v in CATEGORIES.items()}
+    ui={'matches':T('匹配文件','Matching files'),'page':T('页','Page'),'none':T('没有匹配文件','No matching files')}
+    script='const files='+json.dumps(data,separators=(',',':'),ensure_ascii=False).replace('<','\\u003c')+';const labels='+json.dumps(labels,ensure_ascii=False)+';const L='+json.dumps(ui,ensure_ascii=False)+''';
+    const $=id=>document.getElementById(id);let selected=files,page=0;const pageSize=100;
+    function render(){const pages=Math.max(1,Math.ceil(selected.length/pageSize));page=Math.min(page,pages-1);$('rows').replaceChildren();for(const r of selected.slice(page*pageSize,(page+1)*pageSize)){const tr=document.createElement('tr');for(const [i,value] of [[0,labels[r[0]]],[1,r[1]],[2,r[2].toLocaleString()],[3,r[3].slice(0,19).replace('T',' ')]]){const td=document.createElement('td');if(i===1){const a=document.createElement('a');a.href=r[4];a.textContent=value;td.appendChild(a);}else td.textContent=value;tr.appendChild(td);}$('rows').appendChild(tr);}if(!selected.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.textContent=L.none;tr.appendChild(td);$('rows').appendChild(tr);}$('count').textContent=L.matches+': '+selected.length.toLocaleString()+' / '+files.length.toLocaleString();$('page').textContent=L.page+' '+(page+1)+' / '+pages;$('prev').disabled=page===0;$('next').disabled=page>=pages-1;}
+    function filter(){const q=$('query').value.trim().toLowerCase(),cat=$('category').value;selected=files.filter(r=>(!cat||r[0]===cat)&&(!q||r[1].toLowerCase().includes(q)));page=0;render();}
+    $('query').addEventListener('input',filter);$('category').addEventListener('change',filter);$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});render();
+    '''
+    options='<option value="">'+T('全部类别','All categories')+'</option>'+''.join('<option value="'+key+'">'+html.escape(value)+'</option>' for key,value in labels.items())
+    roots=''.join('<p>'+html.escape(k)+': '+html.escape(v)+'</p>' for k,v in index['roots'].items())
+    text=f'''<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>{tokens}{css}</style></head><body><header><img src="{logo}" alt="Infron"><a href="report.{lang}.html#section-14">{T('返回报告附录','Back to report appendix')}</a></header><main><h1>{title}</h1><p class="meta">{T('扫描完成时间（UTC）','Scan completed (UTC)')}: {index['scan_finished_utc']} · {T('索引记录文件路径与元数据；不代表所有实验已完成。','This index records paths and metadata; it does not imply all experiments have completed.')}</p><div class="paths">{roots}</div><p><a href="artifact-index.csv">CSV</a> · <a href="artifact-index.json">JSON</a> · <a href="artifact-index.{'en' if lang=='zh' else 'zh'}.html">{'English' if lang=='zh' else '中文'}</a></p><div class="tools"><input id="query" type="search" aria-label="{T('搜索绝对路径','Search absolute paths')}" placeholder="{T('搜索文件名、请求标识或目录路径','Search filename, request identifier or directory path')}"><select id="category" aria-label="{T('文件类别','File category')}">{options}</select></div><p id="count" class="count" aria-live="polite"></p><div class="pager"><button id="prev">{T('上一页','Previous')}</button><span id="page"></span><button id="next">{T('下一页','Next')}</button></div><table><thead><tr><th>{T('类别','Category')}</th><th>{T('绝对磁盘路径','Absolute disk path')}</th><th>{T('字节数','Bytes')}</th><th>{T('修改时间 UTC','Modified UTC')}</th></tr></thead><tbody id="rows"></tbody></table><noscript><p>{T('请使用 CSV 或 JSON 查看完整清单。','Use CSV or JSON for the complete inventory.')}</p></noscript></main><script>{script}</script></body></html>'''
+    path=OUT/f'artifact-index.{lang}.html';temp=path.with_suffix('.html.tmp');temp.write_text(text);temp.replace(path)
+    (OUT/f'artifact-index.{lang}.js').write_text(script)
+
+def disk_link(path):
+    p=Path(path);label=str(p)+('/' if p.is_dir() else '')
+    return '['+label+']('+quote(os.path.relpath(p,OUT),safe='/')+')'
+
+def appendix(a,lang):
+    from build_report import table
+    index=inventory(a);T=lambda z,e:z if lang=='zh' else e
+    def paths(entries):return table([T('内容','Contents'),T('绝对磁盘路径','Absolute disk path')],[[T(z,e),disk_link(p)] for z,e,p in entries if Path(p).exists()])
+    text=T('以下为本机绝对磁盘路径。目录索引覆盖本轮测试、模型与题集来源及方案资料；逐文件清单记录每个文件的路径、大小、修改时间，以及源码文件的 SHA-256。','All paths below are absolute local disk paths. The index covers this experiment, model and dataset sources, and protocol materials. The complete inventory records each file’s path, size, modification time and, for source code, SHA-256.')
+    text+='\n\n'+T(f'文件索引共 **{index["file_count"]:,} 项**；扫描完成时间（UTC）：',f'The inventory contains **{index["file_count"]:,} files**; scan completed (UTC): ')+index['scan_finished_utc']
+    text+=paths([('本轮测试根目录','Current experiment root',ROOT),('模型、题库与方案来源根目录','Model, dataset and protocol source root',OLD),('当前执行测试计划','Current execution test plan',ROOT/'test_plan'/f'test-plan.{lang}.html'),('可搜索的完整文件清单','Searchable complete file inventory',OUT/f'artifact-index.{lang}.html'),('完整路径清单（CSV）','Complete path inventory (CSV)',OUT/'artifact-index.csv'),('完整路径与元数据（JSON）','Complete paths and metadata (JSON)',OUT/'artifact-index.json')])
+    text+='\n\n### '+T('测试代码','Test code')
+    groups=[('负载构造与请求执行','Workload construction and execution',['length_plan.py','length_runner.py','length_rejections.py','prepare_performance.py','business_plan.py','refine_business_plan.py','runner.py','driver.py','business_runner.py','extended.py','arrival.py']),
+      ('监控与运行管理','Monitoring and run management',['cache_runner.py','cache_counters.py','collector.py','public_monitor.py','hardware_diag.py','observe_tunnel.py','supervise.py','recover.py','continuation.py','cf_retry.py','terminal_review.py','incident_report.py','common.py']),
+      ('统计、计数与费用核对','Statistics, token counts and billing',['cache_analysis.py','analyze.py','metrics.py','origin.py','reconcile.py','business_results.py','report_model.py','report_diagnostics.py','report_cost_model.py']),
+      ('报告与可视化','Report and visualization',['report_benchmarks.py','report_gpu_system.py','system_figures.py','integrate_system_plan.py','length_analysis.py','report_length.py','length_figures.py','cache_plan.py','report_cache.py','cache_figures.py','report_endpoint_details.py','report_emphasis.py','build_report.py','plots.py','research_figures.py','diagnostic_figures.py','report_foundations.py','report_measurements.py','report_narrative.py','report_results_expansion.py','report_returns.py','report_editorial.py','build_reviewed_plan.py','report_labels.py','report_chart_catalog.py','report_cost_widget.py','report_appendix.py'])]
+    listed=set()
+    for z,e,names in groups:
+        text+='\n\n#### '+T(z,e)
+        text+=paths([(name,name,ROOT/name) for name in names]);listed.update(names)
+    others=[p for p in sorted(ROOT.glob('*.py')) if p.name not in listed]
+    text+='\n\n#### '+T('离线验证与其他脚本','Offline validation and other scripts')
+    text+=paths([(p.name,p.name,p) for p in others])
+    text+='\n\n#### '+T('共享代码、执行快照与运行环境','Shared code, execution snapshots and runtime environment')
+    text+=paths([('项目配置加载入口','Project settings entry point',REPO/'src/insightloop/config/loader.py'),('ClickHouse 只读查询客户端入口','ClickHouse read-query client entry point',REPO/'src/insightloop/runtime/clickhouse.py'),('ClickHouse 客户端实现','ClickHouse client implementation',REPO/'src/insightloop/datasources/clickhouse.py'),('核心测试执行源码快照','Core execution source snapshot',ROOT/'evidence/executor_core'),('业务测试冻结源码','Frozen business execution source',ROOT/'evidence/business_amendment'),('执行源码与配置证据总目录','Execution source and configuration evidence',ROOT/'evidence'),('测试 Python 环境','Test Python interpreter',Path('/tmp/gp-qwen38-eval/bin/python')),('报告 Python 环境','Report Python interpreter',Path('/tmp/growthpulse-morphic-report-311/bin/python')),('项目依赖声明','Project dependencies',REPO/'pyproject.toml'),('项目依赖锁定清单','Project dependency lock',REPO/'uv.lock'),('来源环境版本记录','Recorded source environment versions',OLD/'sources/environment_versions.json')])
+    text+='\n\n### '+T('输入数据、抽样与固定请求清单','Input data, sampling and frozen request lists')
+    text+=paths([('GPU与系统模块设计清单','GPU/system module design manifest',ROOT/'plans/gpu_system/manifest.json'),('GPU方法官方资料快照','GPU-method official-source snapshots',ROOT/'evidence/gpu_system_revision/sources'),('长度扩展请求、参数与散列','Length expansion requests, parameters and hashes',ROOT/'plans/length_expansion'),('扩展长度逐请求分析','Expanded length observations',ROOT/'reports/length-observations.csv'),('框架方法原始资料','Framework methodology sources',ROOT/'evidence/length_expansion/sources'),('六题集固定 60 条输入','Fixed 60 prompts from six suites',ROOT/'protocol/workloads.jsonl'),('题目抽样与长度清单','Prompt sampling and length manifest',ROOT/'protocol/workload_manifest.json'),('基准规模与实际选样核对','Benchmark size and selected-sample audit',ROOT/'evidence/benchmark_documentation/inventory.json'),('原始题库总目录','Original dataset directory',OLD/'datasets'),('MMLU-Pro 原始数据','MMLU-Pro source data',OLD/'datasets/TIGER-Lab__MMLU-Pro'),('MATH-500 原始数据','MATH-500 source data',OLD/'datasets/HuggingFaceH4__MATH-500'),('GSM8K 原始数据','GSM8K source data',OLD/'datasets/openai__gsm8k'),('IFEval 原始输入','IFEval source inputs',OLD/'sources/instruction_following_eval/data/input_data.jsonl'),('HumanEval+ 原始数据','HumanEval+ source data',OLD/'datasets/humaneval_plus.jsonl'),('MBPP+ 原始数据','MBPP+ source data',OLD/'datasets/mbpp_plus.jsonl'),('长度实验文本语料','Length-test text corpus',ROOT/'plans/corpus.txt'),('长度实验分词序列','Tokenized length-test corpus',ROOT/'plans/corpus_tokens.json'),('缓存专项固定请求与设计参数','Frozen cache diagnostic requests and design',ROOT/'plans/cache_diagnostics'),('完整请求计划目录','Complete request-plan directory',ROOT/'plans'),('核心实验顺序与种子','Core schedule and seeds',ROOT/'plans/schedule.json'),('固定请求文件散列','Frozen request-file hashes',ROOT/'plans/frozen.json'),('业务及前缀比例请求目录','Business and prefix-ratio requests',ROOT/'plans/business'),('业务形态与样本量清单','Business shapes and sample counts',ROOT/'plans/business/manifest.json'),('模型配置、分词器和聊天模板','Model configuration, tokenizer and chat template',OLD/'sources/model'),('模型与数据来源散列','Model and dataset source hashes',OLD/'sources/manifest.json'),('完整测试方案与参考文档','Full protocol and references',OLD/'test_plan')])
+    text+='\n\n### '+T('原始响应、监控与运行记录','Raw responses, telemetry and run records')
+    text+=paths([('逐请求原始数据总目录','Per-request raw data directory',ROOT/'runs/requests'),('区组执行记录','Block execution records',ROOT/'runs/blocks'),('区组前后资源边界','Before/after block resource boundaries',ROOT/'runs/boundaries'),('请求登记与预算记录','Request ledger and reservations',ROOT/'runs/ledger.json'),('按逻辑任务聚合的结果','Logical-case outcomes',ROOT/'runs/logical_outcomes'),('节点仪表盘原始采样','Raw node-dashboard samples',ROOT/'monitor/sparkdash.jsonl'),('引擎与操作系统原始采样','Raw engine and operating-system samples',ROOT/'monitor/engine-os.jsonl'),('客户端运行采样','Client activity samples',ROOT/'monitor/client.jsonl'),('缓存专项窗口与实际等待','Cache diagnostic windows and observed timing',ROOT/'runs/cache_windows'),('缓存计数与新鲜度原始采样','Raw cache counters and freshness',ROOT/'monitor/cache_counters.jsonl'),('缓存来源与执行核验','Cache provenance and execution evidence',ROOT/'evidence/cache_evaluation'),('全部运行日志与回执','All run logs and receipts',ROOT/'runs'),('监控文件总目录','All monitoring files',ROOT/'monitor'),('精确请求账单','Exact-request billing records',ROOT/'evidence/billing_latest.json'),('配置、计数与来源证据','Configuration, counts and provenance evidence',ROOT/'evidence')])
+    examples=sorted((ROOT/'runs/requests').glob('*/request.json'))
+    if examples:
+        example=examples[0].parent
+        text+='\n\n#### '+T('单次请求文件结构','Files for one request')
+        text+='\n\n'+T('以下展示一个已保存请求的完整路径；其他请求采用相同目录结构，具体路径均可在完整清单中检索。','The paths below show one saved request. Other requests use the same directory structure and are individually searchable in the complete inventory.')
+        text+=paths([('实际发送的输入与参数','Sent input and parameters',example/'request.json'),('发送起始记录','Send-start record',example/'started.json'),('原始服务器发送事件响应流','Raw server-sent-event response stream',example/'response.sse'),('解析后的流式事件','Parsed stream events',example/'events.jsonl'),('片段接收时序','Chunk receive timing',example/'chunks.jsonl'),('最终状态、用量与时延','Final state, usage and latency',example/'result.json')])
+    text+='\n\n### '+T('统计结果、图表和交付报告','Statistics, figures and delivered reports')
+    names=[('缓存专项完整分析','Complete cache analysis','cache_analysis.json'),('缓存条件结果','Cache condition results','cache_conditions.csv'),('缓存逐请求结果','Cache per-request results','cache_requests.csv'),('缓存时间窗口','Cache time windows','cache_time_windows.csv'),('缓存字段覆盖','Cache field coverage','cache_field_coverage.csv'),('首次与重复配对','First/repeat pairs','cache_reuse_pairs.csv'),('逐请求分析明细','Per-request analysis','requests.csv'),('完整统计','Complete analysis','analysis.json'),('连续完整区组统计口径','Eligible complete-block population','presentation.json'),('成本、长度与资源关联','Joined cost, length and resource data','diagnostics.json'),('按负载核对的费用','Reconciled cost by workload','cohort-costs.csv'),('同区组节点资源','Block-aligned node resources','cohort-resources.csv'),('长度矩阵','Length matrix','length-metrics.csv'),('设备与电费情景','Device and electricity scenarios','cost-scenarios.csv'),('投资回报与回本情景','Investment-return and payback scenarios','investment-scenarios.csv'),('业务与缓存测量','Business and cache measurements','business_results.json'),('硬件时序','Hardware timeline','hardware.csv'),('引擎与操作系统时序','Engine and operating-system timeline','engine-os.csv'),('达标吞吐','Qualified throughput','goodput.csv')]
+    names.extend([(f'{label}报告（{ext.upper()}）',f'{eng} report ({ext.upper()})',f'report.{l}.{ext}') for l,label,eng in [('zh','中文','Chinese'),('en','英文','English')] for ext in ['html','md','pdf']])
+    text+=paths([(z,e,OUT/name) for z,e,name in names]+[('独立 SVG/PNG 图表与报告总目录','Standalone SVG/PNG figures and report directory',OUT),('报告校验记录','Report validation record',OUT/'scientific_qa.json')])
+    text+='\n\n'+T('文件索引按扫描时点生成；运行中的文件可能继续增长。索引不包含凭据、锁文件、临时文件、字节码及第三方依赖安装目录；来源根目录内的历史材料不自动纳入本轮性能统计。','The inventory reflects its scan time; live files may continue growing. Credentials, lock/temp files, bytecode and third-party installation directories are excluded. Historical material in the source root is not automatically included in this experiment’s performance statistics.')
+    return text

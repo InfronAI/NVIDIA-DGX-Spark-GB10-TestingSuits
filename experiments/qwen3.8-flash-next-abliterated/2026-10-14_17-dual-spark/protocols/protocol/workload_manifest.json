@@ -1,0 +1,25 @@
+{
+  "revision": "performance-v2",
+  "status": "plan_only_paused",
+  "selection_seed": "20261014-performance-v2",
+  "selection_uses_model_results": false,
+  "sampling_frame": "The six suites in the previously frozen 4302-item plan; MMLU prompts rebuilt zero-shot from pinned raw questions.",
+  "sampling_method": "Sort each suite by content-token length, divide into ten equal-count bins, choose minimum SHA256(seed:suite:id) within each bin.",
+  "unique_prompts": 60,
+  "counts": {
+    "mmlu_pro": 10,
+    "math500": 10,
+    "gsm8k": 10,
+    "ifeval": 10,
+    "humaneval_plus": 10,
+    "mbpp_plus": 10
+  },
+  "input_plan_sha256": "0044f7748b5adeac6a8eccf1002b22612cbaec89d84fd6ae7f6f463a4b1df334",
+  "tokenizer_sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+  "workloads_sha256": "26a8eb32a3ade76680c145fce160376f9f4de0fd1074b617a2840043300e8707",
+  "content_token_caveat": "Content only; excludes chat template and generation prefix. Actual request token counts must be verified before sending.",
+  "has_gold_answers": false,
+  "model_requests_sent": 0,
+  "core_request_ceiling": 2659,
+  "extended_request_ceiling": 8171
+}

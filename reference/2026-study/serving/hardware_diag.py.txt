@@ -1,0 +1,42 @@
+"""Bounded installed perftest only; no API requests or configuration changes."""
+import json
+import subprocess
+import time
+from common import ROOT, dump, utc
+
+REMOTE=r'''
+import subprocess,time,json,datetime,urllib.request,pathlib
+begin=time.monotonic()
+for device,peer in [('rocep1s0f1','192.0.2.11'),('roceP2p1s0f1','192.0.2.21')]:
+ for tool,size in [('ib_write_bw',8388608),('ib_read_lat',8)]:
+  for rep in range(3):
+   if time.monotonic()-begin>540:raise RuntimeError('hardware stage time budget')
+   args=[tool,'-d',device,'-i','1','-x','3','-s',str(size),'-D','5','-p','18715','-F']
+   if tool=='ib_write_bw':args+=['--report_gbits']
+   server=subprocess.Popen(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=4','benchmark@'+peer,'timeout','25s',*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+   start=time.time();time.sleep(1)
+   try:
+    client=subprocess.run(args+[peer],capture_output=True,text=True,timeout=20)
+    out,err=server.communicate(timeout=6)
+    r={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'tool':tool,'device':device,'peer':peer,'replicate':rep,'message_bytes':size,'requested_duration_s':5,'wall_seconds':time.time()-start,'args':args,'client_returncode':client.returncode,'client_stdout':client.stdout,'client_stderr':client.stderr,'server_returncode':server.returncode,'server_stdout':out,'server_stderr':err}
+   except Exception as e:
+    server.terminate()
+    try:out,err=server.communicate(timeout=3)
+    except subprocess.TimeoutExpired:server.kill();out,err=server.communicate()
+    r={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'tool':tool,'device':device,'peer':peer,'replicate':rep,'error':type(e).__name__+': '+str(e),'server_stdout':out,'server_stderr':err}
+   print(json.dumps(r),flush=True)
+   if r.get('client_returncode')!=0 or r.get('server_returncode')!=0:break
+'''
+
+def main():
+    assert json.loads((ROOT/'runs/blocks/p0.json').read_text())['completed']==12
+    assert not (ROOT/'STOP').exists()
+    path=ROOT/'evidence/rdma_results.jsonl'
+    assert not path.exists()
+    dump(ROOT/'runs/hardware_status.json',{'status':'running','started_utc':utc(),'max_seconds':600,'maximum_subtests':12,'model_calls':0})
+    with path.open('w') as output:
+        p=subprocess.run(['ssh','-S','/tmp/gp-qwen38-perf.sock','-o','BatchMode=yes','benchmark@spark-node0','python3 -'],input=REMOTE,text=True,stdout=output,stderr=subprocess.PIPE,timeout=600)
+    rows=[json.loads(s) for s in path.read_text().splitlines() if s]
+    dump(ROOT/'runs/hardware_status.json',{'status':'complete' if p.returncode==0 else 'failed','ended_utc':utc(),'returncode':p.returncode,'stderr':p.stderr[:2000],'observed_subtests':len(rows),'successful':sum(r.get('client_returncode')==0 and r.get('server_returncode')==0 for r in rows),'nccl_microbenchmark':'not measured: nccl-tests binaries and mpirun are absent; no installation or service environment change','model_calls':0})
+
+if __name__=='__main__':main()

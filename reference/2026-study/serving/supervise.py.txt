@@ -1,0 +1,135 @@
+"""Durable P3 lifecycle: observe existing core, run authorized extensions, render locally."""
+import concurrent.futures
+import fcntl
+import json
+import os
+import subprocess
+import sys
+import time
+import traceback
+from pathlib import Path
+from common import ROOT, dump, append, digest, utc
+
+def alive(pid):
+    try:
+        os.kill(pid,0)
+        state=subprocess.run(['ps','-p',str(pid),'-o','stat='],capture_output=True,text=True,timeout=3).stdout.strip()
+        return bool(state) and not state.startswith('Z')
+    except ProcessLookupError:return False
+
+class ObservedProcess:
+    def __init__(self,pid):self.pid=pid
+    def poll(self):return None if alive(self.pid) else 0
+    @property
+    def returncode(self):return self.poll()
+
+def tail_json(path):
+    if not path.exists():return None
+    with path.open('rb') as f:
+        f.seek(max(0,path.stat().st_size-4*1024*1024));lines=f.read().splitlines()
+    for line in reversed(lines):
+        try:return json.loads(line)
+        except ValueError:pass
+    return None
+
+def render():
+    report_lock=(ROOT/'runs/report.lock').open('a');fcntl.flock(report_lock,fcntl.LOCK_EX)
+    env=os.environ.copy();env['PYTHONPATH']=str(ROOT.parents[1]/'src')
+    with (ROOT/'runs/report_refresh.log').open('ab') as f:
+        for command in [[sys.executable,str(ROOT/'analyze.py')],[sys.executable,str(ROOT/'plots.py')],['/tmp/growthpulse-morphic-report-311/bin/python',str(ROOT/'build_report.py')]]:
+            r=subprocess.run(command,env=env,stdout=f,stderr=subprocess.STDOUT,stdin=subprocess.DEVNULL,timeout=240)
+            if r.returncode:raise RuntimeError('offline report command failed: '+Path(command[1]).name)
+    return {'utc':utc(),'state':'rendered'}
+
+def stop(reason):
+    if not (ROOT/'STOP').exists():(ROOT/'STOP').write_text(reason)
+
+def main():
+    lock=(ROOT/'runs/lifecycle.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    config=json.loads((ROOT/'run.json').read_text());launch=json.loads((ROOT/'runs/core_resume_launch.json').read_text());core_pid=launch['pid'];extension=None;stage='core';last_dash=None;last_raw=None;queue_history=[];throttle_since={};next_report=0;future=None
+    previous=json.loads((ROOT/'runs/lifecycle.json').read_text()) if (ROOT/'runs/lifecycle.json').exists() else {}
+    prior_status=json.loads((ROOT/'runs/supervisor_status.json').read_text()) if (ROOT/'runs/supervisor_status.json').exists() else {}
+    if previous.get('stage') in ['business','length','extended'] and (alive(previous.get('runner_pid',0)) or prior_status.get('state')==previous['stage']+'_complete'):
+        stage=previous['stage'];extension=ObservedProcess(previous['runner_pid'])
+    code={n:digest(ROOT/n) for n in ['driver.py','extended.py','arrival.py','runner.py','origin.py','reconcile.py']}
+    code['continuation.py']=digest(ROOT/'continuation.py');code['cf_retry.py']=digest(ROOT/'cf_retry.py');code['public_monitor.py']=digest(ROOT/'public_monitor.py');code['collector.py']=digest(ROOT/'collector.py');code['terminal_review.py']=digest(ROOT/'terminal_review.py')
+    code['cf_edge_review.py']=digest(ROOT/'cf_edge_review.py');code['boundary_review.py']=digest(ROOT/'boundary_review.py')
+    business_enabled=(ROOT/'plans/business/manifest.json').exists()
+    if business_enabled:
+        from business_runner import validate
+        validate();code['business_runner.py']=digest(ROOT/'business_runner.py');code['plans/business/manifest.json']=digest(ROOT/'plans/business/manifest.json')
+    if (ROOT/'plans/cache_diagnostics/manifest.json').exists():
+        from cache_runner import validate as validate_cache
+        validate_cache()
+        for name in ['cache_runner.py','cache_counters.py','plans/cache_diagnostics/manifest.json']:code[name]=digest(ROOT/name)
+    length_enabled=(ROOT/'plans/length_expansion/manifest.json').exists()
+    if length_enabled:
+        from length_runner import validate as validate_length
+        validate_length()
+        for name in ['length_runner.py','length_rejections.py','plans/length_expansion/manifest.json']:code[name]=digest(ROOT/name)
+        if (ROOT/'protocol/natural_length_amendment.json').exists():code['protocol/natural_length_amendment.json']=digest(ROOT/'protocol/natural_length_amendment.json')
+    dump(ROOT/'evidence/executor_extended_manifest.json',{'utc':utc(),'files':code,'rules_sha256':digest(ROOT/'plans/extended_rules.json'),'offline_tests':43})
+    pool=concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        while True:
+            now=time.time();snapshot=tail_json(ROOT/'monitor/sparkdash.jsonl')
+            if snapshot and snapshot.get('received_epoch')!=last_dash:
+                last_dash=snapshot['received_epoch']
+                for i,node in enumerate(snapshot.get('nodes',[])):
+                    throttle=node.get('metrics',{}).get('gpu',{}).get('throttle',{})
+                    flag=throttle.get('thermal') or throttle.get('hwSlowdown')
+                    if flag:
+                        throttle_since.setdefault(i,last_dash)
+                        if last_dash-throttle_since[i]>=30:stop(f'node{i} sustained thermal/hardware slowdown for 30 seconds')
+                    else:throttle_since.pop(i,None)
+            if now>=config['deadline_epoch']:stop('original cumulative experiment deadline reached')
+            raw=tail_json(ROOT/'monitor/engine-os.jsonl')
+            if raw and raw.get('collected_utc')!=last_raw:
+                from metrics import prometheus,value
+                last_raw=raw['collected_utc'];q=value(prometheus(raw.get('metrics','')),'sglang:num_queue_reqs')
+                if q is not None:
+                    queue_history.append(q);queue_history=queue_history[-6:]
+                    if len(queue_history)==6 and queue_history[-1]-queue_history[0]>=4 and all(b>=a for a,b in zip(queue_history,queue_history[1:])):stop('engine queue grew by at least four across six consecutive raw samples')
+            if future and future.done():
+                try:receipt=future.result()
+                except Exception as e:receipt={'utc':utc(),'state':'report_error','error':str(e)}
+                append(ROOT/'runs/report_events.jsonl',receipt);future=None
+            if now>=next_report and future is None:
+                future=pool.submit(render);next_report=now+600
+            running=alive(core_pid) if stage=='core' else extension.poll() is None
+            dump(ROOT/'runs/lifecycle.json',{'utc':utc(),'pid':os.getpid(),'state':'running' if not (ROOT/'STOP').exists() else 'draining','stage':stage,'runner_pid':core_pid if stage=='core' else extension.pid,'runner_alive':running,'next_report_epoch':next_report,'monitoring_guard':'30 seconds of thermal/hardware slowdown stops load; power-cap alone is not treated as failure'})
+            if not running:
+                status=json.loads((ROOT/'runs/supervisor_status.json').read_text())
+                if status.get('state')=='stopped':stop(status.get('stop') or 'runner stopped without completion')
+                if (ROOT/'STOP').exists():break
+                if stage in ['core','business','length']:
+                    if status.get('state')!=stage+'_complete':stop(stage+' process exited without a completion receipt');break
+                    assert all(digest(ROOT/n)==h for n,h in code.items()),'Executor files changed after freezing'
+                    next_stage='business' if stage=='core' and business_enabled else 'length' if stage in ['core','business'] and length_enabled else 'extended'
+                    env=os.environ.copy();env['PYTHONPATH']=str(ROOT.parents[1]/'src');env['PYTHONUNBUFFERED']='1';f=(ROOT/'runs'/f'{next_stage}.log').open('ab')
+                    command=[sys.executable,str(ROOT/(next_stage+'_runner.py'))] if next_stage in ['business','length'] else [sys.executable,str(ROOT/'driver.py'),'--mode','extended']
+                    extension=subprocess.Popen(command,stdout=f,stderr=subprocess.STDOUT,stdin=subprocess.DEVNULL,env=env,start_new_session=True)
+                    dump(ROOT/'runs'/f'{next_stage}_launch.json',{'utc':utc(),'pid':extension.pid,'prior_stage_status':status,'source_manifest':'evidence/executor_extended_manifest.json'});stage=next_stage
+                else:
+                    if extension.returncode!=0 or status.get('state')!='extended_complete':stop('extension process exited without a successful completion receipt')
+                    break
+            time.sleep(5)
+        # Final SELECT reconciliation waits for log ingestion, never replays generation.
+        from reconcile import reconcile
+        for attempt in range(13):
+            receipt=reconcile();append(ROOT/'runs/final_billing_checks.jsonl',receipt)
+            if receipt['matched_receipts']==receipt['receipt_count'] and not receipt['missing_low_origin_usage']:break
+            time.sleep(10)
+        state='stopped' if (ROOT/'STOP').exists() else 'complete'
+        dump(ROOT/'runs/lifecycle.json',{'utc':utc(),'pid':os.getpid(),'state':state,'stage':stage,'final_billing':{k:v for k,v in receipt.items() if k!='rows'},'stop':(ROOT/'STOP').read_text() if (ROOT/'STOP').exists() else None})
+        (ROOT/'runs/ALL_DONE').write_text(utc()+' '+state)
+        if future:
+            try:future.result()
+            except Exception as e:append(ROOT/'runs/report_events.jsonl',{'utc':utc(),'state':'report_error','error':str(e)})
+        append(ROOT/'runs/report_events.jsonl',render())
+    except BaseException:
+        stop('lifecycle exception requires review')
+        dump(ROOT/'runs/lifecycle_exception.json',{'utc':utc(),'traceback':traceback.format_exc()});raise
+    finally:pool.shutdown(wait=True)
+
+if __name__=='__main__':main()

@@ -1,0 +1,144 @@
+"""Finite direct-engine measurement arm. Never replays an existing request directory."""
+import asyncio
+import fcntl
+import json
+import os
+from pathlib import Path
+import random
+import subprocess
+import time
+
+import httpx
+from engine_probe import BASE, ROOT, generate, headers, idle, inputs, metric_rows, save, utc
+
+
+def plan():
+    groups = []
+    for length in [1024,8192,32768,65536,131072,250000]:
+        groups.append(dict(stage='prefill', input=length, output=1, concurrency=1))
+    for length in [1024,8192,32768]:
+        for c in [4,8]:
+            if (length+1)*c <= 262144:
+                groups.append(dict(stage='prefill',input=length,output=1,concurrency=c))
+    for length in [1024,8192,32768,65536,131072]:
+        for c in ([1,2,4,8] if length <= 32768 else [1]):
+            if (length+256)*c <= 262144:
+                groups.append(dict(stage='decode',input=length,output=256,concurrency=c))
+    blocks = []
+    for repeat in range(1,4):
+        ordered = list(groups); random.Random(20261016+repeat).shuffle(ordered)
+        for g in ordered:
+            blocks.append(dict(g,repeat=repeat,id=f"{g['stage']}_i{g['input']}_o{g['output']}_c{g['concurrency']}_r{repeat}"))
+    # Matched prefix reuse diagnostics: immediate repeat; actual hit fields decide coverage.
+    for length in [8192,32768]:
+        for repeat in range(1,4):
+            blocks.append(dict(stage='cache_pair',input=length,output=1,concurrency=1,repeat=repeat,id=f'cache_i{length}_r{repeat}'))
+    return blocks
+
+
+def node_temperatures():
+    cmd=['nvidia-smi','--query-gpu=temperature.gpu','--format=csv,noheader,nounits']
+    a=subprocess.run(cmd,capture_output=True,text=True,timeout=8)
+    b=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=5','benchmark@192.0.2.11', ' '.join(cmd)],capture_output=True,text=True,timeout=10)
+    if a.returncode or b.returncode: raise RuntimeError('Node temperature monitoring unavailable')
+    return [float(a.stdout.strip()),float(b.stdout.strip())]
+
+
+async def monitor(owner, state, deadline):
+    failures=0
+    while True:
+        try:
+            if time.time() >= deadline: raise RuntimeError('Authorized two-hour deadline reached')
+            if (ROOT/'STOP').exists(): raise RuntimeError('User stop marker')
+            temps=await asyncio.to_thread(node_temperatures)
+            failures=0
+            with (ROOT/'telemetry.jsonl').open('a') as f:
+                f.write(json.dumps({'utc':utc(),'temperatures_c':temps})+'\n')
+            if max(temps)>=85: raise RuntimeError('85 C protection threshold')
+        except RuntimeError as exc:
+            if 'monitoring unavailable' in str(exc):
+                failures+=1
+                if failures<3:
+                    await asyncio.sleep(5);continue
+            state['guard_stop']=str(exc);owner.cancel();return
+        except Exception as exc:
+            failures+=1
+            if failures>=3:state['guard_stop']='Repeated telemetry failure: '+type(exc).__name__;owner.cancel();return
+        await asyncio.sleep(5)
+
+
+async def drain(client):
+    for _ in range(20):
+        ok,text=await idle(client)
+        if ok:return text
+        await asyncio.sleep(1)
+    raise RuntimeError('Engine did not drain within 20 seconds')
+
+
+async def execute():
+    from transformers import AutoTokenizer
+    config=json.loads((ROOT/'authorization.json').read_text())
+    deadline=config['deadline_epoch']
+    state={'state':'preflight','started_utc':utc(),'pid':os.getpid(),'completed_blocks':0,'completed_requests':0,
+           'deadline_epoch':deadline,'concurrency_cap':8,'api_cost_usd':0,'transport':'authenticated loopback /generate'}
+    if (ROOT/'status.json').exists():raise RuntimeError('Existing execution state; no automatic replay')
+    save(ROOT/'status.json',state)
+    lock=(ROOT/'runner.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    watch=None
+    try:
+        async with httpx.AsyncClient(headers=headers(),trust_env=False,timeout=240,limits=httpx.Limits(max_connections=10)) as client:
+            await drain(client)
+            model=(await client.get(BASE+'/get_model_info')).json()
+            info=(await client.get(BASE+'/server_info')).json()
+            for key in ['api_key','admin_api_key','launch_command']:
+                info.pop(key,None)
+            save(ROOT/'server_config.json',info)
+            if info.get('version')!='0.5.21' or info.get('tp_size')!=2 or info.get('speculative_algorithm')!='EAGLE':
+                raise RuntimeError('Engine identity changed')
+            tokenizer=AutoTokenizer.from_pretrained(model['tokenizer_path'],local_files_only=True)
+            blocks=plan()
+            save(ROOT/'manifest.json',{'blocks':blocks,'rounds':3,'max_requests':sum(b['concurrency']*(2 if b['stage']=='cache_pair' else 1) for b in blocks),
+                'seed':20261016,'input_kind':'exact-length tokenized synthetic order records; no chat template',
+                'generation':'greedy, ignore_eos, fixed output; content-specific MTP acceptance',
+                'timing':'same-process scheduler prefill interval; tokenizer decode interval; no cross-process timestamp subtraction',
+                'profiled_pilot_excluded':True,'deadline_epoch':deadline})
+            state.update(state='running',planned_blocks=len(blocks));save(ROOT/'status.json',state)
+            watch=asyncio.create_task(monitor(asyncio.current_task(),state,deadline))
+            for index,block in enumerate(blocks):
+                if time.time()+300>=deadline:
+                    state['state']='deadline_admission_stop';break
+                if (ROOT/'STOP').exists():raise RuntimeError('User stop marker')
+                state.update(current_block=block['id'],updated_utc=utc());save(ROOT/'status.json',state)
+                directory=ROOT/'blocks'/block['id'];directory.mkdir(parents=True,exist_ok=False)
+                before=await drain(client);(directory/'metrics_before.txt').write_text(before)
+                ids=[inputs(tokenizer,block['input'],202610160000+index*8+i) for i in range(block['concurrency'])]
+                start=time.perf_counter()
+                tasks=[asyncio.create_task(generate(client,'es_'+block['id']+'_'+str(i),tokens,block['output'],directory/f'request_{i}')) for i,tokens in enumerate(ids)]
+                try:
+                    results=await asyncio.gather(*tasks)
+                finally:
+                    for task in tasks:
+                        if not task.done():task.cancel()
+                    await asyncio.gather(*tasks,return_exceptions=True)
+                if block['stage']=='cache_pair':
+                    await drain(client)
+                    results.append(await generate(client,'es_'+block['id']+'_warm',ids[0],block['output'],directory/'request_warm'))
+                elapsed=time.perf_counter()-start
+                after=await drain(client);(directory/'metrics_after.txt').write_text(after)
+                save(directory/'block.json',dict(block,complete=True,elapsed_s=elapsed,results=results))
+                state['completed_blocks']+=1;state['completed_requests']+=len(results)
+                save(ROOT/'status.json',state)
+            else:
+                state['state']='complete'
+            state['final_idle']=bool(await drain(client))
+    except BaseException as exc:
+        state.update(state='stopped',error=state.get('guard_stop') or type(exc).__name__+': '+str(exc)[:500])
+    finally:
+        if watch:
+            watch.cancel();await asyncio.gather(watch,return_exceptions=True)
+        state['ended_utc']=utc();save(ROOT/'status.json',state)
+    print(json.dumps(state))
+
+
+if __name__=='__main__':
+    asyncio.run(execute())

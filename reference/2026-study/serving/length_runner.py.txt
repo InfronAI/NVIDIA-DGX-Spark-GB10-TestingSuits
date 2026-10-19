@@ -1,0 +1,124 @@
+"""Bounded length stage; shared ledger, no replay, actual upstream output gates."""
+import asyncio,fcntl,json,os,re,time,math,traceback
+from common import ROOT,read_rows,dump,digest,utc
+from runner import Runner,client
+from driver import heartbeat,billing_watch
+from cache_runner import result
+from insightloop.config.loader import load_settings
+from insightloop.runtime.clickhouse import build_clickhouse_client
+
+def validate(root=ROOT):
+ d=root/'plans/length_expansion';m=json.loads((d/'manifest.json').read_text());seen=set()
+ assert m['planned_calls']==299 and m['context']==262144
+ for b in m['blocks']:
+  p=d/b['file'];assert digest(p)==b['sha256'];cs=read_rows(p);assert len(cs)==b['count'] and b['concurrency'] in [1,4]
+  for x in cs:
+   assert x['id'] not in seen and x['phase']=='P8' and x['block']==b['id'];seen.add(x['id'])
+   assert x['local_prompt_tokens']+x['max_tokens']<=262144 and type(x['ignore_eos']) is bool
+   assert x['mode'] in ['natural','fixed']
+ assert len(seen)==299;return m
+
+def upstream(r):
+ rid=r.get('response_request_id') or r.get('request_id')
+ if not rid:return None
+ assert re.fullmatch('[A-Za-z0-9_-]+',rid)
+ c=build_clickhouse_client(load_settings());lo=int(r['start_epoch'])-5;hi=int(r['end_epoch'])+300
+ rows=c.query(f"SELECT id,type,model_provider_id,channel_id FROM logs WHERE created_at>={lo} AND created_at<={hi} AND request_id='{rid}'").rows
+ success=[x for x in rows if x['type']==2]
+ if len(success)!=1:return None
+ assert all(x['model_provider_id']==2084 and x['channel_id']==2538 for x in rows),'length route mismatch'
+ sql="SELECT id,JSONExtractRaw(request_json,'ignore_eos') AS ignore_eos,JSONExtractRaw(request_json,'max_tokens') AS max_tokens,arrayFilter(x -> position(x, '\"usage\":{')>0, splitByChar('\\n',original_response_json)) AS usage_lines FROM log_contents WHERE id="+str(success[0]['id'])
+ data=c.query(sql).rows
+ if not data:return None
+ d=data[0];us=[]
+ for line in d['usage_lines']:
+  try:u=json.loads(line).get('usage')
+  except (ValueError,AttributeError):continue
+  if isinstance(u,dict):us.append(u)
+ if not us:return None
+ return dict(utc=utc(),request_id=rid,log_id=d['id'],upstream_ignore_eos=d['ignore_eos'],upstream_max_tokens=d['max_tokens'],usage=us[-1],source='SELECT logs + log_contents.request_json/original_response_json')
+
+def qualified(c,r,proof):
+ if r.get('state')!='received' or not proof:return False
+ n=proof.get('usage',{}).get('completion_tokens',0)
+ return proof.get('upstream_ignore_eos')=='true' and str(proof.get('upstream_max_tokens'))==str(c['max_tokens']) and .98*c['max_tokens']<=n<=c['max_tokens']
+
+def attained(c,r,proof):
+ if r.get('state')!='received' or not proof:return False
+ n=proof.get('usage',{}).get('completion_tokens',0)
+ return str(proof.get('upstream_max_tokens'))==str(c['max_tokens']) and .98*c['max_tokens']<=n<=c['max_tokens']
+
+def effective_case(c,root=ROOT):
+ p=root/'protocol/natural_length_amendment.json'
+ if c['mode']=='fixed' and not c['id'].startswith('length_calibration') and p.exists():
+  policy=json.loads(p.read_text());assert policy['enabled'] and policy['no_replay']
+  c=dict(c,mode='natural_pressure');c.pop('ignore_eos',None)
+ return c
+
+def deadline_fits(now,deadline,cases,c,s_per_token=.08):
+ per=max((120+x['max_tokens']*s_per_token+x['local_prompt_tokens']/300 for x in cases),default=0)
+ return now+math.ceil(len(cases)/c)*per+300 < deadline,per
+
+async def run():
+ m=validate();runner=Runner();done=asyncio.Event();tasks=[asyncio.create_task(heartbeat(runner,done)),asyncio.create_task(billing_watch(runner,done))];qualified_max=0;control=False
+ try:
+  async with client() as api:
+   for b in m['blocks']:
+    if runner.stopping():break
+    cs=[effective_case(c) for c in read_rows(ROOT/'plans/length_expansion'/b['file'])];p=ROOT/'runs/length_conditions'/f"{b['id']}.json";old=json.loads(p.read_text()) if p.exists() else None
+    if old and old.get('terminal'):
+     control=control or old.get('fixed_control',False);qualified_max=max(qualified_max,old.get('qualified_max_output',0));continue
+    todo=[]
+    for c in cs:
+     if c['id'] not in runner.ledger['entries']:todo.append(c);continue
+     r=result(c['id'])
+     if r.get('state')=='received' or (r.get('state')=='http_error' and r.get('status') in [400,422]):continue
+     from business_runner import pending
+     todo+=pending([c],runner.ledger)
+    why=None
+    if cs[0]['mode']=='fixed' and b['family']!='calibration' and not control:why='fixed_output_control_not_verified'
+    if b.get('output_gate') and qualified_max<cs[0]['max_tokens']/2:why='preceding_output_tier_not_qualified'
+    fits,per=deadline_fits(time.time(),runner.ledger['deadline_epoch'],todo,b['concurrency'])
+    if not fits:why='insufficient_time_for_conservative_drain'
+    if max(c['local_prompt_tokens']+c['max_tokens'] for c in cs)*b['concurrency']>262144:why='conservative_active_token_envelope'
+    if why:dump(p,dict(utc=utc(),block=b['id'],terminal=True,state='skipped',reason=why,planned=len(cs),sent=0));continue
+    for c in todo:c['timeout_s']=max(300,per)
+    dump(ROOT/'runs/supervisor_status.json',dict(utc=utc(),pid=os.getpid(),state='running',stage='length',block=b,sent=len(runner.ledger['entries'])))
+    if todo and b['family']=='long_cache':
+     from cache_counters import boundary,window
+     for c in todo:
+      before=await boundary(runner)
+      await runner.closed(api,[c],1,c['id'])
+      rr=result(c['id']);after=await boundary(runner,rr.get('end_epoch',0));u=rr.get('usage') or {}
+      w=window(before,after,u.get('prompt_tokens'),u.get('completion_tokens'))
+      if rr.get('state')!='received' or rr.get('retry_index',0) or len(todo)!=len(cs):w.update(valid=False,token_fraction=None,reasons=w['reasons']+['incomplete_retried_or_resumed_pair'])
+      dump(ROOT/'runs/length_cache_windows'/f"{c['id']}.json",dict(utc=utc(),case_id=c['id'],before=before,after=after,window=w))
+      if runner.stopping():break
+    elif todo:await runner.closed(api,todo,b['concurrency'],b['id'])
+    rs=[result(c['id']) for c in cs];proofs={}
+    for c,r in zip(cs,rs):
+     if r.get('state')!='received':continue
+     proof=None
+     for _ in range(13):
+      try:proof=await asyncio.to_thread(upstream,r)
+      except Exception:proof=None
+      if proof or runner.stopping():break
+      await asyncio.sleep(5)
+     if proof:proofs[c['id']]=proof
+    fixed=[c['max_tokens'] for c,r in zip(cs,rs) if qualified(c,r,proofs.get(c['id']))]
+    q=[c['max_tokens'] for c,r in zip(cs,rs) if attained(c,r,proofs.get(c['id'])) and (c['mode']=='natural_pressure' or qualified(c,r,proofs.get(c['id'])))]
+    if b['id']=='length_calibration_fixed':control=bool(fixed)
+    qualified_max=max([qualified_max,*q]);complete=sum(r.get('state')=='received' for r in rs)
+    dump(p,dict(utc=utc(),block=b['id'],terminal=all(r.get('state') in ['received','http_error'] for r in rs),state='observed',mode=cs[0]['mode'],planned=len(cs),complete=complete,fixed_control=control,qualified_max_output=max(q,default=0),fixed_length_qualified=len(fixed),actual_length_attained=len(q),upstream=proofs,case_ids=[c['id'] for c in cs],resumed=old is not None or len(todo)!=len(cs)))
+ except BaseException as e:
+  (ROOT/'STOP').write_text('length executor exception: '+str(e));dump(ROOT/'runs/length_exception.json',dict(utc=utc(),traceback=traceback.format_exc()));raise
+ finally:
+  done.set();await asyncio.gather(*tasks,return_exceptions=True)
+  dump(ROOT/'runs/supervisor_status.json',dict(utc=utc(),pid=os.getpid(),state='stopped' if runner.stopping() else 'length_complete',stage='length',sent=len(runner.ledger['entries']),stop=runner.stopping()))
+
+def main():
+ locks=[]
+ for p in [ROOT/'runs/runner.lock',ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/runs/runner.lock']:
+  f=p.open('a');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
+ asyncio.run(run())
+if __name__=='__main__':main()

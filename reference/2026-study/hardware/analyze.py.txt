@@ -1,0 +1,229 @@
+"""Offline hardware completion analysis; never starts or resumes a workload."""
+import collections,csv,datetime,hashlib,json,math,statistics,sys
+from pathlib import Path
+S=Path(__file__).resolve().parent;R=S.parent
+sys.path.append(str(R))
+from gpu_system_guard import write_json,utc
+
+def read_lines(p):
+    if not p.exists():return []
+    return [json.loads(x) for x in p.read_text().splitlines() if x.strip()]
+
+def latest_archives():
+    out={}
+    for rank in [0,1]:
+        paths=list((S/'raw').glob('*/node'+str(rank)+'/measurements.jsonl'))
+        if paths:out[rank]=max(paths,key=lambda p:p.stat().st_mtime)
+    return out
+
+def stat(values):
+    return {'n':len(values),'median':statistics.median(values),'min':min(values),'max':max(values)} if values else None
+
+def rate(row):
+    work=row.get('flops_per_call',row.get('logical_bytes_per_call'))
+    return work*row['iterations']/row['cuda_interval_s'] if work is not None else None
+
+def telemetry_series(rows, field, max_gap_seconds=5):
+    """Break plotted lines at missing/non-monotonic observations; never bridge gaps."""
+    xx=[];yy=[];previous=None
+    if not rows:return xx,yy
+    origin=rows[0]['epoch']
+    for row in rows:
+        epoch=row['epoch'];offset=(epoch-origin)/3600
+        if previous is not None and not 0 < epoch-previous <= max_gap_seconds:
+            xx.append(offset);yy.append(float('nan'))
+        value=row.get('gpu',{}).get(field)
+        xx.append(offset);yy.append(float('nan') if value is None else value)
+        previous=epoch
+    return xx,yy
+
+def build():
+    state=json.loads((S/'status.json').read_text()) if (S/'status.json').exists() else {}
+    mixed_continuation=state.get('resume_receipt',{}).get('reason') in ['user_resume_mixed_without_temperature_cutoff','user_resume_mixed_with_thermal_backoff']
+    rows=[];telemetry={};provenance=[];receipts={};counter={}
+    for rank,p in latest_archives().items():
+        rows.extend(dict(x,node_index=rank,source_path=str(p)) for x in read_lines(p));telemetry[rank]=read_lines(p.parent/'telemetry.jsonl')
+        provenance.append({'path':str(p),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+        receipts[rank]={}
+        for phase in ['single','communication','extensions','soak']:
+            rp=p.parent/(phase+'_result.json')
+            if rp.exists():receipts[rank][phase]=json.loads(rp.read_text())
+        cp=p.parent/'counter_probe.json'
+        if cp.exists():counter[rank]=json.loads(cp.read_text())
+    from gpu_extensions import invalid_harness_probe,invalid_legacy_managed_validation
+    excluded_api_probes=[x for x in rows if invalid_harness_probe(x) or invalid_legacy_managed_validation(x)]
+    rows=[x for x in rows if not (invalid_harness_probe(x) or invalid_legacy_managed_validation(x))]
+    valid=[x for x in rows if x.get('state')=='measured' and x.get('validation',{}).get('passed')]
+    groups=collections.defaultdict(list)
+    for x in valid:
+        if x.get('condition_id'):groups[(x['node_index'],x['condition_id'])].append(x)
+    summaries=[]
+    for (node,cid),rr in groups.items():
+        # Detect duplicate snapshots or executions instead of pooling silently.
+        assert len({x['round'] for x in rr})==len(rr),(node,cid)
+        first=rr[0];d={k:first[k] for k in ['kind','precision','shape','threads','chains','sm_multiplier','address_span_bytes','cache_hint','stride','working_set_bytes','elements','mode','workers','cpu_mode','graph','streams','matrix_n','sparsity','query_length','kv_length','heads','head_dim','causal','dtype','backend','output_allocation'] if k in first}
+        d.update(node=node,condition_id=cid,n=len(rr),rounds=sorted(x['round'] for x in rr))
+        for field in ['effective_tflops','effective_gb_s','mean_device_interval_us','dependent_access_ns','host_submission_us_per_call','quantize_and_pack_wall_s','sparse_compression_wall_s']:
+            if any(field in x for x in rr):d[field]=stat([x[field] for x in rr if field in x])
+        summaries.append(d)
+    paired={};overlap={}
+    for x in valid:
+        if x['kind']=='communication':paired.setdefault((x['operation'],x['message_bytes'],x['round']),{})[x['node_index']]=x
+        if x['kind']=='compute_communication_overlap':overlap.setdefault((x['message_bytes'],x['matrix_n'],x['mode'],x['round']),{})[x['node_index']]=x
+    collective=[];ov=[]
+    for (op,size,repeat),rs in paired.items():
+        if set(rs)!={0,1}:continue
+        assert rs[0]['iterations']==rs[1]['iterations']
+        us=max(r['mean_device_interval_us'] for r in rs.values())
+        collective.append(dict(operation=op,message_bytes=size,round=repeat,latency_us=us,algorithm_gb_s=size/us/1000,bus_gb_s=size/us/1000*rs[0]['bus_factor']))
+    for (size,n,mode,repeat),rs in overlap.items():
+        if set(rs)!={0,1}:continue
+        assert rs[0]['iterations']==rs[1]['iterations']
+        ov.append(dict(message_bytes=size,matrix_n=n,mode=mode,round=repeat,latency_us=max(r['mean_device_interval_us'] for r in rs.values())))
+    cg=[]
+    for op,size in sorted({(r['operation'],r['message_bytes']) for r in collective}):
+        rr=[r for r in collective if (r['operation'],r['message_bytes'])==(op,size)]
+        cg.append(dict(operation=op,message_bytes=size,latency_us=stat([r['latency_us'] for r in rr]),algorithm_gb_s=stat([r['algorithm_gb_s'] for r in rr]),bus_gb_s=stat([r['bus_gb_s'] for r in rr])))
+    comparisons=[]
+    for size,n,repeat in sorted({(x['message_bytes'],x['matrix_n'],x['round']) for x in ov}):
+        modes={x['mode']:x['latency_us'] for x in ov if (x['message_bytes'],x['matrix_n'],x['round'])==(size,n,repeat)}
+        if len(modes)==4:comparisons.append(dict(message_bytes=size,matrix_n=n,round=repeat,serial_over_overlap=modes['serial']/modes['overlap'],hidden_fraction=(modes['compute_only']+modes['communication_only']-modes['overlap'])/min(modes['compute_only'],modes['communication_only']),**modes))
+    from soak_protocol import latest_execution
+    soak=[];soak_windows=[];historical_soak_attempts=[]
+    for node in [0,1]:
+        for phase in ['compute','bandwidth','mixed']:
+            current_pid=latest_execution(rows,node,phase)
+            if mixed_continuation and phase=='mixed':
+                active_pid=state.get('nodes',{}).get(str(node),{}).get('children',{}).get('soak',{}).get('pid')
+                if active_pid is not None:current_pid=active_pid
+            old=[x for x in rows if x['node_index']==node and x.get('phase')==phase and x.get('kind') in ['sustained','soak_baseline'] and x.get('execution_pid')!=current_pid]
+            if old:historical_soak_attempts.append({'node':node,'phase':phase,'selected_execution_pid':current_pid,'excluded_execution_pids':sorted({x.get('execution_pid') for x in old}),'excluded_records':len(old),'reason':'separate interrupted attempt; do not pool baseline or duration'})
+            rr=[x for x in rows if x['node_index']==node and x['kind']=='sustained' and x.get('phase')==phase and x.get('execution_pid')==current_pid and x.get('validation',{}).get('passed')]
+            if not rr:continue
+            samples=[x for x in telemetry[node] if x.get('epoch')]
+            start=min(datetime.datetime.fromisoformat(x['utc']).timestamp()-x['elapsed_s'] for x in rr);end=max(datetime.datetime.fromisoformat(x['utc']).timestamp() for x in rr)
+            samples=[x for x in samples if start<=x['epoch']<=end];energy=covered=0.;gaps=0
+            for a,b in zip(samples,samples[1:]):
+                dt=b['epoch']-a['epoch'];pa=a.get('gpu',{}).get('sensor_power_w');pb=b.get('gpu',{}).get('sensor_power_w')
+                if 0<dt<=5 and pa is not None and pb is not None:energy+=(pa+pb)/2*dt;covered+=dt
+                else:gaps+=1
+            summary=dict(node=node,phase=phase,elapsed_s=max(x['elapsed_s'] for x in rr),validated_samples=len(rr),sensor_energy_j=energy,sensor_energy_covered_s=covered,sensor_energy_gap_intervals=gaps,sensor_boundary='GPU/SoC sensor, not AC wall energy',temperature_c=stat([x['gpu']['temperature_c'] for x in samples if x.get('gpu',{}).get('temperature_c') is not None]),sm_clock_mhz=stat([x['gpu']['sm_clock_mhz'] for x in samples if x.get('gpu',{}).get('sm_clock_mhz') is not None]))
+            base=[x for x in rows if x['node_index']==node and x['kind']=='soak_baseline' and x.get('phase')==phase and x.get('execution_pid')==current_pid and x.get('validation',{}).get('passed')]
+            summary['thermal_backoff_s_completed_calls']=sum(x.get('thermal_backoff_s',0) for x in rr)
+            summary['thermal_backoff_calls']=sum(x.get('thermal_backoff_s',0)>0 for x in rr)
+            summary['execution_pid']=current_pid
+            summary['clock_event_reasons']={key:{'active_samples':sum(x.get('clock_event_reasons',{}).get(key)=='Active' for x in samples),'known_samples':sum(x.get('clock_event_reasons',{}).get(key) in ['Active','Not Active'] for x in samples)} for key in ['sw_thermal_slowdown','hw_thermal_slowdown','hw_slowdown','sw_power_cap']}
+            summary['work_rates']={}
+            for work in sorted({x['work'] for x in rr}):
+                baseline=[rate(x) for x in base if x['work']==work];br=statistics.median(baseline) if baseline else None
+                summary['work_rates'][work]={'baseline_median':br,'observed_rate':stat([rate(x) for x in rr if x['work']==work]),'phase_wall_rate':sum(x.get('flops_per_call',x.get('logical_bytes_per_call',0))*x['iterations'] for x in rr if x['work']==work)/summary['elapsed_s'],'phase_wall_rate_boundary':'counted work divided by whole phase elapsed wall time, including other mixed work, validation and completed cooling waits; warmup and baseline excluded'}
+                for window in sorted({int(x['elapsed_s']//600) for x in rr if x['work']==work}):
+                    selected=[x for x in rr if x['work']==work and int(x['elapsed_s']//600)==window];rate_median=statistics.median(rate(x) for x in selected)
+                    soak_windows.append(dict(node=node,phase=phase,work=work,window=window,window_start_s=window*600,complete_window=summary['elapsed_s'] >= (window+1)*600,observed_window_wall_s=min(600,max(0,summary['elapsed_s']-window*600)),n=len(selected),rate_median=rate_median,baseline_rate=br,retention=rate_median/br if br else None))
+            soak.append(summary)
+    counts={str(node):dict(collections.Counter(x.get('state',x['kind']) for x in rows if x['node_index']==node)) for node in [0,1]}
+    coverage={}
+    for node in [0,1]:
+        coverage[str(node)]={}
+        for suite in ['base','extensions','communication','overlap']:
+            selected=[x for x in rows if x['node_index']==node and ((suite=='base' and x.get('condition_id') and x.get('suite')!='extensions') or (suite=='extensions' and x.get('suite')=='extensions') or (suite=='communication' and x['kind']=='communication') or (suite=='overlap' and x['kind']=='compute_communication_overlap'))]
+            coverage[str(node)][suite]=dict(collections.Counter(x.get('state','unknown') for x in selected))
+    state=json.loads((S/'status.json').read_text()) if (S/'status.json').exists() else {}
+    summary={'utc':utc(),'state':state.get('state','preparing'),'phase':state.get('phase'),'completed_phases':state.get('completed_phases',[]),'error':state.get('error'),'archived_counts':counts,'coverage_by_suite':coverage,'groups':summaries,'collectives':cg,'paired_collective_trials':len(collective),'paired_overlap_trials':len(ov),'overlap_comparisons':comparisons,'soak':soak,'soak_windows':soak_windows,'receipts':receipts,'counter_diagnostics':counter,'sources':provenance,'statistics':'Independent time rounds; medians and observed ranges, not device-population confidence intervals; historical partial data excluded'}
+    summary['historical_soak_attempts']=historical_soak_attempts
+    summary['excluded_api_probes']=excluded_api_probes
+    counter_retry_path=S/'evidence/overnight_completion/counter_retries.json'
+    counter_followup=S/'evidence/overnight_completion/counter_verbose_retries.json'
+    if counter_followup.exists() and json.loads(counter_followup.read_text()).get('completed_utc'):
+        counter_retry_path=counter_followup
+    if counter_retry_path.exists():
+        summary['counter_retry']=json.loads(counter_retry_path.read_text())
+        summary['counter_retry_source']={'path':str(counter_retry_path),'sha256':hashlib.sha256(counter_retry_path.read_bytes()).hexdigest()}
+    summary['analysis_source_sha256']={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path(__file__),S/'gpu_extensions.py',R/'hardware_extension_figures.py',R/'hardware_h200_report.py',S/'soak_protocol.py']}
+    from hardware_extension_figures import comparisons
+    summary['extended_comparisons']=comparisons(rows)
+    write_json(S/'analysis/summary.json',summary)
+    for name,rr in [('measurements',valid),('groups',summaries),('collective_trials',collective),('overlap_trials',ov),('soak_windows',soak_windows)]:
+        if not rr:
+            (S/'analysis'/f'{name}.csv').write_text('state\n')
+            continue
+        keys=sorted(set().union(*(r.keys() for r in rr)))
+        with (S/'analysis'/f'{name}.csv').open('w') as f:
+            w=csv.DictWriter(f,fieldnames=keys);w.writeheader();w.writerows({k:json.dumps(v,ensure_ascii=False) if isinstance(v,(dict,list)) else v for k,v in r.items()} for r in rr)
+    draw(summary,telemetry)
+    from hardware_extension_figures import draw as extension_figures,draw_operators
+    for lang in ['zh','en']:
+        extension_figures(summary,lang);draw_operators(summary,lang)
+    from hardware_h200_report import draw as comparison_figures
+    comparison_figures(summary)
+    return summary
+
+
+def draw(d,telemetry):
+    from plots import plt,save
+    import numpy as np
+    groups=d['groups'];colors=['#004AB9','#70A6FF']
+    for lang in ['zh','en']:
+        T=lambda z,e:z if lang=='zh' else e
+        fig,axes=plt.subplots(1,2,figsize=(11,4.5));types=['fp32','tf32_allowed','fp16','bf16','fp8_e4m3','nvfp4','fp16_sparse_2of4','bf16_sparse_2of4'];sizes=[1024,2048,4096,8192]
+        shared_max=max([x['effective_tflops']['median'] for x in groups if x.get('effective_tflops') and x.get('precision') in types and x.get('shape') in [[n]*3 for n in sizes]] or [1])
+        for node,ax in enumerate(axes):
+            data=np.full((len(types),len(sizes)),np.nan)
+            sample_counts=np.zeros((len(types),len(sizes)),dtype=int)
+            for x in groups:
+                if x['node']!=node or x.get('precision') not in types or x.get('shape') not in [[n]*3 for n in sizes]:continue
+                if x.get('effective_tflops'):
+                    i,j=types.index(x['precision']),sizes.index(x['shape'][0]);data[i,j]=x['effective_tflops']['median'];sample_counts[i,j]=x['n']
+            cmap=plt.get_cmap('Blues').copy();cmap.set_bad('#E5EDF9');im=ax.imshow(data,aspect='auto',cmap=cmap,vmin=0,vmax=max(1,shared_max))
+            for i in range(len(types)):
+                for j in range(len(sizes)):ax.text(j,i,'—' if not np.isfinite(data[i,j]) else f'{data[i,j]:.1f}\nn={sample_counts[i,j]}',ha='center',va='center',fontsize=7,color='white' if np.isfinite(data[i,j]) and data[i,j]>.55*shared_max else '#1E324C')
+            ax.set_xticks(range(4),['1K','2K','4K','8K']);ax.set_yticks(range(len(types)),['FP32',T('TF32（允许）','TF32 allowed'),'FP16','BF16','FP8 E4M3','NVFP4','FP16 2:4','BF16 2:4']);ax.set_title(T('节点','Node ')+str(node)+' · TFLOP/s');ax.grid(False);ax.set_xlabel(T('方阵边长；稀疏行采用稠密等效运算量','Square size; sparse rows use dense-equivalent FLOPs'))
+        save(fig,'hardware_unloaded_compute',lang)
+        fig,axes=plt.subplots(1,2,figsize=(11,4))
+        for node in [0,1]:
+            for kind,mode,style in [('copy',None,'-'),('triad',None,'--'),('native_bandwidth','read',':'),('native_bandwidth','write','-.')]:
+                rr=sorted([x for x in groups if x['node']==node and x['kind']==kind and x.get('mode')==mode and x.get('stride',1)==1 and x.get('effective_gb_s')],key=lambda x:x['working_set_bytes'])
+                if rr:axes[0].plot([x['working_set_bytes']/2**20 for x in rr],[x['effective_gb_s']['median'] for x in rr],marker='.',linestyle=style,color=colors[node],label=f'{node} {mode or kind}')
+            for hint,style in [('ca','-'),('cg','--')]:
+                rr=sorted([x for x in groups if x['node']==node and x['kind']=='pointer_chase' and x.get('cache_hint')==hint],key=lambda x:x['address_span_bytes'])
+                if rr:axes[1].plot([x['address_span_bytes']/1024 for x in rr],[x['dependent_access_ns']['median'] for x in rr],marker='.',linestyle=style,color=colors[node],label=f'{node} {hint}')
+        for ax in axes:
+            ax.set_xscale('log',base=2);ax.set_ylim(bottom=0)
+            if ax.lines:ax.legend(fontsize=7)
+            else:ax.text(.5,.5,T('等待归档数据','Awaiting archived data'),transform=ax.transAxes,ha='center')
+        axes[0].set_xlabel(T('总工作集 MiB','Total working set MiB'));axes[0].set_ylabel(T('有效带宽 GB/s','Logical bandwidth GB/s'));axes[1].set_xlabel(T('随机指针地址跨度 KiB','Random-pointer address span KiB'));axes[1].set_ylabel(T('依赖访问 ns（含计时边界开销）','Dependent access ns (timing-boundary overhead included)'));save(fig,'hardware_unloaded_memory',lang)
+        fig,axes=plt.subplots(1,2,figsize=(11,4))
+        for op,color in [('all_reduce','#004AB9'),('all_gather','#70A6FF'),('reduce_scatter','#1E324C')]:
+            rr=sorted([x for x in d['collectives'] if x['operation']==op],key=lambda x:x['message_bytes'])
+            if rr:
+                xx=[x['message_bytes'] for x in rr];axes[0].plot(xx,[x['algorithm_gb_s']['median'] for x in rr],'.-',color=color,label=op);axes[1].plot(xx,[x['latency_us']['median'] for x in rr],'.-',color=color,label=op)
+        for ax in axes:
+            ax.set_xscale('log',base=2)
+            if ax.lines:ax.legend(fontsize=7)
+            else:ax.text(.5,.5,T('等待成对通信数据','Awaiting paired collective data'),transform=ax.transAxes,ha='center')
+            ax.set_xlabel(T('消息字节','Message bytes'))
+        axes[0].set_ylabel(T('算法带宽 GB/s','Algorithm bandwidth GB/s'));axes[0].set_ylim(bottom=0);axes[1].set_ylabel(T('时延 μs','Latency μs'));axes[1].set_yscale('log');save(fig,'hardware_unloaded_collective',lang)
+        fig,axes=plt.subplots(3,1,figsize=(10,7),sharex=True)
+        for node,rr in telemetry.items():
+            if not rr:continue
+            for ax,field in zip(axes,['temperature_c','sm_clock_mhz','sensor_power_w']):
+                xx,yy=telemetry_series(rr,field)
+                ax.plot(xx,yy,color=colors[node],lw=.8,label=T('节点','Node ')+str(node))
+        for ax,label in zip(axes,[T('温度 °C','Temperature °C'),T('SM 频率 MHz','SM clock MHz'),T('传感器功率 W','Sensor power W')]):
+            ax.set_ylabel(label)
+            if ax.lines:ax.legend()
+        axes[-1].set_xlabel(T('本批监控开始后小时数（两节点各自起点）','Hours since batch monitoring began on each node'));save(fig,'hardware_unloaded_telemetry',lang)
+        fig,axes=plt.subplots(1,3,figsize=(12,3.8),sharey=True)
+        for ax,phase in zip(axes,['compute','bandwidth','mixed']):
+            for node in [0,1]:
+                for work,style in [('gemm','-'),('triad','--')]:
+                    rr=sorted([x for x in d['soak_windows'] if x['node']==node and x['phase']==phase and x['work']==work and x['retention'] is not None and x['complete_window']],key=lambda x:x['window'])
+                    if rr:ax.plot([x['window_start_s']/60 for x in rr],[x['retention']*100 for x in rr],'.'+style,color=colors[node],label=f'{node} {work}')
+            ax.axhline(100,color='#6E7A8A',ls=':');ax.set_ylim(bottom=0);ax.set_title(phase);ax.set_xlabel(T('阶段开始后分钟','Minutes after phase start'))
+            if len(ax.lines)>1:ax.legend(fontsize=7)
+            else:ax.text(.5,.5,T('等待持续负载归档','Awaiting sustained archive'),transform=ax.transAxes,ha='center',fontsize=8)
+        axes[0].set_ylabel(T('相对同负载基线保持率 %','Retention vs matched-work baseline %'));save(fig,'hardware_unloaded_retention',lang)
+
+
+if __name__=='__main__':
+    d=build();print(json.dumps({k:d[k] for k in ['state','phase','archived_counts','paired_collective_trials','paired_overlap_trials']}))

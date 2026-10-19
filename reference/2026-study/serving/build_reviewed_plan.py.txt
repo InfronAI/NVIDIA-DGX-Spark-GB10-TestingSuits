@@ -1,0 +1,48 @@
+"""Render the reviewed execution plan offline, preserving earlier protocol archives."""
+import base64,html,importlib.util,re,json
+from pathlib import Path
+import markdown
+from fontTools import subset
+from fontTools.ttLib import TTFont
+from weasyprint import HTML
+from weasyprint.text.fonts import FontConfiguration
+from pypdf import PdfReader
+from common import ROOT,dump,utc
+from report_visual_layout import decorate, CSS as VISUAL_CSS
+OUT=ROOT/'test_plan';OLD=ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/test_plan';ASSETS=OLD.parent/'assets';DESIGN=ROOT.parents[1]/'docs/design/infron-design-system'
+
+def uri(p,mime):return 'data:'+mime+';base64,'+base64.b64encode(p.read_bytes()).decode()
+def main():
+    docs={l:(OUT/f'plan.{l}.md').read_text() for l in ['zh','en']}
+    font=TTFont(ASSETS/'cjk.ttf');sub=subset.Subsetter();sub.populate(text=''.join(docs.values())+'测试计划当前执行协议双节点推理性能边界与方法固定独立题目最大并发累计预算截止小时中文');sub.subset(font);font.save(OUT/'plan-cjk.ttf')
+    fonts=''
+    for family,p,w,mime in [('General Sans',ASSETS/'fonts/general-sans/GeneralSans-Regular.woff2',400,'font/woff2'),('General Sans',ASSETS/'fonts/general-sans/GeneralSans-Semibold.woff2',600,'font/woff2'),('Gelasio',ASSETS/'fonts/gelasio/Gelasio-Regular.ttf',400,'font/ttf'),('Plan CJK',OUT/'plan-cjk.ttf',400,'font/ttf')]:fonts+=f"@font-face{{font-family:'{family}';src:url('{uri(p,mime)}');font-weight:{w}}}"
+    spec=importlib.util.spec_from_file_location('plan_style',OLD/'build_plan.py');style=importlib.util.module_from_spec(spec);spec.loader.exec_module(style)
+    css='\n'.join((DESIGN/'tokens'/x).read_text() for x in ['colors.css','typography.css','spacing.css'])+fonts+style.CSS.replace('PERFORMANCE PLAN P3','PERFORMANCE TEST PLAN')+'\n.static-chart{width:100%;height:auto}.figure{break-inside:avoid}figcaption{font-size:12px;color:var(--inf-text-muted)}@media print{.document p{margin:8px 0}.document{font-size:9pt;line-height:1.6}.document h2{font-size:15pt;margin:20px 0 12px;padding-top:14px}td,th{padding:5px 6px;font-size:8pt}.figure{padding:8px}figcaption{font-size:8pt}}'
+    css+='\n.document pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;padding:12px;background:var(--inf-blue-50)}.document pre code{white-space:inherit;overflow-wrap:inherit}@media print{.document pre{font-size:7.8pt;padding:8px}}'
+    css+=VISUAL_CSS
+    qa={}
+    for lang,doc in docs.items():
+        T=lambda z,e:z if lang=='zh' else e;other='en' if lang=='zh' else 'zh';body=markdown.markdown(doc,extensions=['tables','fenced_code']);toc=[]
+        def head(m):
+            label=re.sub('<[^>]+>','',m[1]);anchor='section-'+label[:2];toc.append((anchor,label));return f'<h2 id="{anchor}">{m[1]}</h2>'
+        body=re.sub(r'<h2>(.*?)</h2>',head,body);body=re.sub(r'(<table>.*?</table>)',r'<div class="table-wrap">\1</div>',body,flags=re.S)
+        md=doc
+        charts=[('STUDY_LAYERS','study_layers'),('GPU_SEQUENCE','gpu_sequence'),('LENGTH_DOMAIN','length_domain'),('SHAPES','shapes'),('CACHE_DESIGN','cache_design'),('MEASUREMENT','measurement'),('CACHE_PROTOCOL','cache_protocol')]
+        for token,name in charts:
+            svg=ROOT/'reports'/f'{name}.{lang}.svg';assert svg.exists()
+            body=re.sub(r'<!--'+token+r'-->\s*<p>(.*?)</p>',lambda m:'<figure class="figure"><img class="static-chart" src="'+uri(svg,'image/svg+xml')+'" alt="'+name+'"><figcaption>'+m[1]+'</figcaption></figure>',body,flags=re.S)
+            md=md.replace('<!--'+token+'-->','!['+name+'](../reports/'+name+'.'+lang+'.svg)')
+        body,_=decorate(body,lang)
+        nav=''.join(f'<a href="#{a}">{html.escape(t)}</a>' for a,t in toc)
+        title=T('NVIDIA DGX Spark<br><em>GPU、系统与推理测试计划</em>','NVIDIA DGX Spark<br><em>GPU, system and inference test plan</em>')
+        page=f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+T('GPU、系统与推理测试计划','GPU, system and inference test plan')+f' · Infron</title><style>{css}</style></head><body><header class="topbar"><img class="logo" src="{uri(DESIGN/"assets/logo-flat/horizontal-default.png","image/png")}" alt="Infron"><div class="toplinks"><a class="pill" href="test-plan.{other}.html">'+('English' if lang=='zh' else '中文')+f'</a><a class="pill" href="test-plan.{lang}.pdf">PDF</a></div></header><div class="hero"><div class="eyebrow">INFRON RESEARCH / SYSTEM AND INFERENCE PROTOCOL / 2026-10-17</div><h1>{title}</h1><p class="lead">qwen/qwen3.8-flash-next-abliterated · NVIDIA DGX Spark × 2 · MTP on</p></div><div class="layout"><nav class="sidebar">{nav}</nav><main class="document">{body}</main></div></body></html>'
+        (OUT/f'test-plan.{lang}.md').write_text(md);(OUT/f'test-plan.{lang}.html').write_text(page)
+        HTML(string=page,base_url=str(OUT)).write_pdf(OUT/f'test-plan.{lang}.pdf',font_config=FontConfiguration())
+        # Keep the user’s original file bookmark usable, with local links resolved at the new location.
+        mirror=page.replace('<head>','<head><base href="'+OUT.as_uri()+'/">',1);(OLD/f'test-plan.{lang}.html').write_text(mirror)
+        (OLD/f'test-plan.{lang}.pdf').write_bytes((OUT/f'test-plan.{lang}.pdf').read_bytes())
+        (OLD/f'test-plan.{lang}.md').write_text(re.sub(r'\]\((\.\./[^)]+)\)',lambda m:']('+str((OUT/m[1]).resolve())+')',md))
+        qa[lang]={'sections':len(toc),'figures':sum('<!--'+token+'-->' in doc for token,_ in charts),'pages':len(PdfReader(OUT/f'test-plan.{lang}.pdf').pages)}
+    dump(OUT/'validation.json',{'utc':utc(),'languages':qa});print(json.dumps(qa))
+if __name__=='__main__':main()

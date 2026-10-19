@@ -1,0 +1,53 @@
+"""Offline 160-call supplement; never modifies the existing 352-call manifest."""
+import json,random
+from common import ROOT,dump,digest,utc
+from business_plan import SHAPES,fit,full_ids,common_prefix,TOK,count
+SEED=202610151507
+
+def main():
+ dest=ROOT/'plans/cache_diagnostics';assert not (dest/'manifest.json').exists(),'Frozen supplement exists'
+ dest.mkdir(exist_ok=True);blocks=[];index={}
+ def emit(name,cases,c=1,**meta):
+  for x in cases:x.update(block=name,concurrency=c);index[x['id']]={k:v for k,v in x.items() if k!='messages'}
+  path=dest/(name+'.jsonl');path.write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in cases))
+  blocks.append(dict(id=name,file=path.name,sha256=digest(path),count=len(cases),concurrency=c,**meta))
+ def case(ident,ms,n,out,family,group,role,**extra):
+  return dict(id=ident,phase='P6',cell='P6_'+group,messages=ms,local_prompt_tokens=count(ms),target_input_tokens=n,max_tokens=out,effort='none',timeout_s=600,warmup=role=='seed',suite='synthetic_cache_diagnostics',prompt_id=group,family=family,group=group,cache_role=role,**extra)
+ combos=[(s,c) for s in SHAPES if s[0] in ['triage','dialogue','summary'] for c in [1,4]];random.Random(SEED).shuffle(combos)
+ for order,(s,c) in enumerate(combos):
+  shape,n,out,_,_,task=s;base=f'cache_business_{shape}_c{c}';stages={k:[] for k in ['seed','shared50','repeat100']}
+  for rep in range(4):
+   group=base+f'_r{rep}';ms,_=fit(n,group,shape,task)
+   text=ms[0]['content'];enc=TOK.encode(text,add_special_tokens=False);cut=enc.offsets[min(len(enc.ids)-1,int(n*.5)-10)][0]
+   half,_=fit(n,group+'-half',shape,task,head=text[:cut]+' Changed case '+group+'\n')
+   for role,payload,target in [('seed',ms,None),('shared50',half,50),('repeat100',ms,100)]:
+    lcp=common_prefix(full_ids(ms),full_ids(payload));actual=lcp/count(payload)
+    if target is not None:assert abs(actual-target/100)<.04
+    stages[role].append(case(group+'_'+role,payload,n,out,'business',group,role,shape=shape,target_prefix_percent=target,actual_prefix_fraction=actual,seed_id=group+'_seed'))
+  roles=['seed']+(['shared50','repeat100'] if order%2==0 else ['repeat100','shared50'])
+  previous=None
+  for role in roles:
+   name=base+'_'+role;emit(name,stages[role],c,family='business',depends_on=[previous] if previous else []);previous=name
+ groups=[(n,delay,rep) for n in [8192,32768] for delay in [0,30,300] for rep in range(3)];random.Random(SEED+1).shuffle(groups)
+ for n,delay,rep in groups:
+  group=f'cache_idle_i{n}_d{delay}_r{rep}';ms,_=fit(n,group,'summary','Summarize the operational records concisely.')
+  seed=case(group+'_seed',ms,n,128,'retention',group,'seed',target_delay_s=delay)
+  probe=case(group+'_probe',ms,n,128,'retention',group,'probe',target_delay_s=delay,seed_id=seed['id'])
+  emit(seed['id'],[seed],family='retention');emit(probe['id'],[probe],family='retention',depends_on=[seed['id']],delay_after_id=seed['id'],delay_s=delay)
+ for rep in range(3):
+  group=f'cache_pressure_r{rep}';ms,_=fit(8192,group,'summary','Summarize the operational records concisely.');previous=None
+  for role in ['seed','baseline','pressure0','pressure1','pressure2','pressure3','post','recovery']:
+   ispressure=role.startswith('pressure');n=32768 if ispressure else 8192;payload=fit(n,group+role,'summary','Summarize the records briefly.')[0] if ispressure else ms
+   x=case(group+'_'+role,payload,n,64 if ispressure else 128,'competition',group,role,seed_id=group+'_seed')
+   emit(x['id'],[x],family='competition',depends_on=[previous] if previous else []);previous=x['id']
+ anchors=[]
+ for i in range(4):
+  group=f'cache_periodic_a{i}';ms,_=fit(8192,group,'summary','Summarize the operational records concisely.');anchors.append((group,ms))
+ seeds=[case(g+'_seed',ms,8192,128,'periodic',g,'seed') for g,ms in anchors];emit('cache_periodic_seed',seeds,4,family='periodic')
+ for epoch in range(6):
+  rows=[case(g+f'_e{epoch}',ms,8192,128,'periodic',g,'probe',epoch=epoch,seed_id=g+'_seed',target_offset_s=epoch*120) for g,ms in anchors]
+  emit(f'cache_periodic_e{epoch}',rows,4,family='periodic',depends_on=['cache_periodic_seed' if not epoch else f'cache_periodic_e{epoch-1}'],schedule_origin='cache_periodic_e0',offset_s=epoch*120)
+ assert len(index)==160 and sum(b['count'] for b in blocks)==160
+ dump(dest/'request_index.json',index);dump(dest/'manifest.json',dict(utc=utc(),seed=SEED,planned_calls=160,phase='P6',blocks=blocks,family_calls=dict(business=72,retention=36,competition=24,periodic=28),budget='Uses remaining 160 of existing 512 phase slots. Original 8171 actual-attempt ceiling, USD500 cumulative budget, deadline and concurrency<=8 unchanged; retries may reduce later optional coverage.',source='Independent synthetic business prefixes; no cache flush or service configuration change.',generator_sha256=digest(__file__)))
+ print({'calls':len(index),'blocks':len(blocks),'sha256':digest(dest/'manifest.json')})
+if __name__=='__main__':main()

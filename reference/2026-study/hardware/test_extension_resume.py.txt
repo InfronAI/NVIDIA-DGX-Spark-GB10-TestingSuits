@@ -1,0 +1,53 @@
+import contextlib,json,tempfile,types,unittest
+from unittest.mock import patch
+from pathlib import Path
+import gpu_extensions as e
+from gpu_extensions import completed_keys
+
+class ExtensionResume(unittest.TestCase):
+    def check(self,rows):
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td);(p/'measurements.jsonl').write_text(''.join(json.dumps(x)+'\n' for x in rows))
+            return completed_keys(p)
+    def row(self,**kw):
+        return dict(suite='extensions',condition_id='a',round=1,state='measured',validation={'passed':True},**kw)
+    def test_only_valid_extension_rounds_preserved(self):
+        a=self.row();b={**a,'suite':'base'};c={**a,'round':2,'state':'unsupported_probe'}
+        self.assertEqual(self.check([a,b,c]),{('a',1)})
+    def test_numerical_failure_rejected(self):
+        with self.assertRaisesRegex(RuntimeError,'requires review'):self.check([{**self.row(),'state':'condition_failed'}])
+    def test_duplicate_round_rejected(self):
+        with self.assertRaisesRegex(RuntimeError,'duplicate'):self.check([self.row(),self.row()])
+    def test_invalid_measured_round_rejected(self):
+        with self.assertRaisesRegex(RuntimeError,'invalid'):self.check([{**self.row(),'validation':{'passed':False}}])
+    def test_unsupported_then_valid_and_second_resume(self):
+        cases=[{'condition_id':k,'kind':'scalar_fma','rounds':2} for k in ['unsupported','valid']]
+        fake=types.SimpleNamespace(inference_mode=contextlib.nullcontext,manual_seed=lambda _:None,cuda=types.SimpleNamespace(synchronize=lambda:None,empty_cache=lambda:None))
+        calls=[]
+        def make(torch,np,lib,root,c):
+            calls.append(c['condition_id'])
+            if c['condition_id']=='unsupported':raise RuntimeError('operation not supported')
+            return lambda:None,lambda:{'passed':True},{'flops_per_call':100},lambda:None
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with patch.object(e,'conditions',return_value=cases),patch.object(e,'make',side_effect=make),patch.object(e,'warmup',return_value={}),patch.object(e,'sample_guard'),patch.object(e,'timed',return_value={'iterations':2,'cuda_interval_s':1.,'mean_device_interval_us':500000.}),patch.object(e.gc,'collect'):
+                result=e.run_conditions(fake,None,None,root)
+                self.assertEqual(result['validated'],2)
+                self.assertEqual(calls.count('unsupported'),1)
+                self.assertEqual(calls.count('valid'),2)
+                e.run_conditions(fake,None,None,root)
+                self.assertEqual(len(calls),3)
+            rows=[json.loads(x) for x in (root/'measurements.jsonl').read_text().splitlines()]
+            self.assertEqual(len(rows),4)
+            self.assertEqual(len({(x['condition_id'],x['round']) for x in rows}),4)
+    def test_api_probe_exclusion_is_narrow(self):
+        r={**self.row(),'precision':'fp16_sparse_2of4','state':'unsupported_probe','error':'requested op (numpy_T.default)'}
+        self.assertTrue(e.invalid_harness_probe(r))
+        self.assertFalse(e.invalid_harness_probe({**r,'state':'measured'}))
+        self.assertFalse(e.invalid_harness_probe({**r,'state':'condition_failed'}))
+        self.assertFalse(e.invalid_harness_probe({**r,'error':'hardware not supported'}))
+    def test_legacy_managed_sample_requires_fresh_validation(self):
+        old={**self.row(),'kind':'managed_access','execution_pid':278387}
+        self.assertEqual(self.check([old]),set())
+        self.assertEqual(self.check([{**old,'execution_pid':999999}]),{('a',1)})
+if __name__=='__main__':unittest.main()

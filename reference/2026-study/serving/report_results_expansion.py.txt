@@ -1,0 +1,112 @@
+"""Bilingual result explanations, data tables and bounded cost interpretation."""
+import re
+from report_labels import condition_name
+from report_returns import section as investment_returns
+from report_cost_model import CAPEX_USD, ELECTRICITY_USD_KWH, ELECTRICITY_URL, break_even_utilization
+
+def chart(token,zh,en,lang):return '\n\n<!--'+token+'-->\n\n'+(zh if lang=='zh' else en)
+
+def lengths(a,d,lang):
+    from build_report import fmt,table
+    T=lambda z,e:z if lang=='zh' else e
+    text=T('以下热力图把输入长度、输出预算与并发拆成三个明确的变量。每个格子只纳入连续完整区组；深色表示数值较大，灰色表示该条件没有合格区组。输出预算是允许生成的上限，并不要求模型生成到上限。两图使用相同样本口径，分别回答“多久看到正文”和“整个系统每秒生成多少词元”。','The heatmaps separate input length, output budget and concurrency. Each cell includes uninterrupted complete blocks only. Darker means a larger value; grey means no eligible block. The output budget is a ceiling, not a forced generation length. Both figures use the same population and show first-content waiting and aggregate generation respectively.')
+    text+=chart('LENGTH_WAIT','输入／输出长度与正文等待｜每格标出正文首字延迟中位数和有效响应数 n；四个并发面板共用色标。不能用该时延直接计算纯 GPU 预填充速度。','Input/output lengths and visible waiting | Each cell shows median visible-TTFT and response count n. All four concurrency panels share one scale. This latency is not pure GPU prefill time.',lang)
+    text+=chart('LENGTH_THROUGHPUT','输入／输出长度与系统吞吐｜每格为实际生成词元总数除以完整区组总时长；输出提前结束会改变实际工作量。较高的输出预算不等同于较高的有效业务产出。','Input/output lengths and throughput | Actual generated tokens divided by total complete-block duration. Early stopping changes realized work. A higher output budget is not necessarily more useful business output.',lang)
+    rows=sorted([r for r in d['lengths'] if r['output_cap']==512],key=lambda r:(r['input_target'],r['concurrency']))
+    text+='\n\n### '+T('固定输出预算下的可比切片','Comparable slice at a fixed output budget')
+    text+='\n\n'+T('下表固定输出预算为 512 词元，保留输入长度和并发变化。实际输入包含聊天模板；实际输出均值用于检查各格是否真的完成了相近的生成工作量。','The table fixes the output budget at 512 tokens while varying input length and concurrency. Realized input includes the chat template; mean realized output reveals differences in generation work.')
+    text+=table([T('目标输入 / 并发','Input target / concurrency'),T('区组 / 响应','Blocks / responses'),T('实际输入 / 输出均值','Mean input / output'),T('正文首字中位数 s','Visible-TTFT median s'),T('总时延中位数 s','E2E median s'),T('合计词元/s','Aggregate tokens/s')],[[f'{r["input_target"]:,} / {r["concurrency"]}',f'{r["blocks"]} / {r["n"]}',f'{fmt(r["actual_input_mean"],0)} / {fmt(r["actual_output_mean"],1)}',fmt(r['ttft_median_s'],2),fmt(r['e2e_median_s'],2),fmt(r['tps'],1)] for r in rows])
+    short=next((r for r in rows if r['input_target']==512 and r['concurrency']==1),None)
+    long=next((r for r in rows if r['input_target']==32768 and r['concurrency']==1),None)
+    if short and long:
+        text+=T(f'\n\n**长度效应。**在并发 1、输出预算 512 的切片中，目标输入从 512 增至 32,768 词元，正文首字中位数由 {fmt(short["ttft_median_s"],2)} s 变为 {fmt(long["ttft_median_s"],2)} s；合计输出吞吐由 {fmt(short["tps"],1)} 变为 {fmt(long["tps"],1)} 词元/s。这是端到端的长度敏感性观测，包含当前前缀状态和服务链路的共同影响。',f'\n\n**Length effect.** At concurrency one and output cap 512, increasing the input target from 512 to 32,768 tokens changes median visible-TTFT from {fmt(short["ttft_median_s"],2)} to {fmt(long["ttft_median_s"],2)} s and aggregate output from {fmt(short["tps"],1)} to {fmt(long["tps"],1)} tokens/s. This is end-to-end length sensitivity under the observed prefix state and serving path.')
+    text+='\n\n['+T('全部长度条件的可复算数据','Reproducible data for all length conditions')+'](length-metrics.csv)'
+    boundary=[g for g in a['groups'] if g['key'].startswith(('P4_','P5_'))]
+    if boundary:
+        text+=table([T('上下文或前缀条件','Context or prefix condition'),T('完整 / 失败','Complete / failed'),T('首生成中位数 s','First-generated median s')],[[condition_name(g['key'],lang),f'{g["complete"]} / {g["failed"]}',fmt(g['ttft_generated_s']['p50'],2)] for g in boundary])
+    return text
+
+def resources(d,lang):
+    from build_report import fmt,table
+    T=lambda z,e:z if lang=='zh' else e
+    text='\n\n### '+T('与自然负载区组对齐的资源表现','Resources aligned with natural-workload blocks')
+    text+=chart('RESOURCE_BY_LOAD','并发与双节点资源｜与吞吐比较使用相同的自然负载区组，按有效采样覆盖时间加权。相邻采样超过 20 秒或字段缺失的区间不插值。GPU 传感器功率与估算整机功率是不同视图，不相加。','Concurrency and node resources | Same natural-workload blocks as the throughput comparison; means are weighted by valid sample duration. Gaps over 20 seconds or missing fields are not interpolated. GPU sensor and estimated system power are separate views and are not added.',lang)
+    text+=table([T('并发 / 节点','Concurrency / node'),T('GPU 活跃度均值','Mean GPU activity'),T('GPU / 整机估算 W','GPU / estimated system W'),T('温度峰值 °C','Peak temperature °C'),T('活跃度 / 功率覆盖','Activity / power coverage')],[[f'{r["concurrency"]} / {r["node"]}',fmt(r['gpu_mean_percent'],1)+'%',fmt(r['sensor_power_mean_w'],1)+' / '+fmt(r['estimated_system_power_mean_w'],1),fmt(r['temperature_peak_c'],1),fmt(100*r['gpu_coverage'],1)+'% / '+fmt(100*r['power_coverage'],1)+'%'] for r in d['resources']])
+    text+='\n\n'+T('读法：覆盖率是该条件全部区组时长中，具有有效相邻采样的时间占比；均值只在覆盖部分计算。即使 GPU 活跃度接近 100%，也不能仅凭这一字段认定计算单元或内存带宽已经饱和。跨节点功率差异还需要结合频率、任务分工和采样字段语义解释。','Coverage is the fraction of condition-block time supported by valid adjacent samples; means use the covered intervals. GPU activity near 100% alone does not establish compute or memory-bandwidth saturation. Between-node power differences also require clocks, work allocation and sensor semantics.')
+    return text
+
+def conclusions(a,d,b,lang):
+    from build_report import fmt,table
+    T=lambda z,e:z if lang=='zh' else e
+    gs=sorted(d['natural'],key=lambda g:int(re.search(r'_c(\d+)',g['key'])[1]));best=max(gs,key=lambda g:g['tps']) if gs else None
+    text=T('结论依次从用户体验、并发容量、负载适配、资源表现和成本效率展开。所有性能数值对应本报告明确的样本与窗口；年度成本是情景计算，不能与实际测得的运行时长混淆。','Conclusions cover user experience, concurrency capacity, workload fit, resources and cost efficiency. Performance values refer to the stated populations and windows; annual cost is a scenario calculation, not a measured year of operation.')
+    text+='\n\n### '+T('性能与容量：在等待约束下解读吞吐','Performance and capacity under waiting constraints')
+    text+=table([T('并发','Concurrency'),T('区组 / 响应','Blocks / responses'),T('合计生成词元/s','Generated tokens/s'),T('完整响应/s','Complete responses/s'),T('正文首字 中位 / 95分位 s','Visible-TTFT median / p95 s'),T('完成时延95分位 s','E2E p95 s'),T('每词元中位 ms','Median TPOT ms')],[[int(re.search(r'_c(\d+)',g['key'])[1]),f'{g["blocks"]} / {g["n"]}',fmt(g['tps'],1),fmt(g['n']/g['window_s'],3),fmt(g['ttft']['p50'],2)+' / '+fmt(g['ttft']['p95'],2),fmt(g['e2e']['p95'],2),fmt(g['tpot_ms']['p50'],1)] for g in gs])
+    if best:
+        c=int(re.search(r'_c(\d+)',best['key'])[1]);text+=T(f'\n\n**容量结论。**在已纳入的自然题库区组中，并发 {c} 达到最高观测合计吞吐 {fmt(best["tps"],1)} 词元/s，同组正文首字第 95 百分位为 {fmt(best["ttft"]["p95"],2)} s，平均输出 {fmt(best["output"]["mean"],1)} 词元。它可作为该输入材料与输出长度分布下的容量参考；业务若要求更短的尾部等待，应同时比较低并发条件。这里尚未把突发到达、排队和长时间运行折算为生产可承诺容量。',f'\n\n**Capacity finding.** Concurrency {c} gives the highest observed aggregate rate in eligible natural-bank blocks: {fmt(best["tps"],1)} tokens/s, with same-cohort visible-TTFT p95 {fmt(best["ttft"]["p95"],2)} s and mean output {fmt(best["output"]["mean"],1)} tokens. This is a planning reference for that material and output distribution. Tighter tail-wait targets require comparison with lower concurrency. Burst arrivals, queues and long-duration operation are not yet incorporated into a production capacity commitment.')
+    text+='\n\n### '+T('多维度适用条件','Applicability across dimensions')
+    phases={p['phase']:p for p in a['phase_counts']}
+    rows=[
+        [T('交互等待','Interactive waiting'),T('正文首字与完整响应时延须同时查看','Read visible-TTFT and completion latency together'),T('适合以当前题库为输入的响应体验比较；需按实际业务设定等待目标','Supports response-experience comparisons for this bank; apply business-specific wait targets')],
+        [T('批量吞吐','Batch throughput'),T('并发提高合计生成速率，增长并非线性','Concurrency raises aggregate generation, with non-linear scaling'),T('可用于同类短提示批处理的初步配额；不能把词元/s 直接当作合格任务/s','Useful for initial quotas for similar short-prompt batches; tokens/s is not qualified tasks/s')],
+        [T('长输入与长输出','Long inputs and outputs'),T(f'连续完整长度条件已覆盖 {len(d["lengths"])} 格；以实际输出而非上限计速',f'{len(d["lengths"])} eligible length cells; speed uses actual output, not the cap'),T('文档分析应查对应长度格；配置的 262,144 词元上限不等于该长度的服务实证','Use matched length cells for documents; configured 262,144-token context is not service evidence at that length')],
+        [T('思考预算','Reasoning budget'),T('正文延迟配对差与输出触顶率联合解释','Interpret paired visible-delay differences with output-limit fractions'),T('可量化等待与生成预算的变化；没有答案质量收益评估','Quantifies waiting and generation-budget changes; answer-quality benefits were not evaluated')],
+        [T('业务形态与缓存','Business shapes and caching'),T(f'正式业务测量完成 {b["measured_complete"]} / 264',f'{b["measured_complete"]} / 264 formal business measurements complete'),T('共享前缀是负载条件，实际命中需显式字段；未覆盖条件不估算收益','Shared prefix is a workload condition; actual hits require explicit fields; no benefit estimate for uncovered conditions')],
+        [T('资源与能耗','Resources and energy'),T('双节点采样按相同区组对齐，覆盖率单列','Node samples aligned to the same blocks, with coverage'),T('用于定位相关变化；整机功率为估算，尚无插座实测能效','Supports co-movement analysis; system power is estimated, with no measured outlet efficiency')],
+        [T('互联与并行','Fabric and parallelism'),T('独立 RDMA 写带宽约 109 Gb/s；两路张量并行','Isolated RDMA writes about 109 Gb/s; tensor parallelism of two'),T('网络微基准不能替代模型集合通信剖析，也不能将两条逻辑路径相加','Network microbenchmarks do not replace collective profiling; logical paths are not additive')],
+        [T('持续服务','Sustained serving'),T(f'开放到达 / 持续测试完整响应 {phases["P7"]["complete"]} / {phases["P8"]["complete"]}',f'Open-arrival / soak complete responses: {phases["P7"]["complete"]} / {phases["P8"]["complete"]}'),T('以独立到达、达标吞吐及持续窗口形成服务结论；闭环曲线不替代稳定性验证','Serving conclusions require independent arrivals, goodput and sustained windows; closed-loop curves do not establish stability')],
+    ]
+    text+=table([T('维度','Dimension'),T('证据与结果','Evidence and result'),T('适用条件','Conditions of use')],rows)
+    text+='\n\n### '+T('API 使用成本：每次响应与每百万生成词元','API usage cost per response and per million generated tokens')
+    text+=T('\n\n费用从同一连续完整区组的请求标识关联到账单。每千次完整响应费用 = 该组全部实付费用 ÷ 完整响应数 × 1,000；每百万实际生成词元的综合费用 = 该组全部实付费用 ÷ 原始生成词元总数 × 1,000,000。后者包含输入费用，表示该输入／输出配比下的综合负担，不是模型目录中的输出单价。缺失账单的整组不发布费用比值。','\n\nBills are joined by request identifier for the same eligible blocks. Cost per 1,000 complete responses equals all matched charges divided by complete responses, times 1,000. Blended cost per million generated tokens equals those charges divided by original generated tokens, times one million. It includes input charges and describes the observed input/output mix, not a catalog output-token rate. No cost ratio is published for a cohort with missing bills.')
+    costs=[r for r in d['costs'] if r['cell'].startswith(('P1_','P3_'))]
+    text+=table([T('负载条件','Condition'),T('账单覆盖','Bill coverage'),T('输入 / 生成词元合计','Total input / generated tokens'),T('费用 USD','Cost USD'),T('USD/千次响应','USD/1k responses'),T('USD/百万生成词元','USD/1M generated tokens')],[[condition_name(r['cell'],lang,False),f'{r["matched"]} / {r["requests"]}',fmt(r['input_tokens'],0)+' / '+fmt(r['output_tokens'],0),fmt(r['cost_usd'],4),fmt(r['usd_per_1000_responses'],3),fmt(r['usd_per_million_generated'],3)] for r in costs])
+    text+=chart('COST_BY_WORKLOAD','已核对 API 费用的两种归一化｜左图按完整响应次数，右图按实际生成词元数；两者都包含该组输入费用。对比思考预算时，应同时阅读输出形态和可见正文覆盖，不能把完整流等同于合格答案。','Two normalizations of reconciled API charges | Left: complete responses. Right: actual generated tokens. Both include input charges. Reasoning-budget comparisons also require output shape and visible-content coverage; a complete stream is not necessarily a qualified answer.',lang)
+    fixed=[next((r for r in d['costs'] if r['cell']==f'P2_general_i{n}_o512_c1'),None) for n in [512,8192,32768]]
+    fixed=[r for r in fixed if r is not None]
+    if fixed:
+        text+='\n\n'+T('输入／输出比例也会改变综合费用。下表保持并发 1、输出预算 512，比较三档输入；右列包含读取输入的收费，因此不能用自然短提示的单位成本外推文档处理成本。','Input/output mix also changes blended cost. The table holds concurrency at one and output cap at 512 while varying input length. The last column includes input charges, so short-prompt unit cost cannot be extrapolated to document processing.')
+        text+=table([T('目标输入词元','Input target tokens'),T('账单覆盖','Bill coverage'),T('实际输出均值','Mean actual output'),T('USD/千次响应','USD/1k responses'),T('USD/百万生成词元','USD/1M generated tokens')],[[f'{int(r["cell"].split("_i")[1].split("_")[0]):,}',f'{r["matched"]} / {r["requests"]}',fmt(r['output_tokens']/r['requests'] if r['output_tokens'] is not None else None,1),fmt(r['usd_per_1000_responses'],3),fmt(r['usd_per_million_generated'],3)] for r in fixed])
+    text+='\n\n'+T('账单核对快照（UTC）：','Billing snapshot (UTC): ')+d['billing_utc']+T('。费用只关联本报告纳入的请求；账单晚于性能快照更新也不会引入额外请求。','; only requests in this report population enter the join, even if billing is refreshed after the performance snapshot.')
+    text+='\n\n<div id="ownership-cost"></div>\n\n### '+T('双机持有成本：设备折旧与估算电费','Owning the two nodes: depreciation and estimated electricity')
+    text+=T('\n\n按本次提供的单台价格 US$5,000，双机设备投入为 **US$10,000**。以下采用中国商业用电参考价格 **US$0.109/kWh**（2026 年第三季度），作为大陆平均电价的可复算代理值；该机构采用统一用电量档位，不能解释为全国实际用电量加权均价或部署地点的合同电价。','\n\nAt the supplied price of US$5,000 per device, the pair costs **US$10,000**. The scenarios use the China business electricity reference of **US$0.109/kWh** for 2026 Q3 as a reproducible proxy for mainland average electricity pricing. The source applies a standardized consumption tier; it is not a national consumption-weighted realized average or this location\'s contracted tariff.')+' [GlobalPetrolPrices — electricity benchmark and methodology]('+ELECTRICITY_URL+')'
+    text+=table([T('参数','Parameter'),T('数值或处理','Value or treatment'),T('证据性质','Evidence type')],[
+        [T('双机采购价','Two-device purchase price'),'US$10,000',T('委托方提供，每台 US$5,000','Supplied by the user, US$5,000 each')],
+        [T('设备使用年限与残值','Lifetime and residual value'),T('2 / 3 / 5 年；残值为零','2 / 3 / 5 years; zero residual'),T('直线折旧情景，主情景 3 年','Straight-line scenarios; primary case 3 years')],
+        [T('电价','Electricity'),f'US${ELECTRICITY_USD_KWH}/kWh',T('中国商业用电参考，2026 年第三季度；含输配及税费','China business benchmark, 2026 Q3; includes delivery and taxes')],
+        [T('年度配置时长','Provisioned hours per year'),'8,760 h',T('全年保持可用的情景假设，不是已测运行时长','Year-round provisioning assumption, not measured uptime')],
+        [T('有效生产时间比例','Productive fraction'),'25% / 50% / 75% / 100%',T('有任务且按选定速率产生输出的时间比例；不是 GPU 活跃度','Time producing at the selected rate; not GPU activity')],
+        [T('双机平均功率','Combined average power'),T('采用对应区组的双节点估算整机功率之和','Sum of node-level estimated system means for the condition'),T('作为整个配置时段平均功率的假设；不是插座实测，不建模空闲变化','Assumed across provisioned hours; not outlet-measured, with no idle-power model')],
+        [T('其他费用','Other costs'),T('未计人工、机房、额外网络、冷却、维修、融资与税务差异','Excludes staff, space, extra networking, cooling, repairs, financing and tax differences'),T('这是部分基础设施成本，不是完整总拥有成本','Partial infrastructure cost, not full total cost of ownership')],
+    ])
+    text+=T('\n\n令 K 为采购成本（美元），Y 为折旧年限，P 为双机平均功率（瓦），H 为每年配置小时，e 为电价（美元/千瓦时），R 为所选负载实际生成吞吐（词元/秒），u 为有效生产时间比例。年度设备与电费 C = K/Y + P/1,000 × H × e；年度生成量 Q = R × 3,600 × H × u；每百万生成词元成本 = C/Q × 1,000,000。**只有在负载形态和速率可延续时，这个外推才成立。**','\n\nLet K be purchase cost (USD), Y depreciation years, P combined mean watts, H provisioned hours/year, e electricity price (USD/kWh), R observed generation rate (tokens/s), and u productive fraction. Annual device and energy cost C = K/Y + P/1,000 × H × e; annual output Q = R × 3,600 × H × u; cost per million generated tokens = C/Q × 1,000,000. **The projection requires the chosen workload and rate to persist.**')
+    rows=[]
+    for g in gs:
+        ss=[r for r in d['cost_scenarios'] if r['cell']==g['key'] and r['years']==3]
+        if not ss:continue
+        row=ss[0];values=[next(r['usd_per_million_generated'] for r in ss if r['utilization']==u) for u in [.25,.5,.75,1]]
+        rows.append([int(re.search(r'_c(\d+)',g['key'])[1]),fmt(row['power_w'],1),fmt(row['energy_usd_year'],1),*[fmt(v,2) for v in values]])
+    text+=table([T('并发','Concurrency'),T('双机估算 W','Estimated pair W'),T('年电费 USD','Annual electricity USD'),'25% · USD/1M','50% · USD/1M','75% · USD/1M','100% · USD/1M'],rows)
+    text+='\n\n'+T('表中 USD/1M 表示每百万实际生成词元的设备折旧加估算电费；均采用三年折旧。利用率降低时，即使全年功耗假设保持不变，分摊到每个词元的固定成本仍会升高。','USD/1M denotes depreciation plus estimated electricity per million actual generated tokens, with three-year depreciation. Lower productive utilization increases fixed cost per token even when assumed year-round power remains unchanged.')
+    text+=chart('COST_SENSITIVITY','设备成本的利用率与年限敏感性｜左图固定三年折旧，比较各实测吞吐条件下的利用率；右图在最高观测吞吐与 75% 利用率下，分解两年、三年、五年的折旧及估算电费。所有年度产出均为条件外推。','Cost sensitivity to utilization and lifetime | Left: three-year depreciation across measured-rate conditions and productive fractions. Right: depreciation and estimated electricity for two-, three- and five-year lives at the highest observed rate and 75% utilization. All annual output is conditional extrapolation.',lang)
+    if best:
+        s=next((r for r in d['cost_scenarios'] if r['cell']==best['key'] and r['years']==3 and r['utilization']==.75),None)
+        cost=next((r for r in costs if r['cell']==best['key']),None)
+        if s:
+            text+=T(f'\n\n**成本结构结论。**在最高观测自然负载吞吐、三年折旧、75% 有效生产比例的情景下，设备折旧加估算电费约为 **US${fmt(s["usd_per_million_generated"],2)}/百万生成词元**。年度设备折旧为 US${fmt(s["depreciation_usd_year"],0)}，估算电费为 US${fmt(s["energy_usd_year"],0)}；设备折旧占这两项成本的 {fmt(100*s["depreciation_share"],1)}%。在这一成本边界内，充分利用已购设备与延长有效使用年限，比小幅电价变化更影响单位产出成本。',f'\n\n**Cost structure.** At the highest observed natural-workload rate, three-year depreciation and 75% productive utilization, depreciation plus estimated electricity is about **US${fmt(s["usd_per_million_generated"],2)} per million generated tokens**. Annual depreciation is US${fmt(s["depreciation_usd_year"],0)} and estimated electricity US${fmt(s["energy_usd_year"],0)}; depreciation represents {fmt(100*s["depreciation_share"],1)}% of these two components. Within this boundary, productive use and useful device life have more influence on unit output cost than a small electricity-price change.')
+            if cost and cost['usd_per_million_generated'] is not None:
+                text+=T(f'\n\n同一负载的 API 实付综合费用为 US${fmt(cost["usd_per_million_generated"],3)}/百万生成词元。两者采用同一生成量口径，但 API 账单反映平台收费，设备情景只覆盖部分成本；还未统一服务等级、运维、可用性、输入／输出分布及长期利用率，不能据此给出自建与采购 API 的最终性价比排名。',f'\n\nThe same workload has blended paid API charges of US${fmt(cost["usd_per_million_generated"],3)} per million generated tokens. Both use actual generation counts, but API charges reflect platform pricing while the ownership scenario covers only part of cost. Service levels, operations, availability, input/output mix and long-run utilization have not been jointly matched, so this is not a final build-versus-buy value ranking.')
+                comparisons=[]
+                for years in [2,3,5]:
+                    full=next(r for r in d['cost_scenarios'] if r['cell']==best['key'] and r['years']==years and r['utilization']==1)
+                    threshold=break_even_utilization(full['annual_cost_usd'],best['tps'],8760,cost['usd_per_million_generated'])
+                    comparisons.append([T(f'{years} 年',f'{years} years'),fmt(full['usd_per_million_generated'],3),fmt(100*threshold,1)+'%',T('超过 100%，本情景无法达到','Above 100%; unattainable in this scenario') if threshold>1 else T('仅在达到该生产比例且其他费用足够低时成立','Requires that productive fraction and sufficiently low other costs')])
+                text+=table([T('折旧年限','Depreciation life'),T('100% 生产比例的设备+电费 USD/1M','Device + energy USD/1M at 100%'),T('与同组 API 费用相等的生产比例','Productive fraction for parity with same-cohort API'),T('条件解读','Interpretation')],comparisons)
+                full=next(r for r in d['cost_scenarios'] if r['cell']==best['key'] and r['years']==3 and r['utilization']==1)
+                if full['usd_per_million_generated']>cost['usd_per_million_generated']:
+                    text+=T(f'\n\n**当前价格下的经济性。**三年折旧情景即使按 100% 有效生产时间计算，设备与电费仍约为 US${fmt(full["usd_per_million_generated"],3)}/百万生成词元，高于同组 API 实付的 US${fmt(cost["usd_per_million_generated"],3)}。因此，在当前采购价、账户实付价格和这类工作负载下，本次数据尚未显示三年期自建的单位成本优势。延长使用年限或改变有效工作量可能改变比较；新增的运维等费用则会提高自建成本。该判断不评价本地控制、数据驻留等未货币化价值。',f'\n\n**Economics at current prices.** Even at 100% productive utilization, the three-year device-plus-energy scenario costs about US${fmt(full["usd_per_million_generated"],3)} per million generated tokens, above the same-cohort paid API cost of US${fmt(cost["usd_per_million_generated"],3)}. Under this purchase price, account pricing and workload, the data therefore do not show a three-year ownership unit-cost advantage. A longer useful life or different productive work may change the comparison; additional operating expenses raise ownership cost. Unpriced benefits such as local control and data residency are outside this comparison.')
+    text+='\n\n['+T('成本来源与情景假设记录','Cost sources and scenario assumptions')+'](../evidence/expanded_visuals_revision/cost_sources.json)'
+    text+=investment_returns(d,lang)
+    text+='\n\n### '+T('总体判断','Overall assessment')
+    text+='\n\n'+T('这套双节点部署已经形成了可复算的自然负载并发曲线、输入／输出长度响应面、思考预算配对结果和资源关联证据。它的经济性应围绕“指定等待条件下完成同类工作所需的费用”评估：吞吐决定固定成本的分摊能力，输出长度与思考预算改变单次请求成本，利用率决定设备投入是否得到充分使用。业务缓存、开放到达和持续运行的结论仍以对应阶段的实际完成数据为准。现有结果支持有条件的容量和成本规划，不支持脱离工作负载的硬件性价比排名。','The two-node deployment now has reproducible natural-workload concurrency curves, input/output response surfaces, paired reasoning-budget results and aligned resource evidence. Its economics should be assessed as the cost of comparable work under specified waiting constraints: throughput determines fixed-cost absorption, output length and reasoning budget change per-request cost, and productive utilization determines use of the capital investment. Business caching, open-arrival and sustained-service conclusions remain subject to actual stage coverage. Current results support conditional capacity and cost planning, not workload-independent hardware value rankings.')
+    return text

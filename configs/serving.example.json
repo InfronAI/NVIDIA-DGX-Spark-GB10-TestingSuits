@@ -1,0 +1,13 @@
+{
+  "model": "qwen/qwen3.8-flash-next-abliterated",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "protocol": "openai",
+  "concurrency": 1,
+  "max_requests": 6,
+  "max_tokens": 128,
+  "request_timeout_s": 120,
+  "duration_limit_s": 1800,
+  "cf_retries": 2,
+  "extra_body": {},
+  "api_key_env": "SPARKBENCH_API_KEY"
+}

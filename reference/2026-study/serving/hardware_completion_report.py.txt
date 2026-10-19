@@ -1,0 +1,247 @@
+"""Evidence-only report sections for the finite hardware completion segment."""
+import collections,json,statistics,datetime
+from common import ROOT
+RESIDENT=ROOT/'hardware_completion_20261016'
+UNLOADED=(ROOT/'hardware_unloaded_20261016/status.json').exists()
+S=ROOT/('hardware_unloaded_20261016' if UNLOADED else 'hardware_completion_20261016')
+if (ROOT/'hardware_unloaded_confirmed_20261016/status.json').exists():
+    UNLOADED=True;S=ROOT/'hardware_unloaded_confirmed_20261016'
+
+def tr(lang,z,e):
+    text=z if lang=='zh' else e
+    return text.replace('../hardware_completion_20261016/', '../'+S.name+'/') if UNLOADED else text
+
+def data():
+    p=S/'analysis/summary.json'
+    return json.loads(p.read_text()) if p.exists() else None
+
+def table(lang,headers,rows):
+    from build_report import table as render
+    return render([tr(lang,*x) for x in headers],rows)
+
+def picture(name,lang,z,e):
+    if UNLOADED:name=name.replace('HARDWARE_COMPLETE_','HARDWARE_UNLOADED_')
+    return '\n\n<!--'+name+'-->\n\n'+tr(lang,z,e)
+
+def state(lang):
+    p=S/'status.json'
+    if not p.exists():return ''
+    d=json.loads(p.read_text());a=json.loads((S/'authorization.json').read_text());T=lambda z,e:tr(lang,z,e)
+    label={'preparing_maintenance':T('停服准备','Preparing maintenance'),'stopping_service':T('正在释放模型','Releasing model'),'restoring_service':T('正在恢复推理服务','Restoring inference service'),'running':T('运行中','Running'),'awaiting_collection':T('阶段结束，正在归档','Stage ended, archiving'),'batch_complete':T('本批执行结束，逐项按有效数据与保护跳过解释','Batch execution ended; interpret validated data and guard skips individually'),'stopped':T('已停止，覆盖以已归档结果为准','Stopped; coverage is limited to archived results')}.get(d.get('state'),d.get('state','—'))
+    phase={'preflight':T('停服与设备核验','Service maintenance and device checks'),'single':T('单节点计算、内存与算子','Single-node compute, memory and operators'),'communication':T('双节点集合通信','Two-node collectives'),'extensions':T('指令、缓存、统一内存和重叠对照','Instructions, caches, unified memory and overlap controls'),'soak':T('4小时持续负载','Four-hour sustained load')}.get(d.get('phase'),d.get('phase','—'))
+    return table(lang,[('独立硬件试验状态','Independent hardware experiment'),('记录','Record')],[[T('状态／阶段','State / phase'),label+' / '+phase],[T('状态时间 UTC','Status time UTC'),datetime.datetime.fromisoformat(d['utc']).strftime('%Y-%m-%d %H:%M:%S') if d.get('utc') else '—'],[T('恢复截止（北京时间）','Restoration deadline (China Standard Time)'),datetime.datetime.fromisoformat(a['deadline_cst']).strftime('%Y-%m-%d %H:%M:%S')],[T('测量条件','Measurement context'),T('卸载模型的独立硬件条件；具体执行状态见本表。驱动与全局功耗设置不变','Independent unloaded-model hardware condition; original serving parameters restored afterward. Driver and global power settings unchanged') if UNLOADED else T('模型驻留、引擎空闲','Resident model, drained engine')]])
+
+def hardware(lang):
+    d=data()
+    if not d:return ''
+    T=lambda z,e:tr(lang,z,e);out=state(lang)
+    if UNLOADED:out+=resident_comparison(lang)
+    out+='\n\n'+T('本批以独立时间轮次补齐硬件证据。基础矩阵每节点107个条件、各10轮；扩展矩阵覆盖通用FP32乘加、随机指针追踪、共享内存、统一内存访问、CPU竞争、多执行流以及受支持的低精度／2:4稀疏矩阵计算。每次计时前后验证结果，保护跳过和不支持项不进入性能分母。原批49条有效记录保留为历史观测，不混入本批轮次。','This segment adds independent time-round evidence: 107 base conditions per node with ten rounds each, plus scalar FP32 FMA, random pointer chasing, shared and managed memory, CPU contention, multiple streams and supported low-precision/2:4 sparse GEMM. Results are checked before and after timing; guard skips and unsupported conditions are excluded from performance denominators. The original 49 valid records remain historical observations outside these repeats.')
+    rows=[]
+    for node in [0,1]:
+        for suite,label,planned in [('base',T('基础矩阵','Base matrix'),1070),('extensions',T('扩展矩阵','Extensions'),800)]:
+            c=d.get('coverage_by_suite',{}).get(str(node),{}).get(suite,{})
+            valid=c.get('measured',0);skipped=c.get('skipped_memory_guard',0);failed=c.get('condition_failed',0);unsupported=c.get('unsupported_probe',0)+c.get('unsupported_after_probe',0)
+            rows.append([node,label,planned,valid,skipped,unsupported,failed,max(0,planned-valid-skipped-unsupported-failed)])
+    out+=table(lang,[('节点','Node'),('实验层','Suite'),('计划轮次','Planned rounds'),('归档有效','Archived valid'),('保护跳过','Guard skips'),('不支持','Unsupported'),('失败','Failed'),('待完成','Pending')],rows)
+    excluded=len(d.get('excluded_api_probes',[]))
+    if excluded:
+        out+='\n\n'+T(f'{excluded}条接口或校验边界不合格的记录单列审计，不计入性能样本及有效覆盖；原始记录与排除依据保留在分析汇总中。',f'{excluded} records with invalid API calls or validation boundaries are audited separately and excluded from performance samples and valid coverage. Raw records and exclusion evidence remain in the analysis summary.')
+    out+='\n\n'+T('**指标口径。** TFLOP/s为每秒万亿次浮点运算；矩阵乘法按2MNK计数，2:4稀疏结果同时保留实际非零运算量，图中使用稠密等效口径。有效GB/s统计程序请求的读写字节，不等于DRAM物理流量。CUDA事件区间包含重复提交的主机间隙；随机指针访问的ns值也包含这一边界开销，不能解释为单条加载指令的固有延迟。统计采用各条件独立轮次的中位数和观测范围，不将循环迭代或两台设备当成大量独立设备样本。','**Definitions.** TFLOP/s is trillions of floating-point operations per second; GEMM counts 2MNK. Sparse 2:4 data retain nonzero work separately; plots use dense-equivalent work. Logical GB/s counts requested reads/writes, not physical DRAM traffic. CUDA-event intervals include host-submission gaps, also affecting pointer-access nanoseconds; these are not intrinsic single-load latency. Summaries use condition-round medians and observed ranges; inner iterations and two devices are not a large independent device sample.')
+    out+=picture('HARDWARE_COMPLETE_COMPUTE',lang,'精度与规模｜数值为实测中位TFLOP/s；空格表示没有有效归档数据。FP8、NVFP4、稀疏行采用各自明确的数据分布与库路径，不把行间差异直接归因于精度。','Precision and size | Cells show measured median TFLOP/s; blanks indicate no valid archived data. FP8, NVFP4 and sparse rows have explicit operand distributions and library paths; cross-row differences are not precision-only causal effects.')
+    rows=[]
+    for g in sorted(d['groups'],key=lambda x:(x['kind'],x['node'],x['condition_id'])):
+        if g['kind'] not in ['gemm','low_precision'] or g.get('shape') not in [[4096]*3,[1,4096,4096],[128,4096,4096]]:continue
+        v=g.get('effective_tflops')
+        if v:rows.append([g['node'],g.get('precision'), '×'.join(map(str,g['shape'])),g['n'],f"{v['median']:.3f}",f"{v['min']:.3f}–{v['max']:.3f}"])
+    if rows:out+=table(lang,[('节点','Node'),('精度','Precision'),('M×N×K','M×N×K'),('轮次','Rounds'),('中位TFLOP/s','Median TFLOP/s'),('观测范围','Observed range')],rows)
+    if UNLOADED and any(x['kind']=='sum' for x in d['groups']):
+        out+='\n\n### '+T('独立算子与调用边界','Independent operators and call boundaries')
+        out+='\n\n'+T('归约、Softmax和RMSNorm使用已安装PyTorch库；RMSNorm保留库内部输出分配。注意力使用强制Flash SDPA，BF16、16头、每头128维且不加因果掩码，分别测全长查询和单查询；这些是固定合成张量，不是该模型完整预填充或解码。1M元素加法比较普通提交与图重放，保持计算量一致。','Reduction, Softmax and RMSNorm use the installed PyTorch library; RMSNorm includes library output allocation. Attention forces Flash SDPA with BF16,16heads,128dimensions per head and no causal mask, comparing full-length and single queries. These fixed synthetic tensors are not complete model prefill or decode. The1M-element add compares ordinary submission with graph replay at equal work.')
+        out+=picture('HARDWARE_COMPLETE_OPERATORS',lang,'算子规模与启动方式｜展示各条件轮次中位CUDA区间；加法误差线为观测范围。注意力纵轴为对数。','Operator scale and launch mode | Condition-median CUDA intervals; add-operation error bars show observed ranges. Attention uses a logarithmic latency axis.')
+    out+='\n\n### '+T('通用计算、数据供给与资源竞争','Scalar compute, data supply and resource contention')
+    out+='\n\n'+T('通用FP32测试以显式乘加指令比较1条依赖链与8条独立链，在相同每线程乘加数量下改变线程块和总并行量；编译汇编留档。随机指针测试让访问位置依赖上次加载结果，以128字节间距构造完整随机环，分别使用ca／cg缓存提示。共享内存改变同一线程束的地址步长。CPU竞争使用固定核心上的0／1／4／10／20个工作进程，以内存流和CPU计算作对照。多流比较保持每一串行／并行配对的矩阵数量相同。','Scalar FP32 uses explicit FMA instructions to compare one dependent chain with eight independent chains, holding per-thread FMA work fixed while varying blocks and parallelism; assembly is archived. Pointer chasing creates a complete random cycle with 128-byte spacing and ca/cg cache hints, where each load depends on the previous result. Shared memory varies address stride within a warp. CPU controls use 0/1/4/10/20 pinned worker processes with memory-streaming and compute controls. Each serial/parallel stream pair preserves the same matrix count.')
+    out+=picture('HARDWARE_COMPLETE_MEMORY',lang,'数据供给曲线｜左图为有效读写带宽，右图为随机依赖访问时间。地址跨度不是实际DRAM事务量；曲线转折不能单独证明缓存容量或命中率。','Data-supply curves | Logical read/write bandwidth on the left and dependent random-access time on the right. Address span is not physical DRAM traffic; a curve transition alone does not establish cache capacity or hit rate.')
+    rows=[]
+    for kind in ['scalar_fma','shared_memory','empty_launch','streams','cpu_contention','managed_access']:
+        gg=[x for x in d['groups'] if x['kind']==kind]
+        if not gg:continue
+        label={'scalar_fma':T('通用FP32乘加','Scalar FP32 FMA'),'shared_memory':T('共享内存步长','Shared-memory strides'),'empty_launch':T('空内核启动','Empty-kernel launch'),'streams':T('多执行流','Multiple streams'),'cpu_contention':T('CPU资源竞争','CPU contention'),'managed_access':T('管理内存首次／重复访问','Managed first/repeat access')}[kind]
+        rows.append([label,len(gg),sum(x['n'] for x in gg),T('逐条件数据见CSV；单位和资源边界按工作负载区分','Per-condition CSV gives workload-specific units and resource boundaries')])
+    if rows:out+=table(lang,[('实验','Experiment'),('节点×条件','Node-condition groups'),('有效轮次','Valid rounds'),('解释','Interpretation')],rows)
+    if d.get('extended_comparisons') and any(x['kind']=='scalar_fma' for x in d['groups']):out+=extended_results(lang,d)
+    out+='\n\n'+T('NVFP4专项使用可精确表示的E2M1输入，显式固定每16元素块的幅度上限以获得单位尺度，先验证打包结果再测矩阵乘法。该控制隔离矩阵计算误差；不代表生产权重的量化误差或生产MoE内核性能。量化／打包和稀疏压缩耗时另外保存，内核轨迹与无剖析计时分开。计数器访问只作诊断，不改变系统权限；未取得的缓存命中率和活跃线程计数保留缺失。','NVFP4 uses exactly representable E2M1 operands with explicit block maxima and unity scales, validating packed values before GEMM. This isolates arithmetic error and does not represent production weight quantization or MoE kernel performance. Quantization/packing and sparse compression times are saved separately, as are diagnostic traces and unprofiled timing. Counter access is diagnostic without system permission changes; unavailable cache-hit and active-warp counters remain missing.')
+    counters=d.get('counter_diagnostics',{})
+    supplemental=d.get('counter_retry',{}).get('nodes',{})
+    if counters:
+        rows=[]
+        for node,c in sorted(counters.items()):
+            extra=supplemental.get(str(node),{})
+            available=[m for m in extra.get('metrics',[]) if m.get('value','').lower() not in ['', 'n/a', 'nan']]
+            if extra.get('returncode')==0 and available:
+                full=len(available)==len(extra.get('metrics_requested',[]))
+                rows.append([node,T('探针字段全部可读' if full else '探针字段部分可读','All probe fields readable' if full else 'Probe fields partially readable'),T('仅固定单线程块乘加；代表性矩阵与模型计数尚未测量','One fixed FMA thread block only; representative matrix/model counters remain unmeasured')])
+                continue
+            if extra:
+                allocation='cudaErrorMemoryAllocation' in extra.get('stdout','')
+                rows.append([node,T('剖析内存分配受限' if allocation else '未取得有效计数','Profiler allocation limited' if allocation else 'No valid counters collected'),T('该探针单独执行通过；剖析时首次CUDA分配失败' if allocation else '具体可观测字段以诊断回执为准','The standalone probe succeeds; its first CUDA allocation fails under profiling' if allocation else 'Diagnostic receipts define field availability')])
+                continue
+            denied='ERR_NVGPUCTRPERM' in c.get('stdout','')
+            rows.append([node,T('驱动权限拒绝访问','Driver counter access denied') if denied else T('诊断回执见原始文件','See raw diagnostic receipt'),T('硬件缓存命中率、活跃线程比例、DRAM事务字节未采得','Hardware cache-hit rate, active-warps percentage and DRAM transaction bytes unavailable') if denied else str(c.get('returncode','—'))])
+        out+=table(lang,[('节点','Node'),('硬件计数器状态','Hardware counter status'),('可观测性范围','Observability scope')],rows)
+    metric_names=[('sm__warps_active.avg.pct_of_peak_sustained_active',T('活跃线程束占可持续峰值比例','Active warps relative to sustained peak')),('lts__t_sector_hit_rate.pct',T('L2扇区命中比例','L2 sector hit fraction')),('dram__bytes_read.sum',T('DRAM读取字节','DRAM bytes read')),('dram__bytes_write.sum',T('DRAM写入字节','DRAM bytes written'))]
+    if any(x.get('returncode')==0 and any(m.get('value','').lower() not in ['', 'n/a', 'nan'] for m in x.get('metrics',[])) for x in supplemental.values()):
+        rows=[]
+        for metric,label in metric_names:
+            cells=[]
+            for node in ['0','1']:
+                item=supplemental.get(node,{})
+                matches=[m for m in item.get('metrics',[]) if item.get('returncode')==0 and m['metric']==metric and m.get('value','').lower() not in ['', 'n/a', 'nan']]
+                cells.append('; '.join(str(m['value'])+' '+str(m.get('unit') or '') for m in matches) if matches else T('不可用','Unavailable'))
+            rows.append([label,*cells])
+        out+=table(lang,[('诊断计数器','Diagnostic counter'),('节点0','Node 0'),('节点1','Node 1')],rows)
+        out+='\n\n'+T('上述可用数值来自服务恢复且空闲条件下的固定单线程块FP32乘加探针，只有一次成功剖析，目的为验证计数器访问。使用管理员身份调用Nsight Compute，不改变驱动权限配置，时钟控制与缓存控制均设为none。DRAM字节字段返回n/a，保留为缺失，不替换为0。该探针不代表大矩阵或模型的平均缓存命中率、物理带宽利用率及计算管线效率；共享L2等单元还可能受到其他GPU活动影响，不能用于模型Roofline归因。','Available values come from one successful profile of a fixed single-thread-block FP32 FMA probe after service restoration and idle admission, solely to verify counter access. Nsight Compute runs administratively without changing driver permissions; clock/cache controls are none. DRAM-byte fields return n/a and remain missing, never zero. This probe does not represent large-matrix or model-average cache hits, physical bandwidth utilization or compute efficiency; shared units such as L2 may also reflect other GPU activity. It cannot establish a model roofline.')
+        out+=' '+T('[NVIDIA权限说明](https://developer.nvidia.com/ERR_NVGPUCTRPERM) · [Nsight Compute度量说明](https://docs.nvidia.com/nsight-compute/ProfilingGuide/#asynchronous-gpu-activity)','[NVIDIA permission guidance](https://developer.nvidia.com/ERR_NVGPUCTRPERM) · [Nsight Compute metric guidance](https://docs.nvidia.com/nsight-compute/ProfilingGuide/#asynchronous-gpu-activity)')
+    out+='\n\n'+T('[本批逐条数据、条件汇总与保护状态](../hardware_completion_20261016/analysis/summary.json) · [有效计时CSV](../hardware_completion_20261016/analysis/measurements.csv)。模型驻留下因内存不足跳过的条件，不能标记为芯片不支持；驻留与卸载模型后的结果按独立条件报告，不合并轮次或将差异直接归因于单个硬件机制。','[Per-record data, condition summaries and guard states](../hardware_completion_20261016/analysis/summary.json) · [Valid timing CSV](../hardware_completion_20261016/analysis/measurements.csv). Memory-guard skips with resident models do not establish unsupported hardware. Resident and unloaded results are separate conditions; rounds are not pooled and differences are not attributed to one hardware mechanism.')
+    return out
+
+def communication(lang):
+    d=data()
+    if not d:return ''
+    T=lambda z,e:tr(lang,z,e)
+    out=T(f"本批已归档{d['paired_collective_trials']}次双rank配对有效试验。两rank合为一次测量，采用较慢rank时间；算法带宽为规定消息字节数／时间，总线带宽按NCCL定义校正，不跨rank相加。AllReduce消息为完整输入，AllGather为完整输出，ReduceScatter为完整输入。原批434次配对记录单独保留，不混入本批重复分母。",f"This segment has {d['paired_collective_trials']} archived valid two-rank paired trials. Each rank pair is one observation using the slower rank. Algorithm bandwidth is defined message bytes divided by time; bus bandwidth uses NCCL's correction, never summing ranks. Message size is full input for AllReduce/ReduceScatter and full output for AllGather. The original 434 trials are retained separately.")
+    out+=picture('HARDWARE_COMPLETE_COLLECTIVE',lang,'通信规模曲线｜三种集合通信分别展示算法带宽和时延；实际覆盖受两节点内存保护共同约束。','Collective size curves | Algorithm bandwidth and latency are shown separately for three operations; both nodes must pass memory admission.')
+    rows=[]
+    for x in d['collectives']:
+        if x['message_bytes'] not in [8,8192,8388608,67108864,1073741824]:continue
+        rows.append([x['operation'],f"{x['message_bytes']:,}",x['latency_us']['n'],f"{x['latency_us']['median']:.2f}",f"{x['algorithm_gb_s']['median']:.3f}",f"{x['bus_gb_s']['median']:.3f}"])
+    if rows:out+=table(lang,[('操作','Operation'),('消息字节','Message bytes'),('配对轮次','Paired rounds'),('中位延迟 μs','Median latency μs'),('算法GB/s','Algorithm GB/s'),('总线GB/s','Bus GB/s')],rows)
+    out+='\n\n### '+T('计算与通信的受控重叠','Controlled compute/communication overlap')
+    out+='\n\n'+T('固定一项BF16矩阵计算和一次AllReduce，分别测计算单独、通信单独、串行组合和双流重叠。每个消息大小与矩阵规模保持相同工作量；串行时间／重叠时间大于1表示这组工作缩短，小于1表示重叠反而变慢。该比值只描述合成工作组合，不是模型双机加速倍数。','Hold one BF16 GEMM and one AllReduce fixed, measuring compute-only, communication-only, serial combination and two-stream overlap. Work is matched for each message/matrix pair. Serial/overlapped time above one means this synthetic combination finishes sooner; below one means overlap is slower. It is not a two-node model speedup.')
+    rows=[]
+    for size,n in sorted({(x['message_bytes'],x['matrix_n']) for x in d['overlap_comparisons']}):
+        rr=[x for x in d['overlap_comparisons'] if (x['message_bytes'],x['matrix_n'])==(size,n)]
+        ratios=[x['serial_over_overlap'] for x in rr];rows.append([f'{size:,}',n,len(rr),f'{statistics.median(ratios):.3f}',f'{min(ratios):.3f}–{max(ratios):.3f}'])
+    if rows:out+=table(lang,[('消息字节','Message bytes'),('方阵边长','Square size'),('配对轮次','Paired rounds'),('串行／重叠','Serial / overlap'),('观测范围','Observed range')],rows)
+    else:out+='\n\n'+T('尚无完整四臂配对归档结果；不填入推算收益。','No complete four-arm paired results are archived yet; no benefit is imputed.')
+    if UNLOADED and d.get('overlap_comparisons'):out+=picture('HARDWARE_COMPLETE_OVERLAP',lang,'重叠收益｜每点为同轮四臂配对比值的中位数，误差线为观测范围；高于1表示本组工作用时缩短。','Overlap benefit | Median within-round four-arm ratios with observed ranges; above one indicates shorter time for this workload.')
+    out+='\n\n'+T('[本批统计及原始来源](../hardware_completion_20261016/analysis/summary.json) · [NCCL带宽定义](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md)。实际传输方式以本批NCCL日志核验，不以网卡名称直接证明GPU Direct路径。','[Current statistics and sources](../hardware_completion_20261016/analysis/summary.json) · [NCCL bandwidth definitions](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md). Transport is verified from this segment’s NCCL logs; interface names alone do not establish a GPU Direct path.')
+    return out
+
+def sustained(lang):
+    d=data()
+    if not d:return ''
+    T=lambda z,e:tr(lang,z,e)
+    out='\n\n### '+T('独立硬件持续负载：性能保持与热状态','Independent hardware sustained load: performance retention and thermal state')
+    out+='\n\n'+T('计划依次执行计算60分钟、带宽60分钟、混合120分钟。每阶段先采集该负载5分钟基线，再开始正式时长；混合阶段交替执行计算与带宽任务，分别统计两类速率。每10分钟窗口的中位速率除以同负载基线中位数，得到保持率。窗口、阶段和服务测试时长分别统计，不能相加为同一连续业务稳定性试验。','The schedule is 60 minutes of compute, 60 minutes of bandwidth and 120 minutes of mixed work. Each phase first records a five-minute matched-work baseline, outside its formal duration. Mixed work alternates compute and bandwidth, retaining separate rates. Retention divides each ten-minute window’s median by the same-work baseline median. Windows, phases and serving durations are distinct and cannot be combined into continuous business-service uptime.')
+    continuation=S/'resume_authorization.json'
+    resumed=continuation.exists() and json.loads(continuation.read_text()).get('reason')=='user_resume_mixed_without_temperature_cutoff'
+    if resumed:
+        out+='\n\n'+T('**资源条件与分段。** 计算60分钟与带宽60分钟采用原85°C测试程序停止阈值；混合120分钟在独立时间窗运行，温度仅监测，驱动与硬件热保护不变。混合阶段重新预热并建立5分钟基线，旧中断尝试不与本次统计合并。三个阶段分别完成也不等同于连续4小时运行。','**Conditions and segmentation.** The 60-minute compute and bandwidth phases used the original 85°C benchmark cutoff. The 120-minute mixed phase uses a separate window with temperature monitoring only; driver/hardware thermal management is unchanged. Mixed work has a fresh warmup and five-minute baseline. The interrupted attempt is not pooled with this run. Completion of all three phases does not establish four uninterrupted hours.')
+    if continuation.exists() and json.loads(continuation.read_text()).get('reason')=='user_resume_mixed_with_thermal_backoff':
+        out+='\n\n'+T('混合负载采用独立预热和基线；温度达到85°C时暂停提交GPU工作，低于75°C持续30秒后恢复。只汇总本次执行的计时和退避，先前中断尝试独立保存。计算、带宽两阶段保留原测量时的85°C停止规则，不能视为完全相同的热控制条件。', 'Mixed work uses an independent warmup and baseline. GPU submissions pause at85°C and resume below75°C after30stable seconds. Timing and cooling belong to this execution; earlier interrupted attempts remain separate. Compute and bandwidth retain their original85°C cutoff, so thermal control is not identical across phases.')
+    rows=[]
+    for x in d['soak']:
+        target=7200 if x['phase']=='mixed' else 3600;t=x.get('temperature_c');clock=x.get('sm_clock_mhz')
+        rows.append([x['node'],{'compute':T('计算','Compute'),'bandwidth':T('带宽','Bandwidth'),'mixed':T('交替混合','Alternating mixed')}[x['phase']],f"{x['elapsed_s']/60:.1f} / {target/60:.0f}",x['validated_samples'],f"{t['median']:.1f} / {t['max']:.1f}" if t else '—',f"{clock['median']:.0f}" if clock else '—',f"{x['sensor_energy_j']/3600000:.4f}",f"{100*x['sensor_energy_covered_s']/x['elapsed_s']:.1f}%"])
+    if rows:out+=table(lang,[('节点','Node'),('负载','Workload'),('实测／计划分钟','Observed / planned min'),('校验样本','Validated samples'),('温度中位／最大°C','Median / max °C'),('SM中位MHz','Median SM MHz'),('传感器kWh','Sensor kWh'),('积分时间覆盖','Integration-time coverage')],rows)
+    else:out+='\n\n'+T('尚无持续阶段完整归档；当前不作4小时稳定性结论。','The sustained phase has no complete archive yet; no four-hour stability conclusion is made.')
+    thermal_policy=S/'thermal_backoff_policy.json'
+    if thermal_policy.exists():
+        out+='\n\n### '+T('混合负载的温度控制与吞吐口径','Mixed-load thermal control and throughput boundaries')
+        out+=table(lang,[('控制项','Control'),('规则','Rule')],[[T('触发退避','Backoff trigger'),T('温度≥85°C或读数缺失，暂停提交GPU工作','Temperature ≥85°C or unavailable: pause GPU submissions')],[T('自动恢复','Automatic recovery'),T('温度低于75°C连续稳定30秒','Temperature below75°C for30continuous seconds')],[T('最长单次退避','Maximum individual backoff'),T('600秒；超时结束本轮并恢复服务','600seconds; end the run and restore service on timeout')],[T('时间与停止边界','Time and stop boundaries'),T('不自动延长固定截止；退避期间继续响应手动停止、租约和内存保护','No automatic deadline extension; manual stop, lease and memory guards remain effective')]])
+        out+='\n\n'+T('混合负载采用该策略；计算和带宽阶段保留各自测量时的温控条件。退避发生在CUDA提交边界，冷却时间不进入CUDA事件计算速率；实际吞吐另按计量工作量／整个阶段墙钟时长统计，包含退避、校验和混合阶段另一类工作。退避事件独立留档；未完成计时单元不计为有效性能样本。','Mixed work uses this policy; the compute and bandwidth phases retain their respective measurement-time thermal conditions. Cooling occurs at CUDA submission boundaries and is excluded from CUDA-event rates. Effective throughput separately counts measured work over the whole phase wall time, including cooling, validation and the other mixed workload. Backoff events are archived separately; unfinished timed calls are not valid performance samples.')
+    event_rows=[]
+    for x in d['soak']:
+        for reason,counts in x.get('clock_event_reasons',{}).items():
+            if counts['known_samples']:event_rows.append([x['node'],x['phase'],reason,counts['active_samples'],counts['known_samples']])
+    if event_rows:
+        out+='\n\n'+T('驱动限制原因｜Active为驱动报告该限制原因生效，Not Active为该次采样未生效；不支持或缺失不计作未生效。下表统计采样数，不能直接换算限速持续时间或性能损失。','Driver limit reasons | Active means the driver reported that reason as active; Not Active means inactive at that sample. Unsupported/missing values are not counted as inactive. Counts do not directly establish throttling duration or performance loss.')
+        out+=table(lang,[('节点','Node'),('阶段','Phase'),('驱动原因标志','Driver reason flag'),('Active采样数','Active samples'),('已知状态采样数','Known-state samples')],event_rows)
+    thermal_rows=[]
+    for x in d['soak']:
+        if x['phase']!='mixed' or not x.get('work_rates'):continue
+        device=[];wall=[]
+        for work,rates in x['work_rates'].items():
+            scale=1e12 if work=='gemm' else 1e9
+            unit='TFLOP/s' if work=='gemm' else 'GB/s'
+            device.append(work+': '+f"{rates['observed_rate']['median']/scale:.2f} "+unit)
+            wall.append(work+': '+f"{rates['phase_wall_rate']/scale:.2f} "+unit)
+        cooling=x.get('thermal_backoff_s_completed_calls',0)
+        thermal_rows.append([x['node'],'; '.join(device),'; '.join(wall),f"{cooling:.1f}",f"{100*cooling/x['elapsed_s']:.1f}%",x.get('thermal_backoff_calls',0)])
+    if thermal_rows:
+        out+='\n\n### '+T('混合负载：执行速率与包含退避的实际吞吐','Mixed work: execution rate and throughput including cooling')
+        out+=table(lang,[('节点','Node'),('正常执行速率中位数','Median execution rate'),('阶段墙钟吞吐','Phase-wall throughput'),('完整计时单元内退避秒数','Cooling seconds in completed calls'),('退避／阶段时长','Cooling / phase wall time'),('含退避计时单元数','Calls containing cooling')],thermal_rows)
+        out+='\n\n'+T('阶段墙钟吞吐以该类已计量工作量除以整个混合阶段时间，包含另一类工作、数值校验和冷却等待。因此它与正常执行速率的差值不能全部归因为退避。退避秒数只汇总已完成的计时单元；中断单元的退避仍保留在原始事件记录中。','Phase-wall throughput divides counted work of each type by the entire mixed-phase duration, including the other workload, validation and cooling. Its difference from execution rate is therefore not solely a cooling effect. Cooling seconds sum completed timed calls; events from interrupted calls remain in the raw records.')
+        mixed=[x for x in d['soak'] if x['phase']=='mixed']
+        flags=[v for x in mixed for v in x.get('clock_event_reasons',{}).values()]
+        if len(mixed)==2 and len(flags)==8 and all(v['known_samples']>0 and v['active_samples']==0 for v in flags):
+            out+='\n\n'+T('本轮冷却由测试程序的温度阈值触发；两节点的有效驱动采样均未记录热降频、硬件限速或功率限制标志为Active。该结果描述约1秒间隔的采样证据，不能排除采样间的短暂事件。部署容量评估应同时观察正常执行速率和包含等待的墙钟吞吐。','Cooling in this run was triggered by the benchmark temperature threshold. Valid driver samples on both nodes recorded no active thermal, hardware-slowdown or power-cap flags. This describes approximately one-second sampling and cannot exclude events between samples. Capacity assessment should consider execution rates together with wall-clock throughput including waits.')
+    out+=picture('HARDWARE_COMPLETE_RETENTION',lang,'分窗性能保持｜仅显示完整10分钟窗口；末尾不足10分钟的样本仍保留于统计文件。相同节点、负载、阶段相互比较；100%为该阶段5分钟基线，不是硬件理论峰值。','Windowed performance retention | Only complete ten-minute windows are plotted; partial-tail samples remain in the statistical files. Compare matching node, workload and phase; 100% denotes the five-minute phase baseline, not a theoretical peak.')
+    out+=picture('HARDWARE_COMPLETE_TELEMETRY',lang,'本批节点资源时间线｜包含预热、单项扫描和持续负载，以原始阶段回执确定各时间窗；超过5秒的采样间隔不连线。传感器功率不等同整机插座功耗。','Node resource timeline | Includes warmup, individual scans and sustained work; phase receipts define each window. Lines break across gaps exceeding five seconds. Sensor power is not whole-system wall power.')
+    out+='\n\n'+T('能量以相邻有效功率采样作梯形积分，只纳入间隔不超过5秒的片段，并报告覆盖比例；缺测片段不补零或外推。当前没有插座电表证据，采购折旧与1／3／5年投资回报仍使用第10节明示的整机用电情景，不能用传感器能量替换整机电费。','Energy uses trapezoidal integration of adjacent valid power samples no more than five seconds apart, reporting time coverage without zero-filling or extrapolating gaps. No wall-meter evidence exists. Depreciation and 1/3/5-year returns retain the explicit whole-system electricity scenarios in section10; sensor energy does not replace wall-electricity cost.')
+    return out
+
+def conclusion(lang):
+    d=data()
+    if not d:return ''
+    T=lambda z,e:tr(lang,z,e);valid=sum(x.get('measured',0) for x in d['archived_counts'].values())
+    out=T(f"硬件补测当前归档{valid}条有效计时，其中集合通信为{d['paired_collective_trials']}次双rank配对试验；完成阶段以第05节状态与各节点终态回执为准。",f"The completion segment currently archives {valid} valid timings, including {d['paired_collective_trials']} two-rank collective trials; section05 and per-node terminal receipts define completed phases.")
+    complete=all(d['receipts'].get(str(n),d['receipts'].get(n,{})).get('soak',{}).get('state')=='complete' for n in [0,1])
+    complete=complete and all(any(x['node']==n and x['phase']==phase and x['elapsed_s']>=target for x in d['soak']) for n in [0,1] for phase,target in [('compute',3600),('bandwidth',3600),('mixed',7200)])
+    out+=' '+T('两节点均已分别完成计算60分钟、带宽60分钟、混合120分钟；这些分阶段结果不代表连续4小时无中断运行，结论仅适用于各自条件和时间窗。' if complete else '4小时持续试验尚未取得两节点完整终态证据，暂不作持续稳定性结论。','Both nodes separately completed 60/60/120-minute phases. These segmented results do not establish four uninterrupted hours; conclusions apply to each condition and window.' if complete else 'Both-node terminal evidence for the full four-hour sustained experiment is not yet available; no sustained-stability conclusion is made.')
+    out+=' '+T('内存保护和库后端支持限定实际覆盖；卸载模型的硬件结果与服务运行时结果属于不同资源条件，节点间差异不能直接归因于芯片个体；没有匹配的系统干预证据时，不认定唯一瓶颈或把微基准速率换算成模型服务吞吐。','Memory guards and library support constrain actual coverage. Unloaded hardware measurements and live-serving measurements have different resource conditions; node differences are not automatically chip variation. Without matched interventions, no unique bottleneck is asserted and microbenchmark rates are not converted into serving throughput.')
+    return out
+
+def appendix(lang):
+    T=lambda z,e:tr(lang,z,e)
+    rows=[('authorization.json',T('本批指令、范围与固定截止','Instruction, scope and fixed deadline')),('manifest.json',T('基础条件与保护规则','Base conditions and guards')),('extensions_manifest.json',T('扩展条件、重复及源码散列','Extension conditions, repeats and source hashes')),('remote_coordinator.py',T('服务器内网有界调度','Bounded server/LAN coordination')),('collect.py',T('外部状态采集与阶段归档','External status collection and phase archival')),('gpu_system_bench.py',T('基础计算／带宽／算子及持续负载','Base compute/bandwidth/operators and sustained work')),('gpu_extensions.py',T('扩展实验执行与数值校验','Extension execution and numerical checks')),('kernels.cu',T('通用乘加、指针、共享内存等CUDA源码','Scalar FMA, pointer and shared-memory CUDA source')),('gpu_overlap.py',T('计算／通信四臂配对','Four-arm compute/communication pairs')),('raw/',T('双节点分阶段原始采样、计时和日志','Per-phase two-node raw telemetry, timings and logs')),('analysis/',T('逐条CSV、汇总、覆盖与能量计算','Per-record CSV, summaries, coverage and energy')),('finalize.py',T('离线报告更新与校验','Offline report update and verification'))]
+    if UNLOADED:rows += [('service_custodian.py',T('停服状态捕获、异常恢复与日志脱敏','Service capture, guarded restoration and log redaction')),('service_restoration_verification.json',T('最终双节点服务恢复核验','Final two-node restoration verification')),('evidence/',T('源码散列、启动与验证回执','Source hashes, launch and validation receipts'))]
+    rows.extend([('thermal_backoff.py',T('温度自动退避与事件记录','Automatic thermal backoff and events')),('thermal_backoff_policy.json',T('生效温度阈值与恢复规则','Effective thermal thresholds and recovery rules')),('resume_thermal_retry.py',T('有限混合负载队列、重试与终态验证','Finite mixed queue, retries and terminal validation')),('retry_policy.py',T('失败分类与重试准入','Failure classification and retry admission')),('retry_supervisor_status.json',T('重试调度实时状态','Live retry-supervisor state')),('evidence/thermal_retry_continuation/',T('续测授权、启动、失败判定与恢复证据','Continuation authorization, launch, failure decisions and restoration evidence'))])
+    if (S/'overnight_finish.py').exists():
+        rows.extend([('overnight_finish.py',T('夜间收尾、归档与报告重试及覆盖核验','Overnight collection/report retries and coverage verification')),('counter_retry_remote.py',T('有界计数器诊断复核','Bounded counter diagnostic recheck')),('evidence/overnight_completion/',T('完成覆盖、诊断计数器及终态验证证据','Completion coverage, diagnostic counters and terminal verification evidence'))])
+        rows.extend([('evidence/overnight_completion/diagnose_counter_verbose.py',T('固定计数器探针的初始化错误定位','Initialization-error diagnosis for the fixed counter probe')),('evidence/overnight_completion/counter_probe_diagnostic.cu',T('保留原内核的CUDA状态诊断入口','CUDA-status diagnostic entry point preserving the original kernel')),('evidence/overnight_completion/close_observers.py',T('诊断后服务核验与本轮采样结束','Post-diagnostic serving verification and study-observer closure'))])
+    return '\n\n### '+T('硬件补测：代码、数据与复算路径','Hardware completion: code, data and reproduction paths')+'\n\n'+table(lang,[('用途','Purpose'),('磁盘绝对路径','Absolute disk path')],[[label,str(S/name)] for name,label in rows])+'\n\n'+T('远端双节点目录：','Remote directory on both nodes: ')+'/home/benchmark/infron-benchmarks/'+S.name+'\n\n'+T('H200逐项对照代码与规格/固定条件证据：','H200 comparison code, specifications and fixed-condition evidence: ')+str(ROOT/'hardware_h200_report.py')+' · '+str(ROOT/'evidence/h200_comparison')+'\n\n'+T('驻留条件证据：','Resident-condition evidence: ')+str(RESIDENT)+'\n\n'+T('停服预检与控制网络配置证据：','Maintenance preflight and control-network evidence: ')+str(ROOT/'hardware_unloaded_20261016')
+
+
+def resident_comparison(lang):
+    T=lambda z,e:tr(lang,z,e)
+    p=RESIDENT/'analysis/summary.json'
+    if not p.exists():return ''
+    resident=json.loads(p.read_text());current=data();rows=[]
+    for node in [0,1]:
+        for label,d in [(T('模型驻留','Model resident'),resident),(T('模型卸载','Model unloaded'),current)]:
+            c=d.get('coverage_by_suite',{}).get(str(node),{}).get('base',{})
+            rows.append([node,label,1070,c.get('measured',0),c.get('skipped_memory_guard',0)])
+    out='\n\n'+T('**资源条件与比较方法。** 驻留条件保留模型权重和服务进程；卸载条件在专用窗口停止双机推理进程，保持驱动、时钟策略与硬件相同。两组分别预热并执行相同基础矩阵，各自报告有效轮次。执行时间与内存状态同时变化，差值是资源条件的整体差异，不能单独证明缓存、调频或芯片机制的因果效应。','**Resource conditions and comparison.** The resident condition retains model weights and serving processes. The unloaded condition stops both inference processes in a dedicated window, retaining the driver, clock policy and hardware. Each is warmed independently and runs the same base matrix with separate valid-round counts. Time and memory state change together; differences describe the overall resource condition, not an isolated causal cache, clock or chip effect.')
+    out+=table(lang,[('节点','Node'),('资源条件','Resource condition'),('计划轮次','Planned rounds'),('归档有效计时','Archived valid timings'),('内存保护跳过','Memory-guard skips')],rows)
+    restore=S/'service_restoration_verification.json'
+    if restore.exists():
+        v=json.loads(restore.read_text());out+='\n\n'+T('服务恢复核验：'+('通过；双节点启动参数、环境、工作目录及引擎核心配置与停服前一致。' if v.get('state')=='verified' else '尚未通过。'),'Service restoration: '+('verified; both nodes retain their original arguments, environment, working directory and core engine configuration.' if v.get('state')=='verified' else 'not yet verified.'))
+    else:out+='\n\n'+T('服务恢复：待独立硬件测量结束后验收。','Service restoration: acceptance follows completion of the independent hardware measurements.')
+    return out
+
+
+def extended_results(lang,d):
+    T=lambda z,e:tr(lang,z,e);out=''
+    for name,z,e in [
+      ('FMA','通用FP32并行性｜固定每线程运算量，分别改变线程块大小、线程块数量与依赖链数；中位速率不代表Tensor Core峰值。','Scalar FP32 parallelism | Fixed per-thread work with varied block size, block count and dependency chains; median rates are not Tensor Core peaks.'),
+      ('CONTENTION','资源竞争与多流｜左图将竞争条件除以同节点同轮的零竞争基线；右图比较同工作量的串行与多流时间。点为配对比值中位数，误差线为观测范围。','Contention and streams | Left: same-node, same-round ratios to the zero-contention baseline. Right: matched-work serial/parallel time. Points are paired-ratio medians; bars are observed ranges.'),
+      ('LAUNCH_SHARED','共享内存与启动｜步长改变地址映射；没有硬件计数器时不能直接认定bank冲突次数。启动图包含主机重复提交造成的间隙，不是孤立内核的指令延迟。','Shared memory and launch | Strides change address mapping; bank-conflict counts require hardware counters. Launch intervals include repeated host-submission gaps, not isolated instruction latency.'),
+      ('MANAGED','统一内存访问顺序｜CPU初始化后，GPU写入两次，再由CPU完整求和两次。首次／重复在每轮同一分配内配对；CPU求和还包含归约计算，不等同数据迁移延迟。','Managed-memory access order | CPU initialization, two GPU writes, then two full CPU sums within the same allocation per round. CPU sums include reduction work and are not pure migration latency.')]:
+        out+=picture('HARDWARE_COMPLETE_'+name,lang,z,e)
+    rows=[]
+    for node in [0,1]:
+        f=[x for x in d['groups'] if x['node']==node and x['kind']=='scalar_fma' and x.get('effective_tflops')]
+        if f:
+            g=max(f,key=lambda x:x['effective_tflops']['median']);rows.append([node,T('通用FP32最高条件中位值','Highest scalar-FP32 condition median'),f"{g['effective_tflops']['median']*1000:.1f} GFLOP/s",T(f"{g['threads']}线程、{g['sm_multiplier']}×SM线程块、{g['chains']}链；{g['n']}轮",f"{g['threads']} threads, {g['sm_multiplier']}×SM blocks, {g['chains']} chains; {g['n']} rounds")])
+        ext=d['extended_comparisons']
+        for kind,field,label in [('contention','retention',T('CPU竞争条件保持率范围','CPU-contention retention range')),('streams','serial_over_parallel',T('多流配对加速比范围','Matched-work multi-stream ratio range'))]:
+            rr=[x for x in ext[kind] if x['node']==node]
+            if not rr:continue
+            keys=['workers','mode'] if kind=='contention' else ['streams'];gg=collections.defaultdict(list)
+            for x in rr:gg[tuple(x[k] for k in keys)].append(x[field])
+            med=[statistics.median(v) for v in gg.values()];factor=100 if kind=='contention' else 1;unit='%' if kind=='contention' else '×'
+            rows.append([node,label,f'{min(med)*factor:.2f}–{max(med)*factor:.2f}{unit}',T(f'{len(gg)}个条件的中位比值；逐条件范围见图','Condition-median ratios across '+str(len(gg))+' conditions; see figure for ranges')])
+    if rows:out+=table(lang,[('节点','Node'),('观察','Observation'),('结果','Result'),('适用条件','Conditions')],rows)
+    return out

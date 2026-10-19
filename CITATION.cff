@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "Please cite the experiment ID, model revision and repository commit. / 引用时请注明实验ID、模型revision和仓库commit。"
+title: "NVIDIA DGX Spark GB10 Testing Suite"
+authors:
+  - name: "InfronAI"
+version: "0.1.0"
+date-released: "2026-10-19"
+url: "https://github.com/InfronAI/NVIDIA-DGX-Spark-GB10-TestingSuits"
+license: MIT

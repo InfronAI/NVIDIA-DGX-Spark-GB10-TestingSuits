@@ -1,0 +1,72 @@
+"""Offline completion-arm figures, using the existing Infron report palette."""
+import collections
+import json
+from pathlib import Path
+import statistics
+import sys
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import fontManager,FontProperties
+
+ROOT=Path(__file__).resolve().parent;OUT=ROOT.parent/'reports'
+sys.path.insert(0,str(ROOT.parent))
+from report_visual_theme import configure,save,BLUE,SECOND as LIGHT,MUTED as NEUTRAL
+
+
+def main():
+    data=json.loads((ROOT/'analysis/summary.json').read_text())
+    configure()
+    for lang in ['zh','en']:
+        T=lambda a,b:a if lang=='zh' else b
+        interference=data['public'].get('interference',[])
+        if interference:
+            fig,ax=plt.subplots(figsize=(9,3.6),layout='constrained')
+            for mode,label,color,marker in [('isolated',T('短请求独立','Short requests isolated'),BLUE,'o'),('mixed',T('加入长请求','Long requests added'),LIGHT,'s')]:
+                rows=[p for p in interference if p['arms'].get(mode,{}).get('ttft_median') is not None]
+                ax.plot([p['pair']+1 for p in rows],[p['arms'][mode]['ttft_median'] for p in rows],marker=marker,color=color,label=label)
+            ax.set_xlabel(T('独立配对','Independent pair'));ax.set_ylabel(T('从预定到达到正文首字的中位数（s）','Median planned-arrival to first-content time (s)'));ax.set_ylim(bottom=0);ax.set_xticks(range(1,6));ax.legend();save(fig,'gap_interference',lang)
+        windows=[x for x in data['public'].get('soak_windows',[]) if x['complete_window']]
+        if windows:
+            fig,axes=plt.subplots(2,1,figsize=(10,5.5),layout='constrained',sharex=True)
+            for index,block in enumerate(sorted({x['block'] for x in windows})):
+                rows=[x for x in windows if x['block']==block];xs=[x['window_start_s']/60+2.5 for x in rows]
+                label=T('独立尝试 ','Independent attempt ')+block.split('_a')[-1]
+                axes[0].plot(xs,[x['ttft_median_s'] for x in rows],marker='o',color=[BLUE,LIGHT,NEUTRAL][index%3],label=label)
+                axes[1].plot(xs,[x['response_credit_output_token_s'] for x in rows],marker='s',color=[BLUE,LIGHT,NEUTRAL][index%3],label=label)
+            axes[0].set_ylabel(T('首字等待中位数（s）','Median first-content wait (s)'));axes[1].set_ylabel(T('完成响应产出（词元/s）','Completed-response output (token/s)'));axes[1].set_xlabel(T('独立窗口开始后分钟','Minutes since independent window start'))
+            for ax in axes:ax.set_ylim(bottom=0);ax.legend()
+            save(fig,'gap_soak_windows',lang)
+        rows=[x for x in data['native_groups'] if x['stage']=='output_axis' and x['complete']]
+        fig,axes=plt.subplots(1,3,figsize=(12,3.5),layout='constrained')
+        if rows:
+            for ax,key,title in zip(axes,['decode_median','e2e_median','mtp_accept_rate'],[T('引擎解码词元/s','Engine decode token/s'),T('引擎请求秒数','Engine elapsed seconds'),T('草稿词元接受比例','Draft-token acceptance fraction')]):
+                xs=[r['output']/1024 for r in rows];ys=[r[key] for r in rows]
+                ax.plot(xs,ys,'o-',color=BLUE);ax.set_xscale('log',base=2);ax.set_xticks(xs,[f'{int(x)}K' for x in xs]);ax.set_xlabel(T('实际固定输出','Actual fixed output'));ax.set_ylabel(title);ax.grid(axis='y',alpha=.18)
+                for x,y,r in zip(xs,ys,rows):ax.annotate(f'n={r["complete"]}',(x,y),xytext=(0,8),textcoords='offset points',ha='center',fontsize=8)
+            axes[0].errorbar([r['output']/1024 for r in rows],[r['decode_median'] for r in rows],yerr=[[r['decode_median']-r['decode_min'] for r in rows],[r['decode_max']-r['decode_median'] for r in rows]],fmt='none',color=BLUE,capsize=3)
+        else:
+            for ax in axes:ax.text(.5,.5,T('尚无完整样本','No complete samples'),ha='center',transform=ax.transAxes)
+        save(fig,'gap_long_output',lang)
+        pairs=data['profile_pairs']
+        if pairs:
+            groups=collections.defaultdict(list)
+            for p in pairs:groups[(p['input'],p['concurrency'])].append(p['elapsed_ratio'])
+            labels=[f'{k[0]//1024}K / C{k[1]}' for k in groups];values=[statistics.median(v) for v in groups.values()]
+            fig,ax=plt.subplots(figsize=(9,3.5),layout='constrained');ax.bar(labels,values,color=BLUE)
+            for i,v in enumerate(groups.values()):ax.scatter([i]*len(v),v,color=LIGHT,edgecolor=NEUTRAL,zorder=3)
+            ax.axhline(1,color=NEUTRAL,linestyle='--');ax.set_ylabel(T('剖析／无剖析请求耗时','Profiled / unprofiled request time'));ax.grid(axis='y',alpha=.2)
+            save(fig,'gap_profile_cost',lang)
+        if data['fp64']:
+            fig,ax=plt.subplots(figsize=(9,3.5),layout='constrained')
+            for node,color in [(0,BLUE),(1,LIGHT)]:
+                groups=collections.defaultdict(list)
+                for row in data['fp64']:
+                    if row['node']==node:groups[row['n']].append(row['tflops'])
+                xs=sorted(groups);ys=[statistics.median(groups[x]) for x in xs]
+                ax.errorbar(xs,ys,yerr=[[y-min(groups[x]) for x,y in zip(xs,ys)],[max(groups[x])-y for x,y in zip(xs,ys)]],label=T('节点','Node ')+str(node),color=color,marker='o',capsize=4)
+            ax.set_xscale('log',base=2);ax.set_xticks([1024,4096,8192],['1,024','4,096','8,192']);ax.set_xlabel(T('方阵维度 M=N=K','Square GEMM dimension M=N=K'));ax.set_ylabel('FP64 TFLOP/s');ax.legend();ax.grid(axis='y',alpha=.2)
+            save(fig,'gap_fp64',lang)
+
+
+if __name__=='__main__':main()

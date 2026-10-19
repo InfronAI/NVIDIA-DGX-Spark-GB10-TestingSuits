@@ -1,0 +1,125 @@
+"""Offline report addition for the separately authorized native-engine experiment."""
+import json
+from common import ROOT
+
+ARM=ROOT/'engine_split_20261016'
+
+
+def protocol(lang):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    text='### '+T('引擎内部预填充与解码：独立实验','Independent engine prefill and decode experiment')
+    text+='\n\n'+T('本实验直接调用推理节点本机的SGLang原生接口，将公网、Cloudflare与Infron网关移出计时路径。使用相同权重与双节点张量并行配置，MTP保持开启。独立窗口最长2小时、并发上限8，累计API预算仍为US$500；直接源站调用不产生Infron API账单。此实验不与前述公网请求合并统计。',
+        'This experiment calls the native SGLang endpoint on the inference host, excluding the public network, Cloudflare and the Infron gateway from its timing path. Weights and two-node tensor parallelism are unchanged, with MTP enabled. The separate window is limited to two hours and concurrency eight under the existing cumulative US$500 API budget. Direct-origin calls generate no Infron API bill. These observations are not pooled with public-endpoint requests.')
+    text+=table([T('实验','Experiment'),T('工作量与重复','Work and repeats'),T('测量含义','Measurement scope')],[
+        [T('预填充','Prefill'),T('1K／8K／32K／64K／128K／250,000输入，输出1；并发1，并在较短输入增加并发4／8；每条件3轮','1K/8K/32K/64K/128K/250,000 inputs, one output; C=1 with C=4/8 at shorter inputs; three rounds per condition'),T('读取调度器预填充起止时间；分母含分块调度间隙，不称为纯GPU时间','Scheduler prefill start-to-finish; includes chunk scheduling gaps, not pure GPU time')],
+        [T('解码','Decode'),T('1K／8K／32K输入×并发1／2／4／8，另加64K／128K单并发；输出固定256；每条件3轮','1K/8K/32K inputs × C=1/2/4/8, plus 64K/128K at C=1; fixed 256 outputs; three rounds'),T('接口进程首词元到结束的生成速率、MTP接受长度与验证次数','Output rate from API-process first token to completion, MTP acceptance length and verify count')],
+        [T('前缀复用对照','Prefix reuse control'),T('8K／32K，各3组首次请求与立即重复，输出均为1','8K/32K, three initial/immediate-repeat pairs each, one output'),T('以实际缓存词元确认命中；不测长期保留','Validate actual cached tokens; does not measure retention')],
+        [T('GPU时间线','GPU timelines'),T('8K输入、128输出、并发1；双节点分别捕获预填充与4个解码调度步','8K input, 128 output, C=1; both ranks capture prefill and four decode scheduler steps'),T('记录GPU活动区间、NCCL命名内核、MTP草稿／验证阶段；剖析数据与常规速度测量分开','GPU activity intervals, NCCL-named kernels and MTP draft/verify stages; profiled data stay separate from normal rate estimates')],
+    ])
+    text+='\n\n'+T('清单共78组、231条正式请求，另有2条预检／剖析请求。并发×（输入＋输出）超过262,144的组合排除。使用固定种子的合成订单记录，经实际模型分词器生成精确长度的token ID；不经过聊天模板。温度为0，忽略结束词元以固定输出长度。因此这是可控的引擎负载，不代表自然对话的输出长度或MTP接受率。每轮随机化条件顺序；不同请求具有不同的早期前缀，是否命中仍以返回字段核验。',
+        'The manifest contains 78 blocks and 231 formal requests, plus two pilot/profile requests. Combinations exceeding concurrency × (input + output) = 262,144 are excluded. Seeded synthetic order records are tokenized with the installed model tokenizer to exact token-ID lengths, bypassing chat templates. Temperature is zero and EOS is ignored to fix output length. This controlled engine workload does not represent natural-chat length or MTP acceptance. Conditions are shuffled within each round; requests use distinct early prefixes, with hits verified from returned fields.')
+    return text
+
+
+def report(lang):
+    from build_report import table,fmt
+    T=lambda z,e:z if lang=='zh' else e
+    p=ARM/'analysis/summary.json'
+    if not p.exists():return ''
+    d=json.loads(p.read_text());text=protocol(lang)
+    text+='\n\n#### '+T('计时定义与核验','Timing definitions and validation')
+    text+=table([T('指标','Metric'),T('定义与边界','Definition and scope')],[
+        [T('调度器预填充耗时','Scheduler prefill duration'),T('同一调度器进程的prefill_finished_time − forward_entry_time；包括分块等待，不包括首次进入调度前的排队。','prefill_finished_time − forward_entry_time within the scheduler process; includes chunk gaps and excludes the initial admission queue.')],
+        [T('预填充处理速率','Prefill processing rate'),T('同一区组Σ（输入−已缓存词元）／（最后预填充结束−最早预填充开始）。多请求重叠区间不重复累加。','Σ(input − cached tokens) / (last prefill finish − first prefill start) in the same block; overlapping request durations are not summed.')],
+        [T('单请求解码速率','Per-request decode rate'),T('（实际输出−1）／（引擎总耗时−引擎首词元耗时），与原生decode_throughput交叉校验；包含引擎调度、结果传递和MTP路径。','(actual output − 1) / (engine E2E − engine TTFT), cross-checked against native decode_throughput; includes scheduling, result delivery and MTP execution.')],
+        [T('并发解码窗口吞吐','Concurrent decode-window throughput'),T('Σ（实际输出−1）／（最后请求结束−最早首词元）；同一接口进程计时，并发请求的错峰预填充可能仍在此窗口内。','Σ(actual output − 1) / (last finish − first token), timed in one API process; staggered prefill admission can remain within this window.')],
+        [T('MTP接受长度与接受率','MTP acceptance length and rate'),T('已安装实现的接受长度＝完成输出词元／验证次数；接受率＝正确草稿词元／提出的草稿词元。两者分母不同，接受长度不是加速倍数，也不是捕获的每一步实际输出计数。','Installed acceptance length = completed output tokens / verify count; acceptance rate = correct drafts / proposed drafts. Their denominators differ; acceptance length is neither a speedup nor an actual per-captured-step output count.')],
+        [T('GPU活动分解','GPU activity decomposition'),T('分别求两节点内核／拷贝区间的并集，再区分NCCL独占、其他活动独占及重叠。不相加嵌套注释，不跨节点叠加时间。','Union kernel/copy intervals separately per rank, then split NCCL-only, other-only and overlap. Nested annotations and cross-rank durations are not added.')],
+    ])
+    text+='\n\n'+T('调度器与接口进程的绝对时间戳转换存在偏移，因此只在同一进程的时间基准内计算区间。三个区组的中位数与最小／最大范围用于描述重复性，不据此报告尾部百分位或置信区间。发生重计算／回退的请求需单独分析，不进入当前时间拆分。',
+        'Scheduler and API-process absolute timestamp conversions have different offsets; intervals are computed only within one process clock domain. Three-block medians and observed min/max ranges describe repeatability, without tail-percentile or confidence-interval claims. Retracted requests require separate analysis and are excluded from this timing decomposition.')
+    if d['valid_blocks']:
+        text+='\n\n#### '+T('独立速率实测','Independent rate measurements')
+        text+='\n\n'+T(f"当前归档可分析{d['valid_blocks']}组、{d['valid_requests']}条正式请求；计时校验未通过{len(d['invalid'])}条。",f"The archive contains {d['valid_blocks']} analyzable blocks and {d['valid_requests']} formal requests; {len(d['invalid'])} failed timing validation.")
+        text+='\n\n<!--ENGINE_INTERNAL_RATES-->\n\n'+T('引擎阶段速率｜左图为调度器预填充窗口速率；右图为单请求解码速率。阴影为区组观测范围，不是置信区间。','Engine-stage rates | Left: scheduler prefill-window rate. Right: per-request decode rate. Shading is the observed block range, not a confidence interval.')
+        for stage in ['prefill','decode']:
+            rows=[g for g in d['groups'] if g['stage']==stage]
+            if stage=='prefill':
+                text+=table([T('输入词元','Input tokens'),T('并发','Concurrency'),T('区组／请求','Blocks / requests'),T('预填充中位 s','Median prefill s'),T('窗口速率 token/s','Window rate tokens/s'),T('缓存词元','Cached tokens')],[[f"{g['input']:,}",g['concurrency'],f"{g['blocks']} / {g['requests']}",fmt(g['prefill_median_s'],3),fmt(g['prefill_uncached_token_s'],1),g['cached_tokens']] for g in rows])
+            else:
+                text+=table([T('输入词元','Input tokens'),T('并发','Concurrency'),T('区组／请求','Blocks / requests'),T('单请求 token/s','Per request tokens/s'),T('并发窗口 token/s','Concurrent window tokens/s'),T('MTP接受长度中位','Median MTP acceptance length')],[[f"{g['input']:,}",g['concurrency'],f"{g['blocks']} / {g['requests']}",fmt(g['decode_request_median_token_s'],1),fmt(g['decode_window_token_s'],1),fmt(g['mtp_accept_length_median'],2)] for g in rows])
+        c1=[g for g in d['groups'] if g['stage']=='decode' and g['concurrency']==1]
+        if c1:
+            lo=min(g['decode_request_median_token_s'] for g in c1);hi=max(g['decode_request_median_token_s'] for g in c1)
+            text+='\n\n'+T(f'在已测单并发条件下，各输入长度的解码速率中位数为{lo:.1f}–{hi:.1f} token/s。此范围来自合成记录与固定输出条件；不能直接替代公网端点容量或任意业务的生成速度。',f'Across measured C=1 input lengths, median per-request decode rates range from {lo:.1f} to {hi:.1f} tokens/s. This range applies to synthetic records and fixed output; it does not substitute for public-endpoint capacity or arbitrary business generation rates.')
+    if d.get('cache_pairs'):
+        text+='\n\n#### '+T('同一前缀立即复用的预填充对照','Immediate prefix-reuse prefill control')
+        text+=table([T('输入','Input'),T('配对数','Pairs'),T('重复请求缓存词元比例','Repeated-input cached-token fraction'),T('首次／重复预填充中位 s','Initial / repeated median prefill s'),T('配对耗时比中位','Median paired duration ratio')],[[f"{g['input']:,}",g['n'],f"{g['repeat_cached_fraction']:.2%}",fmt(g['initial_prefill_median_s'],4)+' / '+fmt(g['repeat_prefill_median_s'],4),fmt(g['paired_duration_ratio_median'],2)] for g in d['cache_pairs']])
+        text+='\n\n'+T('缓存比例分母为重复请求的实际输入词元总数；耗时比逐对计算后取中位数。固定先首次、后重复的顺序仍有顺序效应；三个立即重复样本不能证明长期缓存稳定性，也不应将此比值称为模型计算加速倍数。',
+            'Cache fraction uses total actual repeated-input tokens as its denominator; duration ratios are calculated per pair before taking the median. Fixed initial-then-repeat order retains order effects. Three immediate repeats do not establish long-term cache stability, and their ratios are not model compute speedups.')
+        by_input={g['input']:g for g in d['cache_pairs']}
+        if 8192 in by_input and 32768 in by_input:
+            a,b=by_input[8192],by_input[32768]
+            text+='\n\n'+T(f"本轮8K立即重复的报告缓存比例为{a['repeat_cached_fraction']:.0%}，32K为{b['repeat_cached_fraction']:.0%}。相同输入并不保证全量缓存命中；这些结果限定于本次输入长度、单词元输出和当前缓存状态，不能直接推断所有业务的缓存规则或保留时间。",
+                f"Reported cached-token fractions were {a['repeat_cached_fraction']:.0%} for immediate 8K repeats and {b['repeat_cached_fraction']:.0%} for 32K repeats. Identical input does not guarantee full reuse. These observations apply to the tested lengths, one-token output and current cache state; they do not establish universal cache rules or retention.")
+    if d['traces']:
+        text+='\n\n#### '+T('GPU侧阶段与通信活动','GPU-stage and communication activity')
+        text+='\n\n<!--ENGINE_GPU_TIMELINE-->\n\n'+T('两节点GPU活动分解｜各条分别归一到本节点捕获的活动跨度。剖析包含额外开销，仅用于解释路径；“其他活动”可能含未以NCCL命名的通信内核。','Per-rank GPU activity | Each bar covers its own captured GPU activity span. Profiling adds overhead and explains paths only; other activity may include communication without NCCL kernel names.')
+        text+=table([T('节点／阶段','Rank / stage'),T('活动跨度 ms','Activity span ms'),T('活动并集 ms','Busy union ms'),T('NCCL独占 ms','NCCL-only ms'),T('重叠 ms','Overlap ms')],[[t['node']+' / '+t['stage'],fmt(t['gpu_span_ms'],2),fmt(t['gpu_busy_union_ms'],2),fmt(t['nccl_only_ms'],2),fmt(t['overlap_ms'],2)] for t in d['traces']])
+        labels={'target_prefill':T('目标模型预填充','Target-model prefill'),'draft':T('MTP草稿生成','MTP draft'),'verify':T('目标模型验证','Target-model verify'),'draft_extend':T('草稿状态扩展','Draft-state extension')}
+        phase_rows=[]
+        for t in d['traces']:
+            for phase,stats in t['semantic_annotations'].items():
+                steps=stats.get('matched_steps',[])
+                if steps:phase_rows.append([t['node']+' / '+t['stage'],labels[phase],len(steps),fmt(stats['mean_step_gpu_range_ms'],3)])
+        if phase_rows:
+            text+=table([T('节点／捕获阶段','Rank / capture stage'),T('内部阶段','Internal phase'),T('匹配的执行次数','Matched executions'),T('GPU关联范围均值 ms','Mean GPU-correlated span ms')],phase_rows)
+            text+='\n\n<!--ENGINE_MTP_STAGES-->\n\n'+T('MTP阶段拆分｜每节点4个捕获解码步；柱高为GPU关联范围的均值，不能相加当作端到端时延。','MTP phase decomposition | Four captured decode steps per rank; bars show mean GPU-correlated spans, which cannot be added as end-to-end latency.')
+            text+='\n\n'+T('阶段范围通过CPU注释与GPU注释的同一External id关联；CUDA Graphs会在多个虚拟执行流上重复标注同一次验证，因此先按执行标识合并区间，再计算每次执行的范围。该范围包含设备等待与通信，不等同于内核忙碌时间；草稿、验证与状态扩展的范围不能不经重叠检查就相加。未获取每个捕获步实际接受的词元数，因此不以验证步数乘固定MTP长度来伪造GPU解码token/s。',
+                'Phase ranges match CPU and GPU annotations by External id. CUDA Graphs annotate one verify execution on multiple virtual streams, so intervals are merged per execution before calculating its span. Spans include device waits and communication and differ from busy-kernel time; draft, verify and extension spans cannot be added without overlap checks. Accepted-token counts for each captured step are unavailable, so device decode tokens/s is not fabricated by multiplying step count by a fixed MTP length.')
+        text+='\n\n'+T('双节点时间线均捕获到预填充与解码GPU内核，以及MTP草稿、验证和草稿状态扩展的阶段注释。GPU活动与通信存在重叠，因此相加每个算子或NCCL内核耗时会重复计算。本次仅有一个8K单并发剖析场景；尚未对每种长度／批量做GPU逐步测量，也未测量剖析开销的配对分布。NCCL活动时间不能直接等同于可消除的通信等待。',
+            'Both ranks captured prefill/decode GPU kernels and MTP draft, verify and draft-extension annotations. GPU work and communication overlap, so summing operator or NCCL durations double-counts time. Only one 8K, C=1 scenario was profiled; device-step timing across every length/batch and a paired distribution of profiling overhead remain unmeasured. NCCL activity is not equivalent to removable communication wait.')
+    text+='\n\n'+T('[逐请求指标](../engine_split_20261016/analysis/requests.csv) · [逐区组指标](../engine_split_20261016/analysis/blocks.csv) · [源码及原始时间线目录](../engine_split_20261016/)',
+        '[Per-request metrics](../engine_split_20261016/analysis/requests.csv) · [Per-block metrics](../engine_split_20261016/analysis/blocks.csv) · [Source and raw timelines](../engine_split_20261016/)')
+    text+='\n\n'+T('实现依据：','Implementation references: ')+'[SGLang profiling](https://github.com/sgl-project/sglang/blob/main/docs/docs/developer_guide/benchmark_and_profiling.mdx) · [SGLang observability](https://docs.sglang.ai/advanced_features/observability.html) · '+T('[已安装版本的计时源码](../engine_split_20261016/evidence/source/srt/observability/req_time_stats.py)；线上文档用于方法参考，字段含义以保存的已安装源码为准。','[Installed timing source](../engine_split_20261016/evidence/source/srt/observability/req_time_stats.py); online documentation informs methodology, while saved installed source determines field semantics.')
+    return text
+
+
+def figures(data):
+    from plots import plt,save
+    from report_visual_theme import PALETTE
+    colors=PALETTE
+    for lang in ['zh','en']:
+        T=lambda z,e:z if lang=='zh' else e
+        if data['valid_blocks']:
+            fig,axes=plt.subplots(1,2,figsize=(10,4))
+            for ax,stage,value,title in [(axes[0],'prefill','prefill_uncached_token_s',T('预填充：调度器窗口速率','Prefill: scheduler-window rate')),(axes[1],'decode','decode_request_median_token_s',T('解码：单请求生成速率','Decode: per-request output rate'))]:
+                for i,c in enumerate([1,2,4,8]):
+                    rs=sorted([g for g in data['groups'] if g['stage']==stage and g['concurrency']==c],key=lambda g:g['input'])
+                    if not rs:continue
+                    xs=[g['input'] for g in rs];ys=[g[value] for g in rs]
+                    ax.plot(xs,ys,marker=['o','s','^','D'][i],linestyle=['-','--','-.',':'][i],color=colors[i],label=T('并发','C=')+str(c))
+                    ax.fill_between(xs,[g[value+'_min'] for g in rs],[g[value+'_max'] for g in rs],color=colors[i],alpha=.12)
+                ax.set_xscale('log',base=2)
+                ticks=sorted({g['input'] for g in data['groups'] if g['stage']==stage})
+                ax.set_xticks(ticks,[f'{n//1024}K' if n%1024==0 else f'{n:,}' for n in ticks],rotation=20)
+                ax.set_ylim(bottom=0);ax.set_xlabel(T('输入词元数（1K＝1,024）','Input tokens (1K = 1,024)'));ax.set_ylabel('token/s');ax.set_title(title)
+                if ax.lines:ax.legend()
+            save(fig,'engine_internal_rates',lang)
+        if data['traces']:
+            fig,axes=plt.subplots(1,2,figsize=(10,4))
+            for ax,stage in zip(axes,['prefill','decode']):
+                rs=[t for t in data['traces'] if t['stage']==stage];left=[0.]*len(rs)
+                for key,label,col in [('other_activity_only_ms',T('其他GPU活动','Other GPU activity'),'#004AB9'),('nccl_only_ms',T('NCCL独占','NCCL only'),'#6495ED'),('overlap_ms',T('活动重叠','Overlap'),'#A3C5FF'),('idle_gap_ms',T('未捕获活动间隙','No captured activity'),'#DBE3F0')]:
+                    vals=[t[key] for t in rs];ax.barh([t['node'] for t in rs],vals,left=left,color=col,label=label);left=[a+b for a,b in zip(left,vals)]
+                ax.set_title(T('预填充' if stage=='prefill' else '解码',stage.capitalize())+T('：8K／单并发',' : 8K / C=1'));ax.set_xlabel(T('GPU活动跨度（毫秒）','GPU activity span (ms)'));ax.legend(fontsize=7,loc='lower right')
+            save(fig,'engine_gpu_timeline',lang)
+            fig,ax=plt.subplots(figsize=(8,3.7))
+            phases=['draft','verify','draft_extend']
+            for i,t in enumerate([t for t in data['traces'] if t['stage']=='decode']):
+                vals=[t['semantic_annotations'][k].get('mean_step_gpu_range_ms') or 0 for k in phases]
+                bars=ax.bar([j+(i-.5)*.34 for j in range(3)],vals,.32,color=['#004AB9','#70A6FF'][i%2],label=t['node'])
+                ax.bar_label(bars,fmt='%.2f',padding=3)
+            ax.set_xticks(range(3),[T('草稿生成','Draft'),T('目标模型验证','Target verify'),T('草稿状态扩展','Draft extension')]);ax.set_ylabel(T('每步GPU关联范围（毫秒）','GPU-correlated span per step (ms)'));ax.legend();ax.set_ylim(bottom=0)
+            save(fig,'engine_mtp_stages',lang)

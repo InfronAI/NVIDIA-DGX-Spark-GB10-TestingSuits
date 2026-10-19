@@ -1,0 +1,37 @@
+"""Offline incremental/final report update, never sends an inference request."""
+import argparse,fcntl,hashlib,json,subprocess,sys,time
+from pathlib import Path
+S=Path(__file__).resolve().parent;R=S.parent
+sys.path.insert(0,str(R))
+from common import dump,utc
+from supervise import render
+
+def main():
+    ap=argparse.ArgumentParser();ap.add_argument('--reason',default='manual');a=ap.parse_args()
+    lock=(R/'hardware_report_finalize.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX)
+    started=utc()
+    try:
+        p=subprocess.run([sys.executable,str(S/'analyze.py')],cwd=R.parent.parent,capture_output=True,text=True,timeout=300)
+        if p.returncode:raise RuntimeError(p.stderr[-3000:])
+        result=render()
+        files=[]
+        for lang in ['zh','en']:
+            for ext in ['md','html','pdf']:
+                path=R/'reports'/f'report.{lang}.{ext}';body=path.read_bytes();assert len(body)>1000
+                if ext=='pdf':assert body.startswith(b'%PDF')
+                if ext=='html':assert b'HARDWARE_UNLOADED_' not in body and b'hardware_unloaded_compute' in body
+                files.append({'path':str(path),'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()})
+        full_qa=None
+        if a.reason in ['terminal','review']:
+            check=subprocess.run(['/tmp/growthpulse-morphic-report-311/bin/python',str(R/'verify_scientific_report.py')],cwd=R.parent.parent,capture_output=True,text=True,timeout=1800)
+            if check.returncode:raise RuntimeError('full report verification failed: '+check.stderr[-2000:])
+            comparison_check=subprocess.run([sys.executable,str(R/'validate_h200_comparison.py')],cwd=R.parent.parent,capture_output=True,text=True,timeout=120)
+            if comparison_check.returncode:raise RuntimeError('H200 comparison verification failed: '+comparison_check.stderr[-1000:])
+            full_qa=str(R/'reports/scientific_qa.json')
+        receipt={'state':'rendered','started_utc':started,'utc':utc(),'reason':a.reason,'render':result,'files':files,'passed':True,'full_scientific_qa':full_qa}
+    except BaseException as e:
+        receipt={'state':'failed','started_utc':started,'utc':utc(),'reason':a.reason,'error':str(e),'passed':False}
+        dump(S/'finalization.json',receipt);raise
+    dump(S/'finalization.json',receipt);dump(S/'evidence'/('report_validation_'+str(int(time.time()))+'.json'),receipt)
+    print(json.dumps({k:receipt[k] for k in ['state','utc','reason','passed']}))
+if __name__=='__main__':main()

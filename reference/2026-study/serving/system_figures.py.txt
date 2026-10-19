@@ -1,0 +1,56 @@
+"""Study schematics plus archived RDMA observations; no synthetic GPU results."""
+import json
+import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+from common import ROOT
+
+def draw(lang, save):
+    T=lambda z,e:z if lang=='zh' else e
+    blue='#004AB9'; pale='#E6F0FF'; neutral='#5E5E5E'
+    fig,ax=plt.subplots(figsize=(10,4.2));ax.axis('off');ax.set_xlim(0,10);ax.set_ylim(0,4.2)
+    layers=[
+      (T('硬件微基准','Hardware microbenchmarks'),T('计算 · 内存 · 缓存','Compute · memory · caches'),T('原生精度 / 字节 / GPU时间','Native dtype / bytes / device time')),
+      (T('独立算子','Standalone operators'),T('矩阵 · 归约 · 注意力','Matrices · reductions · attention'),T('形状 / 布局 / 正确性','Shape / layout / correctness')),
+      (T('双机系统','Two-node system'),T('统一内存 · 通信 · 热稳态','UMA · communication · thermal state'),T('路径 / 竞争 / 持续时间','Path / contention / duration')),
+      (T('模型服务','Model serving'),T('等待 · 吞吐 · 前缀复用','Waiting · throughput · prefix reuse'),T('输入输出 / 并发 / 到达','I/O / concurrency / arrivals')),
+    ]
+    for i,(title,body,control) in enumerate(layers):
+        x=.15+i*2.5
+        ax.add_patch(FancyBboxPatch((x,1.25),2.15,2.0,boxstyle='round,pad=0.05,rounding_size=0.12',facecolor=pale,edgecolor='#BCC7D6'))
+        ax.text(x+.13,2.95,str(i+1).zfill(2),color=blue,fontsize=16,weight='bold')
+        ax.text(x+1.07,2.48,title,ha='center',fontsize=10,color=blue)
+        ax.text(x+1.07,2.02,body,ha='center',fontsize=8)
+        ax.text(x+1.07,1.55,control,ha='center',fontsize=7.5,color=neutral)
+        if i<3:ax.annotate('',xy=(x+2.47,2.3),xytext=(x+2.21,2.3),arrowprops={'arrowstyle':'->','color':blue})
+    ax.text(5,3.8,T('从可实现上限到服务表现：每层有自己的工作量与计时边界','From achievable ceilings to serving: distinct work and timing at each layer'),ha='center',fontsize=11)
+    ax.text(5,.72,T('证据衔接需要：相同配置 + 匹配工作负载 + 对齐时间窗 + 独立重复','Evidence links require: matching configuration + work + time windows + independent rounds'),ha='center',fontsize=9)
+    ax.text(5,.22,T('方法示意；箭头不代表实测速度、因果关系或完成进度','Method schematic; arrows are not measured speed, causality or completion'),ha='center',fontsize=8,color=neutral)
+    save(fig,'study_layers',lang)
+
+    fig,ax=plt.subplots(figsize=(10,3.6));ax.axis('off');ax.set_xlim(0,10);ax.set_ylim(0,3.6)
+    stages=[(T('环境与校验','Environment / checks'),'0.5–1 h'),(T('单机与关键复验','Single-node / key repeats'),'3–4 h'),(T('双机通信','Two-node communication'),'1–2 h'),(T('持续运行','Sustained load'),'4 h')]
+    for i,(title,duration) in enumerate(stages):
+        x=.2+i*2.5
+        ax.add_patch(FancyBboxPatch((x,1.65),2.1,1.1,boxstyle='round,pad=0.05,rounding_size=0.12',facecolor=pale,edgecolor='#BCC7D6'))
+        ax.text(x+1.05,2.4,title,ha='center',fontsize=9,color=blue)
+        ax.text(x+1.05,1.92,duration,ha='center',fontsize=12)
+        if i<3:ax.annotate('',xy=(x+2.46,2.2),xytext=(x+2.16,2.2),arrowprops={'arrowstyle':'->','color':blue})
+    ax.text(5,3.2,T('独占窗口预计8.5–11小时；工具适配与分析另计','Estimated exclusive window: 8.5–11 hours; adaptation and analysis additional'),ha='center',fontsize=11)
+    ax.text(5,1.05,T('每格：校验 → 预热 → 5轮扫描 → 关键条件至少10轮 → 原始记录','Each cell: validate → warm up → 5 screening rounds → ≥10 key rounds → raw records'),ha='center',fontsize=9)
+    ax.text(5,.58,T('持续阶段：计算60分钟 / 带宽60分钟 / 混合120分钟；分别建立基线','Sustained stages: compute 60 min / bandwidth 60 min / mixed 120 min; separate baselines'),ha='center',fontsize=8)
+    ax.text(5,.13,T('待执行方案；不与模型服务测试重叠，不自动延长原测试截止时间','Prospective protocol; separate from serving load, with no automatic deadline extension'),ha='center',fontsize=8,color=neutral)
+    save(fig,'gpu_sequence',lang)
+
+    raw=json.loads((ROOT/'evidence/rdma_summary.json').read_text())['rows']
+    devices=['rocep1s0f1','roceP2p1s0f1'];fig,axes=plt.subplots(1,2,figsize=(10,3.2))
+    for ax,tool,index,title,xlabel,limit in [
+      (axes[0],'ib_write_bw',3,T('8 MiB写入','8 MiB write'),T('工具报告带宽（Gb/s）','Tool-reported bandwidth (Gb/s)'),120),
+      (axes[1],'ib_read_lat',2,T('8 B读取','8 B read'),T('工具报告延迟（μs）','Tool-reported latency (μs)'),3.2)]:
+        for i,device in enumerate(devices):
+            values=[float(r['data_row'].split()[index]) for r in raw if r['device']==device and r['tool']==tool and not r['client_returncode'] and not r['server_returncode'] and r['data_row']]
+            y=[i+(j-1)*.07 for j in range(len(values))]
+            ax.scatter(values,y,color=blue,s=28)
+            ax.text(limit*.98,i,f'n={len(values)}',ha='right',va='center',fontsize=8,color=neutral)
+        ax.set_yticks(range(2),devices);ax.set_ylim(-.5,1.5);ax.set_xlim(0,limit);ax.set_xlabel(xlabel);ax.set_title(title,fontsize=11)
+    fig.suptitle(T('2026-10-14独立网络观测；逻辑接口分别测量，不相加','Independent network observations, 2026-10-14; interfaces measured separately, not added'),fontsize=10)
+    save(fig,'rdma_links',lang)

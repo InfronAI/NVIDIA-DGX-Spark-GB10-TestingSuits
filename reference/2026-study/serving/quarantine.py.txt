@@ -1,0 +1,40 @@
+"""Reviewed failed attempt: retain uncertainty/reservation; never replay or count success."""
+import datetime as dt
+import json
+from common import digest
+
+CASE = 'P8_r06_gsm_119'
+
+
+def verified_quarantine(root, ident):
+    path = root / 'evidence/continuation_20261016/quarantine.json'
+    if ident != CASE or not path.exists():
+        return False
+    proof = json.loads(path.read_text())
+    assert proof['case_id'] == ident and proof['no_replay']
+    assert proof['upstream_outcome'] == 'unknown' and not proof['count_as_success']
+    folder = root / 'runs/requests' / ident
+    for name in ['request.json', 'result.json', 'started.json']:
+        assert digest(folder/name) == proof['file_hashes'][name], 'quarantine evidence changed'
+    result = json.loads((folder/'result.json').read_text())
+    assert result['state'] == 'transport_error' and result['phase'] == 'P8'
+    assert result.get('end_epoch') and not result.get('request_id') and not result.get('response_request_id')
+    entry = json.loads((root/'runs/ledger.json').read_text())['entries'][ident]
+    assert entry['state'] == result['state']
+    assert entry['reserved_usd'] == proof['reserved_usd'] > 0, 'reservation must remain held'
+    times = []
+    for source in proof['drain_evidence']:
+        p = (root/source['path']).resolve()
+        assert p.is_relative_to((root/'evidence').resolve())
+        assert digest(p) == source['sha256']
+        observation = json.loads(p.read_text())
+        engine = observation['nodes']['0']['engine']
+        assert engine['idle'] and all(engine['metrics'][k] == 0 for k in ['sglang:num_running_reqs','sglang:num_queue_reqs'])
+        stamp = dt.datetime.fromisoformat(observation['nodes']['0']['utc']).timestamp()
+        for n in observation['nodes'].values():
+            assert not n['children']
+            assert abs(stamp-n['telemetry_latest']['epoch']) < 15
+        times.append(stamp)
+    assert len(times) == 2 and times[1]-times[0] >= 30
+    assert times[0]-result['end_epoch'] >= 300, 'interrupted client must be settled before drain review'
+    return True

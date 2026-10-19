@@ -1,0 +1,120 @@
+"""SELECT-only billing and routing guard for this run; no model calls."""
+import datetime as dt
+import json
+import re
+import time
+from insightloop.config.loader import load_settings
+from insightloop.runtime.clickhouse import build_clickhouse_client
+from common import ROOT, dump, utc
+from cf_retry import policy,is_cf_error,discover_receipts
+
+def associated_receipts(root, results):
+    """Validate reviewed exact-payload associations without changing client receipts."""
+    cases={x['id']:x for x in results};out={}
+    for suffix,prefix in [('', 'gateway_502'),('_recurrence','gateway_502_recurrence')]:
+        path=root/f'evidence/failure_associations{suffix}.json'
+        if not path.exists():continue
+        associations=json.loads(path.read_text())['associations']
+        contents={x['id']:x for x in json.loads((root/f'evidence/{prefix}_log_contents.json').read_text())}
+        logs={x['id']:x for x in json.loads((root/f'evidence/{prefix}_window_logs.json').read_text())}
+        for a in associations:
+            ident=a['case_id'];r=cases[ident];log=logs[a['log_id']]
+            assert r['state']!='received' and not (r.get('response_request_id') or r.get('request_id'))
+            assert ident not in out and a['request_id'] not in out.values()
+            assert log['request_id']==a['request_id'] and log['type']==6
+            assert r['start_epoch']-2<=log['created_at']<=r['end_epoch']+2
+            sent=json.loads((root/'runs/requests'/ident/'request.json').read_text())
+            assert sent==json.loads(contents[a['log_id']]['original_request_json'])
+            out[ident]=a['request_id']
+    review_path = root/'evidence/terminal_stream_reviews.json'
+    if review_path.exists():
+        from terminal_review import verified_case
+        for ident, proof in json.loads(review_path.read_text()).get('cases', {}).items():
+            r = cases[ident]
+            if r.get('response_request_id') or r.get('request_id'): continue
+            assert verified_case(root, ident, proof), 'invalid terminal association'
+            assert ident not in out and proof['request_id'] not in out.values(), 'duplicate terminal association'
+            out[ident] = proof['request_id']
+    return out
+
+def reconcile(root=ROOT):
+    results=[]
+    for f in (root/'runs/requests').glob('*/result.json'):
+        j=json.loads(f.read_text());results.append(j)
+    ids={r.get('response_request_id') or r.get('request_id') for r in results}
+    ids.discard(None)
+    client_receipt_count=len(ids)
+    c=build_clickhouse_client(load_settings());retry_policy=policy(root)
+    associations=associated_receipts(root,results)
+    if retry_policy.get('enabled'):associations.update(discover_receipts(c,root,results,associations))
+    ids.update(associations.values())
+    assert all(re.fullmatch('[a-zA-Z0-9_-]+',x) for x in ids)
+    rows=[];now=time.time()
+    for start in range(0,len(ids),200):
+        values=','.join("'"+x+"'" for x in sorted(ids)[start:start+200])
+        sql='SELECT id,request_id,type,created_at,model_name,upstream_model_name,model_provider_id,channel_id,provider_name,prompt_tokens,completion_tokens,reasoning_tokens,quota,input_price,output_price,finish_reason,other FROM logs WHERE created_at >= 1791969600 AND created_at <= '+str(int(now)+300)+' AND request_id IN ('+values+')'
+        rows.extend(c.query(sql).rows)
+    rows=list({str(x['id']):x for x in rows}.values());found={r['request_id'] for r in rows}
+    by_id={}
+    for row in rows:by_id.setdefault(row['request_id'],[]).append(row)
+    stale_missing=[r['id'] for r in results if r['state']=='received' and now-r.get('end_epoch',now)>120 and (r.get('response_request_id') or r.get('request_id')) not in found]
+    route=[r['request_id'] for r in rows if r['model_provider_id']!=2084 or r['channel_id']!=2538]
+    expected_boundary_ids={r.get('response_request_id') or r.get('request_id') for r in results if r.get('expected_context_rejection')}
+    retries=[key for key,items in by_id.items() if any(r['type']==7 for r in items) and not (key in expected_boundary_ids and len(items)==1)]
+    review_path=root/'evidence/transport_incident_resolution.json'
+    reviewed=set()
+    if review_path.exists():
+        review=json.loads(review_path.read_text())
+        reviewed=set(review.get('reviewed_failed_receipts',[]))
+        assert reviewed<=set(associations.values()) and review.get('no_replay') and review.get('service_unchanged')
+    authorized_cf_ids={associations.get(r['id']) or r.get('response_request_id') or r.get('request_id') for r in results if retry_policy.get('enabled') and is_cf_error(r)}
+    authorized_cf_ids.discard(None)
+    recovered_reviewed=set()
+    recovered_path=root/'evidence/recovered_gateway_resolution.json'
+    if recovered_path.exists():
+        recovery=json.loads(recovered_path.read_text())
+        assert recovery.get('no_replay') and recovery.get('service_unchanged')
+        for rid in recovery.get('reviewed_recovered_receipts',[]):
+            items=by_id.get(rid,[])
+            assert any(x['type']==2 for x in items)
+            assert all(x['channel_id']==2538 and x['model_provider_id']==2084 for x in items)
+            assert any((x.get('response_request_id') or x.get('request_id'))==rid and x['state']=='received' for x in results)
+            assert all(json.loads(x['other']).get('status_code')==502 for x in items if x['type']==7)
+            recovered_reviewed.add(rid)
+    if (root/'protocol/auto_recovery_policy.json').exists():
+        for rid in retries:
+            items=by_id.get(rid,[])
+            failures=[x for x in items if x['type']==7]
+            if failures and all((json.loads(x['other']).get('status_code') in [502,503,504,520,521,522,523,524,525,526,530] or (json.loads(x['other']).get('status_code')==500 and json.loads(x['other']).get('error_code')=='do_request_failed')) for x in failures) and any(x['type']==2 for x in items) and all(x['channel_id']==2538 and x['model_provider_id']==2084 for x in items) and any((x.get('response_request_id') or x.get('request_id'))==rid and x['state']=='received' for x in results):
+                recovered_reviewed.add(rid)
+    from boundary_review import verified as boundary_verified
+    if boundary_verified(root,'P4_boundary'):
+        reviewed.add(json.loads((root/'evidence/boundary_review.json').read_text())['request_id'])
+    from length_rejections import review as review_length_rejections
+    reviewed.update(review_length_rejections(root,results,rows))
+    unreviewed=[i for i in retries if i not in reviewed and i not in authorized_cf_ids and i not in recovered_reviewed]
+    missing_cf=[r['id'] for r in results if retry_policy.get('enabled') and is_cf_error(r) and not (associations.get(r['id']) or r.get('request_id') or r.get('response_request_id')) and now-r['end_epoch']>180]
+    from cf_edge_review import review as review_cf_edge
+    edge_review=review_cf_edge(root,results,rows) if retry_policy.get('enabled') else {}
+    unresolved_cf=[ident for ident in missing_cf if ident not in edge_review]
+    confirmed=sum(r['quota'] for r in rows)/1e6
+    prior=json.loads((root/'evidence/prior_reconciliation.json').read_text())['prior_observed_usd']
+    receipt={'utc':utc(),'observed_current_usd':confirmed,'observed_cumulative_usd':confirmed+prior,'result_count':len(results),'receipt_count':len(ids),'matched_receipts':len(ids&found),'missing_receipts':sorted(ids-found),'stale_missing':stale_missing,'route_mismatch':route,'internal_attempt_error_receipts':retries,'rows':rows,'quota_per_usd':1000000,'reservation_policy':'retain all historical and current reservations, including missing IDs'}
+    receipt.update(client_receipt_count=client_receipt_count,associated_failure_receipt_count=len(associations),failure_receipt_associations=associations,internal_failed_attempt_count=sum(r['type']==7 for r in rows),reviewed_internal_error_receipts=sorted(reviewed),unreviewed_internal_error_receipts=unreviewed)
+    from origin import collect
+    receipt.update(reviewed_recovered_gateway_receipts=sorted(recovered_reviewed),user_authorized_cf_error_receipts=sorted(authorized_cf_ids),unmatched_cf_after_180s=missing_cf)
+    receipt.update(unattributed_cf_with_verified_retry=sorted(set(missing_cf)&set(edge_review)),unresolved_cf_after_180s=unresolved_cf)
+    receipt.update(collect(c,rows,results,root))
+    dump(root/'evidence/billing_latest.json',receipt)
+    reasons=[]
+    if confirmed+prior>=490:reasons.append('confirmed cumulative spend >= US$490')
+    if route:reasons.append('route mismatch')
+    if unreviewed:reasons.append('gateway internal failed attempts require review')
+    if unresolved_cf:reasons.append('CF failure receipts unmatched after 180 seconds')
+    if stale_missing:reasons.append('successful receipts missing in billing after 120 seconds')
+    if any(r.get('input_price',0)>1 or r.get('output_price',0)>1 for r in rows):reasons.append('unit price exceeds conservative reservation')
+    dump(root/'evidence/reconciliation_guard.json',{'utc':utc(),'reasons':reasons})
+    if reasons and not (root/'STOP').exists():(root/'STOP').write_text('; '.join(reasons))
+    return {k:v for k,v in receipt.items() if k!='rows'}
+
+if __name__=='__main__':print(json.dumps(reconcile(),ensure_ascii=False))

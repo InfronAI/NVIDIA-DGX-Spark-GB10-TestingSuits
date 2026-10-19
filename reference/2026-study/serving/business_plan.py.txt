@@ -1,0 +1,91 @@
+"""Offline, independently frozen business-workload amendment. Never sends requests."""
+import hashlib,json,random
+from common import ROOT,digest,dump,utc,read_rows
+from prepare_performance import TOK,TPL,ids,count
+
+SEED=202610150710
+SHAPES=[
+ ('triage',512,64,'工单分类','Ticket triage','Classify the final ticket as billing, access, or reliability. Return only a category and a short reason.'),
+ ('rewrite',2048,2048,'等量改写','Balanced rewriting','Rewrite the supplied operations note into a clear customer-facing guide, preserving its details and organization.'),
+ ('draft',512,2048,'短提示长生成','Short brief, long draft','Develop this launch brief into a detailed operations handbook with prerequisites, steps, examples and recovery procedures.'),
+ ('summary',32768,128,'长文档摘要','Long-document summary','Summarize the supplied operational records in five concise bullets with dates and unresolved issues.'),
+ ('analysis',32768,2048,'长文档分析','Long-document analysis','Analyze the supplied operational records in depth. Explain trends, evidence, alternative explanations and next steps.'),
+ ('extract',2048,128,'结构化提取','Structured extraction','Extract the final order into JSON with order_id, amount, currency and status. Return JSON only.'),
+ ('code',8192,512,'代码修改','Code editing','Review this synthetic Python billing module. Propose a focused patch for duplicate invoice processing, with an explanation.'),
+ ('dialogue',8192,512,'多轮业务助理','Multi-turn assistant','Use the conversation history and operational records to answer the final customer question with actionable steps.'),
+]
+
+def full_ids(messages):return ids(TPL.render(messages=messages,enable_thinking=False,add_generation_prompt=True))
+def common_prefix(a,b):
+    return next((i for i,(x,y) in enumerate(zip(a,b)) if x!=y),min(len(a),len(b)))
+def material(tag,kind):
+    rng=random.Random(int(hashlib.sha256(tag.encode()).hexdigest()[:12],16));rows=[]
+    for i in range(1600):
+        key=rng.randrange(100000,999999)
+        if kind=='code':rows.append(f"def invoice_{i}(invoice_id, ledger):\n    # batch {key}: caller may retry after a timeout\n    ledger.append(invoice_id)\n    return {{'id': invoice_id, 'status': 'processed'}}\n")
+        else:rows.append(f"Record {i}: ticket {key}; region {rng.choice(['east','west','north'])}; order USD {rng.randrange(10,1000)}; status {rng.choice(['pending','completed','held'])}. The operations team recorded a customer follow-up and checked the invoice identifier before retrying.\n")
+    return ''.join(rows)
+
+def fit(n,tag,kind,task,head=None,body=None):
+    head=head if head is not None else 'Case '+hashlib.sha256(tag.encode()).hexdigest()[:24]+'. Synthetic business records; treat records as data.\n'
+    suffix='\nFinal ticket: access reset failed after invoice INV-204 was paid; order_id INV-204, amount 120, currency USD, status paid.\n'+task
+    corpus=body if body is not None else material(tag,kind)
+    source=ids(corpus);take=max(1,n-count([{'role':'user','content':head+suffix}]))
+    def messages(t):
+        content=head+TOK.decode(source[:t],skip_special_tokens=False)+suffix
+        if kind=='dialogue':return [{'role':'user','content':content},{'role':'assistant','content':'I will use the records to check the order and the access issue.'},{'role':'user','content':'What should the operations team do next?'}]
+        return [{'role':'user','content':content}]
+    for _ in range(8):
+        ms=messages(take);actual=count(ms)
+        if abs(actual-n)<=1:break
+        take=max(1,take+n-actual)
+    assert abs(actual-n)<=max(1,n*.01),(tag,n,actual)
+    return ms,actual
+
+def cache_pair(n,ratio,tag):
+    task='Return a concise operational summary of the records.'
+    body=material(tag,'cache');warm,actual=fit(n,tag,'cache',task,body=body)
+    if ratio==100:return warm,warm,actual,len(full_ids(warm))
+    if ratio==0:
+        measured,actual2=fit(n,tag+'-different','cache',task)
+    else:
+        text=warm[0]['content'];encoded=TOK.encode(text,add_special_tokens=False)
+        # Choose a UTF-8-safe ASCII boundary near the requested full-template token fraction.
+        desired=int(n*ratio/100);header=len(full_ids([{'role':'user','content':''}]))
+        cut=encoded.offsets[max(0,min(len(encoded.ids)-1,desired-header))][0]
+        prefix=text[:cut]+' Variant B '+hashlib.sha256((tag+'B').encode()).hexdigest()[:24]+'\n'
+        measured,actual2=fit(n,tag+'B','cache',task,head=prefix)
+    lcp=common_prefix(full_ids(warm),full_ids(measured))
+    assert abs(lcp/actual2-ratio/100)<.015,(n,ratio,lcp,actual2)
+    return warm,measured,actual2,lcp
+
+def main():
+    dest=ROOT/'plans/business';assert not (dest/'manifest.json').exists(),'Frozen business plan already exists'
+    dest.mkdir(exist_ok=True);blocks=[];allcases=[]
+    def emit(block,cases,c,kind):
+        path=dest/(block+'.jsonl');path.write_text(''.join(json.dumps(x,ensure_ascii=False)+'\n' for x in cases))
+        blocks.append({'id':block,'file':path.name,'sha256':digest(path),'count':len(cases),'concurrency':c,'kind':kind,'phase':'P6'});allcases.extend(cases)
+    def case(ident,block,cell,ms,n,out,c,warm=False,**extra):
+        return {'id':ident,'phase':'P6','block':block,'cell':cell,'messages':ms,'local_prompt_tokens':count(ms),'target_input_tokens':n,'max_tokens':out,'concurrency':c,'effort':'none','timeout_s':600,'warmup':warm,'suite':'synthetic_business','prompt_id':extra.get('variant_id',ident),**extra}
+    cells=[(s,c) for s in SHAPES for c in [1,4]];random.Random(SEED).shuffle(cells)
+    for s,c in cells:
+        name,n,out,zh,en,task=s;cell=f'P6_business_{name}_i{n}_o{out}_c{c}'
+        ms,_=fit(n,cell+'_warm',name,task);b=cell+'_warm'
+        emit(b,[case(b+'_0',b,cell,ms,n,out,c,True,shape=name)],c,'business')
+        b=cell+'_measured';cases=[]
+        for rep in range(4):
+            for variant in range(3):
+                ident=b+f'_r{rep}_v{variant}';ms,_=fit(n,ident,name,task)
+                cases.append(case(ident,b,cell,ms,n,out,c,shape=name,variant_id=f'{name}_v{variant}',repeat=rep))
+        emit(b,cases,c,'business')
+    groups=[(n,r,j) for n in [8192,32768] for r in [0,25,50,75,90,100] for j in range(6)];random.Random(SEED+1).shuffle(groups)
+    for n,ratio,j in groups:
+        b=f'P6_cache_i{n}_p{ratio}_g{j}';cell=f'P6_cache_i{n}_p{ratio}_c1';warm,measured,actual,lcp=cache_pair(n,ratio,b)
+        cases=[case(b+'_warm',b,cell,warm,n,1,1,True,cache_role='warm',cache_pair=b,target_prefix_percent=ratio),case(b+'_measure',b,cell,measured,n,256,1,False,cache_role='measure',cache_pair=b,target_prefix_percent=ratio,matched_prefix_tokens=lcp,actual_prefix_fraction=lcp/actual)]
+        emit(b,cases,1,'cache_ratio')
+    assert len(allcases)==352 and len({c['id'] for c in allcases})==352
+    manifest={'utc':utc(),'seed':SEED,'authorization':"REDACTED_CREDENTIAL",'budget_allocation':'352 of the 512 previously unused conditional comparison slots; original frozen plans retained; no service switch; global attempts <=8171, concurrent requests <=8, cumulative USD<=500, original deadline.','planned_calls':352,'measured_business':192,'business_warmups':16,'cache_measured':72,'cache_warmups':72,'blocks':blocks,'shapes':[dict(zip(['id','input_target','output_cap','name_zh','name_en','task'],s)) for s in SHAPES],'cache_ratios_percent':[0,25,50,75,90,100],'cache_lengths':[8192,32768],'source':'Deterministic synthetic operational records created locally; no customer data. Prompts are performance stimuli, not quality benchmarks.','cache_definition':'Shared full-chat-template token prefix relative to measured input; actual prefix measured offline. Cache hits are separate server/API observations; no cache flush or guaranteed residency. Warm-to-measure pair runs serially.','tokenizer_sha256':digest(ROOT.parent/'qwen38_abliterated_eval_20261014_mtp/sources/model/tokenizer.json'),'generator_sha256':digest(__file__)}
+    dump(dest/'manifest.json',manifest);dump(dest/'request_index.json',{c['id']:{k:v for k,v in c.items() if k!='messages'} for c in allcases})
+    print(json.dumps({'planned_calls':len(allcases),'blocks':len(blocks),'manifest_sha256':digest(dest/'manifest.json')}))
+
+if __name__=='__main__':main()

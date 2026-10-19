@@ -1,0 +1,50 @@
+"""Read-only analysis of the archived partial single-node hardware batch."""
+import collections
+import csv
+import json
+from common import ROOT, dump, utc
+
+KINDS = [('gemm','矩阵乘法','GEMM'),('copy','内存复制','Memory copy'),('triad','三元内存运算','Memory triad'),('sum','归约求和','Reduction sum'),('softmax','Softmax','Softmax'),('rmsnorm','RMSNorm','RMSNorm'),('attention','注意力算子','Attention'),('graph_add','普通／图回放加法','Ordinary/graph add')]
+
+def records():
+    rows=[]
+    for node in [0,1]:
+        path=ROOT/f'runs/gpu_system/raw/interrupted_single/node{node}/measurements.jsonl'
+        if path.exists():
+            rows += [dict(json.loads(line),node_index=node,source_path=str(path)) for line in path.read_text().splitlines() if line.strip()]
+    return rows
+
+def prepare():
+    from plots import plt, save
+    rows=records(); measured=[x for x in rows if x.get('state')=='measured' and x.get('validation',{}).get('passed')]
+    columns=['node_index','kind','condition_id','round','precision','shape','elements','working_set_bytes','stride','mean_device_interval_us','effective_tflops','effective_gb_s','source_path']
+    with (ROOT/'reports/hardware-partial-measurements.csv').open('w') as f:
+        writer=csv.DictWriter(f,fieldnames=columns,extrasaction='ignore');writer.writeheader();writer.writerows(measured)
+    dump(ROOT/'reports/hardware_partial.json',{'utc':utc(),'measured':len(measured),'per_node':{str(i):dict(collections.Counter(x.get('state',x['kind']) for x in rows if x['node_index']==i)) for i in [0,1]},'limitation':'Partial first round, no confidence interval or peak claim','measurements':measured})
+    for lang in ['zh','en']:
+        fig,ax=plt.subplots(figsize=(9,4));positions=list(range(len(KINDS)))
+        for node,color,offset in [(0,'#004AB9',-.19),(1,'#70A6FF',.19)]:
+            counts=[sum(x['node_index']==node and x['kind']==k[0] for x in measured) for k in KINDS]
+            bars=ax.barh([x+offset for x in positions],counts,height=.35,color=color,label=('节点' if lang=='zh' else 'Node ')+str(node))
+            ax.bar_label(bars,padding=3,fontsize=8)
+        ax.set_yticks(positions,[x[1 if lang=='zh' else 2] for x in KINDS]);ax.invert_yaxis();ax.legend();ax.set_xlim(0,22)
+        ax.set_xlabel('通过数值校验的条件×轮次记录数' if lang=='zh' else 'Numerically validated condition-round records')
+        ax.set_title('单节点首轮部分覆盖；计划每节点1,070条' if lang=='zh' else 'Partial first round; 1,070 records planned per node')
+        save(fig,'hardware_partial',lang)
+
+def text(lang):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    rows=records()
+    if not rows:return ''
+    summary=[]
+    for node in [0,1]:
+        rr=[r for r in rows if r['node_index']==node];counts=collections.Counter(r.get('state',r['kind']) for r in rr)
+        summary.append([str(node),1070,counts['measured'],counts['skipped_memory_guard'],counts['condition_failed']])
+    out=T('**单节点首轮部分结果。** 两节点均完成5分钟预热及数值校验，共保留49条通过校验的正式计时记录。扫描在首轮中断，尚未完成每条件10轮；这些结果不能用于置信区间、稳定峰值或设备排名。','**Partial first-round results.** Both nodes completed five-minute warmup and numerical checks, yielding49 validated formal timing records. Scanning stopped within round one, before ten repeats per condition; these observations do not support confidence intervals, stable peaks or device rankings.')
+    out+=table([T('节点','Node'),T('计划记录','Planned records'),T('校验通过','Validated'),T('内存保护跳过','Memory-guard skips'),T('条件失败','Failed conditions')],summary)
+    out+='\n\n<!--HARDWARE_PARTIAL-->\n\n'+T('覆盖图｜记录数表示条件与轮次的组合，不代表独立设备样本；跳过和失败不进入性能统计。','Coverage | Counts represent condition-round combinations, not independent devices; skips and failures do not enter performance statistics.')
+    out+='\n\n'+T('[逐条计时数据与原始路径](hardware-partial-measurements.csv)。计时为重复库调用的CUDA事件区间，包含主机提交间隙；不可视为纯内核时间。模型驻留及保护余量限制了可执行工作集，硬件缓存、CPU竞争和长期稳定性仍缺测量。','[Per-record timing and raw paths](hardware-partial-measurements.csv). Timing covers repeated library calls within CUDA events, including host-submission gaps; it is not pure kernel time. Resident models and reserved headroom constrain working sets. Hardware caches, CPU contention and long-term stability remain unmeasured.')
+    return out
+
+if __name__=='__main__':prepare()

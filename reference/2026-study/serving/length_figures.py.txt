@@ -1,0 +1,26 @@
+"""Feasibility is design; output attainment uses only saved source counts."""
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+from matplotlib.patches import Patch
+
+def draw(d,lang,save,empty):
+ T=lambda z,e:z if lang=='zh' else e
+ tiers=[1024*2**k for k in range(9)];a=np.zeros((9,9))
+ for x in d['matrix']:a[tiers.index(x['output_cap']),tiers.index(x['input_tokens'])]={'eligible':0,'boundary_only':1,'over_context':2}[x['status']]
+ fig,ax=plt.subplots(figsize=(10,4.8));ax.imshow(a,origin='lower',cmap=ListedColormap(['#E5EDF9','#A1B0C4','#454B54']),vmin=0,vmax=2,aspect='auto')
+ for x in d['matrix']:
+  ix=tiers.index(x['input_tokens']);iy=tiers.index(x['output_cap'])
+  if x['selected']:ax.plot(ix,iy,'o',color='#004AB9',markersize=8)
+  if x['status']=='over_context':ax.text(ix,iy,'×',ha='center',va='center',color='white',fontsize=15)
+  if x['status']=='boundary_only':ax.text(ix,iy,'!',ha='center',va='center',color='white',fontsize=13)
+ ax.set_xticks(range(9),[f'{n//1024}K' for n in tiers]);ax.set_yticks(range(9),[f'{n//1024}K' for n in tiers]);ax.set_xlabel(T('完整输入目标','Full input target'));ax.set_ylabel(T('请求输出上限','Requested output cap'));ax.set_xticks(np.arange(-.5,9,1),minor=True);ax.set_yticks(np.arange(-.5,9,1),minor=True);ax.grid(False);ax.grid(which='minor',color='white',linewidth=2)
+ ax.set_title(T('输入＋输出 ≤ 262,144；常规设计预留 1K','Input + output ≤ 262,144; normal design retains 1K'),fontsize=11)
+ ax.legend(handles=[Patch(facecolor='#E5EDF9',label=T('长度可行：63格','Length eligible: 63')),Patch(facecolor='#A1B0C4',label=T('零余量：1格','No margin: 1')),Patch(facecolor='#454B54',label=T('超出上下文：17格','Over context: 17')),plt.Line2D([],[],marker='o',color='#004AB9',linestyle='',label=T('本轮选定：21格','Selected: 21'))],loc='upper center',bbox_to_anchor=(.5,-.15),ncol=2,fontsize=8,frameon=False)
+ save(fig,'length_domain',lang)
+ fig,ax=plt.subplots(figsize=(9,3.9));rs=[r for r in d['rows'] if r['family'] in ['output_axis','near_limit'] and r['input_target']==1024 and r['actual_output'] is not None and r['complete']]
+ if not rs:empty(ax,T('等待长输出源站计数\n设计上限不作为实际生成量','Awaiting upstream long-output counts\nRequested caps are not realized generation'))
+ else:
+  for r in rs:ax.scatter(r['output_cap']/1024,r['output_attainment']*100,color='#004AB9' if r['output_attained'] else '#A1B0C4',marker='o' if r['output_attained'] else 'x',s=38)
+  ax.axhline(98,color='#454B54',linestyle='--',label=T('实际达成下界 98%','Attainment floor 98%'));ax.axhline(100,color='#70A6FF',linestyle=':',label=T('请求上限 100%','Requested cap 100%'));ax.set_xscale('log',base=2);ax.set_xticks([2,4,8,16,32,64,128,254],[str(x)+'K' for x in [2,4,8,16,32,64,128,254]]);ax.set_xlabel(T('输出上限；每点一次完整响应','Output cap; each point is one complete response'));ax.set_ylabel(T('实际输出／上限（%）','Actual output / cap (%)'));ax.legend(fontsize=8)
+ save(fig,'length_attainment',lang)

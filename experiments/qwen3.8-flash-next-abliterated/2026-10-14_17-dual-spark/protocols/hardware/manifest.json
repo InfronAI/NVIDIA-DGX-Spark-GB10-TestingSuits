@@ -1,0 +1,934 @@
+{
+  "single_conditions": [
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        1024,
+        1024,
+        1024
+      ],
+      "condition_id": "04204b573b36c0f0"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "condition_id": "9da12184ef25af1d"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        4096,
+        4096,
+        4096
+      ],
+      "condition_id": "17659497e1db0bd9"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        8192,
+        8192,
+        8192
+      ],
+      "condition_id": "d3911843e9ec2690"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        1,
+        4096,
+        4096
+      ],
+      "condition_id": "7cdfc585a114f7f2"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        1,
+        8192,
+        8192
+      ],
+      "condition_id": "0c4642a92b2c73e7"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        8,
+        4096,
+        4096
+      ],
+      "condition_id": "4b817d940bac67b1"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        8,
+        8192,
+        8192
+      ],
+      "condition_id": "dade161c4f5c710d"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        32,
+        4096,
+        4096
+      ],
+      "condition_id": "0e9558df7dbad140"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        32,
+        8192,
+        8192
+      ],
+      "condition_id": "30c02337cfc1acbb"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        128,
+        4096,
+        4096
+      ],
+      "condition_id": "0f909412e8b92fcf"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        128,
+        8192,
+        8192
+      ],
+      "condition_id": "ec4eadacd65f63e7"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        512,
+        4096,
+        4096
+      ],
+      "condition_id": "22938b99e3491b41"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp32",
+      "shape": [
+        512,
+        8192,
+        8192
+      ],
+      "condition_id": "be3e50162d70fc8e"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        1024,
+        1024,
+        1024
+      ],
+      "condition_id": "b431d2840d8f6243"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "condition_id": "62fd57b58850add9"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        4096,
+        4096,
+        4096
+      ],
+      "condition_id": "eb4ee8c67c86684d"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        8192,
+        8192,
+        8192
+      ],
+      "condition_id": "0c09ad1c729e39df"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        1,
+        4096,
+        4096
+      ],
+      "condition_id": "e7185663bd693275"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        1,
+        8192,
+        8192
+      ],
+      "condition_id": "6d645e51075da062"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        8,
+        4096,
+        4096
+      ],
+      "condition_id": "101489a875629c09"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        8,
+        8192,
+        8192
+      ],
+      "condition_id": "b62e1b9d7f9aade5"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        32,
+        4096,
+        4096
+      ],
+      "condition_id": "71196547ad1c85cb"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        32,
+        8192,
+        8192
+      ],
+      "condition_id": "4ee4c701b62c1c88"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        128,
+        4096,
+        4096
+      ],
+      "condition_id": "4de1e5b5a0e320c2"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        128,
+        8192,
+        8192
+      ],
+      "condition_id": "c71af48144900404"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        512,
+        4096,
+        4096
+      ],
+      "condition_id": "d2a8f69d834b062a"
+    },
+    {
+      "kind": "gemm",
+      "precision": "tf32_allowed",
+      "shape": [
+        512,
+        8192,
+        8192
+      ],
+      "condition_id": "038dab23d0c49cee"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        1024,
+        1024,
+        1024
+      ],
+      "condition_id": "5e26b40051d80d73"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "condition_id": "ea187d64f81f6a7d"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        4096,
+        4096,
+        4096
+      ],
+      "condition_id": "3f3dd490d99f23c2"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        8192,
+        8192,
+        8192
+      ],
+      "condition_id": "7efd6127e73ce4e7"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        1,
+        4096,
+        4096
+      ],
+      "condition_id": "2baa1ccf6e83b589"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        1,
+        8192,
+        8192
+      ],
+      "condition_id": "806b7f32663f9231"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        8,
+        4096,
+        4096
+      ],
+      "condition_id": "ad123c2848fde6df"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        8,
+        8192,
+        8192
+      ],
+      "condition_id": "20e0bc207caea470"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        32,
+        4096,
+        4096
+      ],
+      "condition_id": "3bddd20ada8e13ab"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        32,
+        8192,
+        8192
+      ],
+      "condition_id": "acc597d00ce57028"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        128,
+        4096,
+        4096
+      ],
+      "condition_id": "e593561d1fcdf933"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        128,
+        8192,
+        8192
+      ],
+      "condition_id": "4bbc13c714ee34ad"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        512,
+        4096,
+        4096
+      ],
+      "condition_id": "4a1805a90a1cf7e1"
+    },
+    {
+      "kind": "gemm",
+      "precision": "fp16",
+      "shape": [
+        512,
+        8192,
+        8192
+      ],
+      "condition_id": "26e9a1e252bd3deb"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        1024,
+        1024,
+        1024
+      ],
+      "condition_id": "cc6f89992f5e0cab"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        2048,
+        2048,
+        2048
+      ],
+      "condition_id": "6177c99629dad01b"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        4096,
+        4096,
+        4096
+      ],
+      "condition_id": "d76fdf4e02d424fc"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        8192,
+        8192,
+        8192
+      ],
+      "condition_id": "83e0c1bea0a335b9"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        1,
+        4096,
+        4096
+      ],
+      "condition_id": "c03997b8dcf34e7b"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        1,
+        8192,
+        8192
+      ],
+      "condition_id": "044e98aa50c7e20f"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        8,
+        4096,
+        4096
+      ],
+      "condition_id": "1d2dc45a1793b6f5"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        8,
+        8192,
+        8192
+      ],
+      "condition_id": "9c5e96b4fc61e017"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        32,
+        4096,
+        4096
+      ],
+      "condition_id": "40b7e3a3a73c2986"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        32,
+        8192,
+        8192
+      ],
+      "condition_id": "873e2f589eb24f09"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        128,
+        4096,
+        4096
+      ],
+      "condition_id": "c270dc3ede54f2bc"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        128,
+        8192,
+        8192
+      ],
+      "condition_id": "82b57300be057565"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        512,
+        4096,
+        4096
+      ],
+      "condition_id": "80f20752cde41c15"
+    },
+    {
+      "kind": "gemm",
+      "precision": "bf16",
+      "shape": [
+        512,
+        8192,
+        8192
+      ],
+      "condition_id": "2d20304d80c4fea4"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 268435456,
+      "stride": 1,
+      "condition_id": "2e3c289537d3250a"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 268435456,
+      "stride": 2,
+      "condition_id": "2984c150f103ff42"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 268435456,
+      "stride": 1,
+      "condition_id": "b88364136d468b56"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 268435456,
+      "stride": 2,
+      "condition_id": "2af23b30296e4355"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 1073741824,
+      "stride": 1,
+      "condition_id": "219050b7cd067a20"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 1073741824,
+      "stride": 2,
+      "condition_id": "2e904100ab3f3eea"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 1073741824,
+      "stride": 1,
+      "condition_id": "5c861e4fe4a9d34f"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 1073741824,
+      "stride": 2,
+      "condition_id": "d078bfd64f23a5bf"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 4294967296,
+      "stride": 1,
+      "condition_id": "0ece3fb0870cf877"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 4294967296,
+      "stride": 2,
+      "condition_id": "35aabc479b47936b"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 4294967296,
+      "stride": 1,
+      "condition_id": "5857bdc5b87d8ce3"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 4294967296,
+      "stride": 2,
+      "condition_id": "cb39e32b9b36788c"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 8589934592,
+      "stride": 1,
+      "condition_id": "fe5a990f5818eec5"
+    },
+    {
+      "kind": "copy",
+      "working_set_bytes": 8589934592,
+      "stride": 2,
+      "condition_id": "bee1b0fe691a9d99"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 8589934592,
+      "stride": 1,
+      "condition_id": "d17217751c645d32"
+    },
+    {
+      "kind": "triad",
+      "working_set_bytes": 8589934592,
+      "stride": 2,
+      "condition_id": "465e9bcc1d448afc"
+    },
+    {
+      "kind": "sum",
+      "elements": 1024,
+      "condition_id": "5e4795a442fce587"
+    },
+    {
+      "kind": "softmax",
+      "elements": 1024,
+      "condition_id": "831a78e1b695b59f"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 1024,
+      "condition_id": "3503dd23b114862e"
+    },
+    {
+      "kind": "sum",
+      "elements": 2048,
+      "condition_id": "e89aec843405ff92"
+    },
+    {
+      "kind": "softmax",
+      "elements": 2048,
+      "condition_id": "6881d01f71a29ee5"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 2048,
+      "condition_id": "0c607030e1e7a055"
+    },
+    {
+      "kind": "sum",
+      "elements": 4096,
+      "condition_id": "c96ddc646ca555e2"
+    },
+    {
+      "kind": "softmax",
+      "elements": 4096,
+      "condition_id": "64ff13ec19af5728"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 4096,
+      "condition_id": "396da321dadec413"
+    },
+    {
+      "kind": "sum",
+      "elements": 8192,
+      "condition_id": "00ef49fb52d2a76b"
+    },
+    {
+      "kind": "softmax",
+      "elements": 8192,
+      "condition_id": "cd42905dc67a3aeb"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 8192,
+      "condition_id": "19eaa6d19b9824ff"
+    },
+    {
+      "kind": "sum",
+      "elements": 16384,
+      "condition_id": "dad68c7db5cac54d"
+    },
+    {
+      "kind": "softmax",
+      "elements": 16384,
+      "condition_id": "9cdecc5617ea968f"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 16384,
+      "condition_id": "e20fea0c425fff45"
+    },
+    {
+      "kind": "sum",
+      "elements": 32768,
+      "condition_id": "fced1a31ff391e3e"
+    },
+    {
+      "kind": "softmax",
+      "elements": 32768,
+      "condition_id": "361b6ca242d20efc"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 32768,
+      "condition_id": "39f4193d56b2b809"
+    },
+    {
+      "kind": "sum",
+      "elements": 65536,
+      "condition_id": "6799f8cf58e56261"
+    },
+    {
+      "kind": "softmax",
+      "elements": 65536,
+      "condition_id": "6b560f05a5ea47d7"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 65536,
+      "condition_id": "24c319657f9c9f17"
+    },
+    {
+      "kind": "sum",
+      "elements": 131072,
+      "condition_id": "4259eca3b6516bd1"
+    },
+    {
+      "kind": "softmax",
+      "elements": 131072,
+      "condition_id": "edd439de5654ae51"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 131072,
+      "condition_id": "ac74d3d6218a3e7c"
+    },
+    {
+      "kind": "sum",
+      "elements": 262144,
+      "condition_id": "1a79549aec1f397c"
+    },
+    {
+      "kind": "softmax",
+      "elements": 262144,
+      "condition_id": "7a7eda1e2726b9b2"
+    },
+    {
+      "kind": "rmsnorm",
+      "elements": 262144,
+      "condition_id": "65fc62ce903a3bcb"
+    },
+    {
+      "kind": "attention",
+      "query_length": 128,
+      "kv_length": 128,
+      "condition_id": "a230fe6759378ce5"
+    },
+    {
+      "kind": "attention",
+      "query_length": 1024,
+      "kv_length": 1024,
+      "condition_id": "34d35c73ba25c295"
+    },
+    {
+      "kind": "attention",
+      "query_length": 8192,
+      "kv_length": 8192,
+      "condition_id": "3968711623afb662"
+    },
+    {
+      "kind": "attention",
+      "query_length": 1,
+      "kv_length": 1024,
+      "condition_id": "35f3fb61ac6042bf"
+    },
+    {
+      "kind": "attention",
+      "query_length": 1,
+      "kv_length": 8192,
+      "condition_id": "e716f353355d2aee"
+    },
+    {
+      "kind": "attention",
+      "query_length": 1,
+      "kv_length": 32768,
+      "condition_id": "d085137926b9b7bf"
+    },
+    {
+      "kind": "graph_add",
+      "graph": false,
+      "elements": 1048576,
+      "condition_id": "88b9cddf4f4df919"
+    },
+    {
+      "kind": "graph_add",
+      "graph": true,
+      "elements": 1048576,
+      "condition_id": "b820595e01206ae2"
+    }
+  ],
+  "rounds": 10,
+  "minimum_cuda_interval_s": 1,
+  "communication": {
+    "sizes_bytes": [
+      8,
+      16,
+      32,
+      64,
+      128,
+      256,
+      512,
+      1024,
+      2048,
+      4096,
+      8192,
+      16384,
+      32768,
+      65536,
+      131072,
+      262144,
+      524288,
+      1048576,
+      2097152,
+      4194304,
+      8388608,
+      16777216,
+      33554432,
+      67108864,
+      134217728,
+      268435456,
+      536870912,
+      1073741824
+    ],
+    "operations": [
+      "all_reduce_sum",
+      "all_gather",
+      "reduce_scatter_sum"
+    ],
+    "ranks": 2,
+    "dtype": "float32",
+    "separate_input_output_buffers": true,
+    "native_nccl": true,
+    "control_socket": "192.0.2.10:18571",
+    "transport_from_logs": true
+  },
+  "soak_seconds": {
+    "compute": 3600,
+    "bandwidth": 3600,
+    "mixed": 7200
+  },
+  "warmup_seconds": {
+    "minimum": 300,
+    "maximum": 900
+  },
+  "guards": {
+    "lease_seconds": 90,
+    "telemetry_max_age_seconds": 15,
+    "temperature_stop_c": 85,
+    "hold_existing_runner_locks": true,
+    "require_serving_complete_and_no_unknown_sends": true
+  },
+  "authorization": {
+    "authorized_utc": "2026-10-16T06:35:29.649279+00:00",
+    "user_instruction": "继续完善方案中未完成的部分，把报告补充完整",
+    "scope": "Complete remaining hardware/system measurements in the existing plan; serving and engine arms remain closed",
+    "deadline_epoch": 1792172129.649279,
+    "deadline_cst": "2026-10-17T01:35:29.649279+08:00",
+    "window_policy": "Finite maximum 11-hour hardware window chosen within the existing plan estimate; no automatic extension",
+    "max_inference_concurrency": 8,
+    "cumulative_api_budget_usd": 500,
+    "new_api_calls": 0,
+    "service_policy": "Keep model resident and settings unchanged; skip memory-infeasible conditions with evidence",
+    "phases": [
+      "single",
+      "communication",
+      "extensions",
+      "soak"
+    ],
+    "prior_evidence": "Historical interrupted records remain separate from fresh confirmation repeats"
+  },
+  "scope": "New hardware confirmation segment; historical partial samples excluded from new round denominators",
+  "extensions_state": "awaiting_preflight_and_frozen_manifest",
+  "source_sha256": {
+    "gpu_system_bench.py": "db97c134b028873e90a8b288e747460e5f2078704112c6941c29d8675ac27298",
+    "gpu_system_observer.py": "18653be3f04c1dca29ad0a29b641ff26254ff39ccde44e3370cfacffd8d19adf",
+    "gpu_system_guard.py": "683d3f034b818a018c7b9e671fc2f5684bb3679552abd0148847fe95c6455b78",
+    "gpu_system_collectives.py": "5a569685d1010cdccfdbb56c6e4bef57b56a25e56093dd3868309b17511b65ff",
+    "gpu_system_preflight.py": "25f262a164d7bffafaff0d6b66a2558e0c275555a73e4b4a9d18b21e4060d29c",
+    "gpu_system_remote.py": "691afed66e60d3b0e7fb01c28ec8cd60ea4514a8aeb83e7618654e150b1629f3",
+    "gpu_system_control.py": "3f548fcaa8d318d079988f18727ff9dd73d43726642dbef6b7829dfe7a3a3bbe"
+  }
+}

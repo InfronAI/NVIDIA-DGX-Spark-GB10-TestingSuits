@@ -1,0 +1,58 @@
+"""Reader-facing names for experimental conditions; raw identifiers stay in evidence."""
+import re
+
+PHASES = {
+    'P0': ('接口与测量校准', 'Interface and measurement calibration'),
+    'P1': ('自然负载与并发扩展', 'Natural workloads and concurrency scaling'),
+    'P2': ('输入／输出长度矩阵', 'Input/output length matrix'),
+    'P3': ('思考预算配对', 'Paired reasoning budgets'),
+    'P4': ('长上下文与边界', 'Long context and boundaries'),
+    'P5': ('前缀缓存', 'Prefix caching'),
+    'P6': ('业务形态与缓存比例扩展', 'Business shapes and cache-ratio amendment'),
+    'P7': ('开放到达与混合负载', 'Open arrivals and mixed workloads'),
+    'P8': ('长度扩展与持续运行', 'Length expansion and sustained operation'),
+}
+
+def phase_name(code, lang):
+    return PHASES[code][0 if lang == 'zh' else 1]
+
+def condition_name(code, lang, include_phase=True):
+    T = lambda z, e: z if lang == 'zh' else e
+    phase = re.match(r'P[0-8]', code)
+    parts = [phase_name(phase[0], lang)] if phase and include_phase else []
+    for pattern, zh, en in [
+        (r'_i(\d+)', '目标输入 {} token', 'Target input {} tokens'),
+        (r'_o(\d+)', '输出上限 {} token', 'Output cap {} tokens'),
+        (r'_h(\d+)', '历史文本 {} token', 'History text {} tokens'),
+        (r'_c(\d+)', '并发 {}', 'Concurrency {}'),
+        (r'_r(\d+)', '第 {} 轮', 'Repeat {}'),
+        (r'_g(\d+)', '第 {} 组', 'Group {}'),
+    ]:
+        match = re.search(pattern, code)
+        if match:
+            value = int(match[1]) + (1 if pattern in [r'_r(\d+)', r'_g(\d+)'] else 0)
+            parts.append(T(zh, en).format(f'{value:,}'))
+    if code.endswith('_none'): parts.append(T('关闭思考', 'Reasoning disabled'))
+    if code.endswith('_low'): parts.append(T('低思考预算', 'Low reasoning budget'))
+    rate = re.match(r'P7a_rate([0-4])', code)
+    if rate: parts.append(T('参考速率的 {} 倍', '{} times reference rate').format([.25,.5,.75,1,1.25][int(rate[1])]))
+    pair = re.match(r'P7b_pair(\d+)_(isolated|mixed)', code)
+    if pair:
+        parts.append(T('第 {} 对', 'Pair {}').format(int(pair[1])+1))
+        parts.append(T('仅短请求','Short requests only') if pair[2]=='isolated' else T('长短混合','Mixed short and long requests'))
+    if code.startswith('P8_soak'): parts.append(T('合格速率的60%','60% of qualifying rate'))
+    prefix = re.search(r'_p(\d+)',code)
+    if prefix: parts.append(T('目标共享前缀 {}%', 'Target shared prefix {}%').format(prefix[1]))
+    shapes={'triage':('工单分类','Ticket triage'),'rewrite':('等量改写','Balanced rewriting'),'draft':('短提示长生成','Short brief, long draft'),'summary':('长文档摘要','Long-document summary'),'analysis':('长文档分析','Long-document analysis'),'extract':('结构化提取','Structured extraction'),'code':('代码修改','Code editing'),'dialogue':('多轮业务助理','Multi-turn assistant')}
+    for shape, names in shapes.items():
+        if '_business_'+shape+'_' in code:parts.insert(0,T(*names))
+    for key, z, e in [('reference', '参考长度组合', 'Reference length combination'), ('general', '通用长度组合', 'General length combination'), ('long_decode', '长输入后生成', 'Generation after long input'), ('prefill', '输入预填充探针', 'Input prefill probe'), ('boundary', '上下文边界探针', 'Context boundary probe')]:
+        if key in code: parts.append(T(z, e))
+    step = re.search(r'_s([012])$', code)
+    if step: parts.append(T(*[('首次前缀', 'First prefix'), ('重复前缀', 'Repeated prefix'), ('追加文本', 'Appended text')][int(step[1])]))
+    if 'warm' in code: parts.append(T('预热', 'Warmup'))
+    return ' · '.join(parts) or T('测试条件详见逐请求数据', 'See per-request condition details')
+
+def metric_name(key, lang):
+    names = {'first_generated_s': ('首个生成片段延迟', 'First generated-fragment latency'), 'first_visible_s': ('正文首字延迟', 'First visible-content latency'), 'e2e_s': ('端到端延迟', 'End-to-end latency')}
+    return names[key][0 if lang == 'zh' else 1]

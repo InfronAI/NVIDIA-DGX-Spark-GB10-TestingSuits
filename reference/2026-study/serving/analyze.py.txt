@@ -1,0 +1,184 @@
+"""Read-only performance analysis; never imports or invokes a model client."""
+import collections
+import csv
+import datetime as dt
+import json
+import math
+import re
+from pathlib import Path
+import numpy as np
+from common import ROOT, PHASE_LIMITS, dump, utc
+from metrics import describe, quantile, prometheus, value, delta, histogram, cluster_mean_ci, block_rate_ci
+
+def load(path,default=None):return json.loads(path.read_text()) if path.exists() else default
+def lines(path):
+    if not path.exists():return
+    with path.open() as f:
+        for l in f:
+            try:yield json.loads(l)
+            except ValueError:pass # last line may still be in flight; never count it as a full sample
+def epoch(s):return dt.datetime.fromisoformat(s).timestamp()
+def os_kv(s):
+    out={}
+    for l in s.splitlines():
+        b=l.replace(':','').split()
+        if len(b)>1:
+            try:out[b[0]]=int(b[1])
+            except ValueError:pass
+    return out
+def psi(s):
+    line=next((l for l in s.splitlines() if l.startswith('some ')),'')
+    m=re.search(r'avg10=([0-9.]+)',line);return float(m[1]) if m else None
+
+def block_summary(b,by_id):
+    rs=[by_id[i] for i in b.get('request_ids',[]) if i in by_id]
+    window=b.get('end_epoch',0)-b.get('start_epoch',0)
+    counts=[(r.get('usage') or {}).get('completion_tokens') for r in rs]
+    output=sum(counts) if counts and all(x is not None for x in counts) else None
+    return {k:v for k,v in b.items() if k!='request_ids'}|{'result_count':len(rs),'window_s':window,'output_tokens':output,'output_tokens_s':output/window if window>0 and output is not None else None,'warmup':all(r.get('warmup') for r in rs) if rs else False,'phase':rs[0]['phase'] if rs else b['id'].split('_')[0],'cell':rs[0].get('cell') if rs else None,'received':sum(r['state']=='received' for r in rs)}
+
+def group_summary(key,rs,blocks):
+    ok=[r for r in rs if r['state']=='received'];duration=sum(b['window_s'] for b in blocks)
+    complete_ids={i for b in blocks for i in b.get('_request_ids',[])}
+    counted=[r for r in ok if r['id'] in complete_ids]
+    counts=[(r.get('usage') or {}).get('completion_tokens') for r in counted]
+    out=sum(counts) if counts and all(x is not None for x in counts) else None
+    get=lambda field:[r['timing'].get(field) for r in ok]
+    return {'key':key,'n':len(rs),'complete':len(ok),'failed':len(rs)-len(ok),'integrity_flagged':sum(bool(r.get('integrity_flags')) for r in ok),'truncated':sum(r.get('truncated',False) for r in ok),'unique_prompts':len({r.get('prompt_id') for r in rs if r.get('prompt_id')}),'completed_blocks':len(blocks),'window_s':duration,'block_output_tokens_s':out/duration if duration and out is not None else None,'throughput_ci':block_rate_ci(blocks),'ttft_generated_s':describe(get('first_generated_s')),'ttft_visible_s':describe(get('first_visible_s')),'e2e_s':describe(get('e2e_s')),'tpot_compat_s':describe(get('tpot_compat_s')),'input_tokens':describe([(r.get('usage') or {}).get('prompt_tokens') for r in ok]),'output_tokens':describe([(r.get('usage') or {}).get('completion_tokens') for r in ok]),'ttft_mean_prompt_cluster_ci':cluster_mean_ci(ok,lambda r:r['timing'].get('first_generated_s'),'prompt_id') if any(r.get('prompt_id') for r in ok) else None,'ttft_mean_block_cluster_ci':cluster_mean_ci(ok,lambda r:r['timing'].get('first_generated_s'),'block')}
+
+def summarize_pairs(rows):
+    pairs={};out=[]
+    for r in rows:
+        if r['phase'] not in ['P1','P3'] or r.get('condition_concurrency') not in [1,4] or r['state']!='received':continue
+        rep=re.search(r'_r(\d+)_',r['id']).group(1)
+        pairs.setdefault((r['condition_concurrency'],rep,r['prompt_id']),{})[r['effort']]=r
+    for c in [1,4]:
+        matched=[(k,v) for k,v in pairs.items() if k[0]==c and 'none' in v and 'low' in v]
+        for metric in ['first_generated_s','first_visible_s','e2e_s']:
+            entries=[]
+            for k,p in matched:
+                a=p['none']['timing'].get(metric);b=p['low']['timing'].get(metric)
+                if a is not None and b is not None and a>0:entries.append({'id':str(k),'prompt_id':k[2],'block':k[1],'difference':b-a,'ratio':b/a})
+            out.append({'concurrency':c,'metric':metric,'pairs':len(entries),'difference_s':describe([x['difference'] for x in entries]),'ratio_low_over_none':describe([x['ratio'] for x in entries]),'difference_prompt_cluster_ci':cluster_mean_ci(entries,lambda r:r['difference'],'prompt_id'),'difference_repeat_cluster_ci':cluster_mean_ci(entries,lambda r:r['difference'],'block')})
+    return out
+
+def internal_blocks():
+    rows=[]
+    for f in sorted((ROOT/'runs/boundaries').glob('*.after.json')):
+        ident=f.name.removesuffix('.after.json');before=load(f.with_name(ident+'.before.json'))
+        after=load(f)
+        if not before or 'metrics' not in before or 'metrics' not in after:continue
+        a=prometheus(before['metrics']);b=prometheus(after['metrics'])
+        counters={key:delta(a,b,'sglang:'+key) for key in ['num_requests_total','prompt_tokens_total','generation_tokens_total','cached_tokens_total','spec_verify_calls_total']}
+        gen=counters['generation_tokens_total']['value'];verify=counters['spec_verify_calls_total']['value']
+        rows.append({'id':ident,'window_start_utc':before['collected_utc'],'window_end_utc':after['collected_utc'],'counters':counters,'generated_per_verify':gen/verify if verify and gen is not None else None,'generated_per_verify_note':'Includes completed-request token counts, initial/bonus token conventions; not acceptance rate or speedup','histograms':{n:histogram(a,b,'sglang:'+n) for n in ['time_to_first_token_seconds','e2e_request_latency_seconds','queue_time_seconds','inter_token_latency_seconds']}})
+    return rows
+
+def monitoring():
+    hardware=[];engine=[];previous={};cost=[];last_raw=None
+    for s in lines(ROOT/'monitor/sparkdash.jsonl'):
+        for i,n in enumerate(s.get('nodes',[])):
+            m=n.get('metrics',{});g=m.get('gpu',{});t=g.get('throttle',{})
+            if not g:continue
+            hardware.append({'epoch':s['received_epoch'],'node':i,'temperature_c':g.get('temperature'),'gpu_percent':g.get('usage'),'gpu_power_w':g.get('power',{}).get('draw'),'estimated_system_power_w':g.get('power',{}).get('systemDraw'),'sm_clock_mhz':t.get('smClockMHz'),'thermal_throttle':t.get('thermal'),'hardware_slowdown':t.get('hwSlowdown'),'xid_lifetime':g.get('kernelErrors',{}).get('xid')})
+    for s in lines(ROOT/'monitor/engine-os.jsonl'):
+        t=epoch(s['collected_utc']);m=prometheus(s.get('metrics',''));cost.append(s.get('collection_seconds'))
+        row={'epoch':t,'running':value(m,'sglang:num_running_reqs'),'queue':value(m,'sglang:num_queue_reqs'),'kv_used_tokens':value(m,'sglang:kv_used_tokens'),'kv_available_tokens':value(m,'sglang:kv_available_tokens'),'kv_evictable_tokens':value(m,'sglang:kv_evictable_tokens'),'mamba_used_slots':value(m,'sglang:mamba_used_tokens'),'mamba_available_slots':value(m,'sglang:mamba_available_tokens'),'mamba_evictable_slots':value(m,'sglang:mamba_evictable_tokens'),'mtp_accept_length_gauge':value(m,'sglang:spec_accept_length'),'mtp_accept_rate_gauge':value(m,'sglang:spec_accept_rate')}
+        if last_raw:
+            elapsed=t-last_raw[0]
+            for name in ['generation_tokens_total','spec_verify_calls_total','cached_tokens_total']:
+                d=delta(last_raw[1],m,'sglang:'+name);row[name+'_per_s']=d['value']/elapsed if d['value'] is not None and elapsed>0 else None
+        for i,n in enumerate(s['nodes']):
+            mem=os_kv(n['meminfo']);vm=os_kv(n['vmstat']);item={'mem_available_gib':mem.get('MemAvailable',0)/1048576,'cached_gib':mem.get('Cached',0)/1048576,'swap_used_gib':(mem.get('SwapTotal',0)-mem.get('SwapFree',0))/1048576,'memory_psi_some_avg10':psi(n['psi']['memory']),'io_psi_some_avg10':psi(n['psi']['io']),'oom_kill':vm.get('oom_kill')}
+            if i in previous:
+                pt,pvm=previous[i];elapsed=t-pt
+                for k in ['pswpin','pswpout','pgmajfault']:
+                    d=vm.get(k,0)-pvm.get(k,0);item[k+'_s']=d/elapsed if elapsed>0 and d>=0 else None
+            previous[i]=(t,vm)
+            for k,v in item.items():row[f'node{i}_{k}']=v
+        engine.append(row);last_raw=(t,m)
+    return {'hardware':hardware,'engine':engine,'raw_collection_seconds':describe(cost),'hardware_samples':len(hardware),'engine_samples':len(engine)}
+
+def csv_write(path,rows):
+    if not rows:return
+    names=list(dict.fromkeys(k for r in rows for k in r))
+    with path.open('w',newline='') as f:
+        w=csv.DictWriter(f,fieldnames=names);w.writeheader();w.writerows(rows)
+
+def main():
+    out=ROOT/'reports';out.mkdir(exist_ok=True)
+    rows=[load(f) for f in (ROOT/'runs/requests').glob('*/result.json')];rows.sort(key=lambda x:x['start_epoch'])
+    origin={r['case_id']:r for r in load(ROOT/'evidence/origin_usage.json',{'records':{}})['records'].values()}
+    for r in rows:
+        r['api_usage']=r.get('usage');r['api_timing']=dict(r['timing'])
+        if r['id'] in origin:
+            r['usage']=origin[r['id']]['original_usage'];r['usage_source']='original upstream SSE usage'
+        elif r.get('effort')=='low':
+            r['usage']=None;r['usage_source']='unavailable pending original upstream usage'
+        else:r['usage_source']='API usage; none reasoning, awaiting upstream cross-check'
+        u=r.get('usage') or {};n=u.get('completion_tokens');t=r['timing']
+        t['tpot_compat_s']=(t['e2e_s']-t['first_generated_s'])/(n-1) if n and n>1 and t.get('e2e_s') is not None and 'first_generated_s' in t else None
+        t['decode_tpot_approx_s']=(t['last_generated_s']-t['first_generated_s'])/(n-1) if n and n>1 and r.get('generated_event_count',0)>1 else None
+    by_id={r['id']:r for r in rows}
+    rawblocks=[load(f) for f in (ROOT/'runs/blocks').glob('*.json')]
+    blocks=[]
+    for b in rawblocks:
+        x=block_summary(b,by_id);x['_request_ids']=b.get('request_ids',[]);blocks.append(x)
+    groups=collections.defaultdict(list)
+    for r in rows:
+        if not r.get('warmup') and r['phase']!='P0':groups[r['cell']].append(r)
+    summary=[]
+    for key,rs in sorted(groups.items()):
+        matching=[b for b in blocks if b['cell']==key and not b['warmup'] and b.get('completed')==b.get('planned') and b.get('kind')!='open']
+        summary.append(group_summary(key,rs,matching))
+    suite_groups=collections.defaultdict(list)
+    for r in rows:
+        if r['phase'] in ['P1','P3'] and not r.get('warmup'):suite_groups[(r['cell'],r['suite'])].append(r)
+    suites=[group_summary(cell+' / '+suite,rs,[])|{'cell':cell,'suite':suite} for (cell,suite),rs in sorted(suite_groups.items())]
+    ledger=load(ROOT/'runs/ledger.json',{'entries':{}});phase_counts=[]
+    for phase,cap in PHASE_LIMITS.items():
+        r=[x for x in rows if x['phase']==phase];sent=sum(x['phase']==phase for x in ledger['entries'].values())
+        phase_counts.append({'phase':phase,'cap':cap,'sent':sent,'logical_sent':sum(x['phase']==phase and not x.get('retry_of') for x in ledger['entries'].values()),'retry_attempts':sum(x['phase']==phase and bool(x.get('retry_of')) for x in ledger['entries'].values()),'complete':sum(x['state']=='received' for x in r),'expected_context_rejections':sum(x.get('expected_context_rejection',False) for x in r),'failed':sum(x['state']!='received' and not x.get('expected_context_rejection') for x in r),'pending':sent-len(r),'warmup_sent':sum(x.get('warmup',False) for x in r)})
+    goodput=[]
+    case_index=load(ROOT/'plans/request_index.json',{})
+    for b in rawblocks:
+        if b.get('kind')!='open':continue
+        def included(ident):
+            c=case_index.get((by_id.get(ident) or {}).get('retry_of') or ident,{})
+            return not c.get('warmup') and (not b['id'].startswith('P7b_') or c.get('stream_kind')=='short')
+        rs=[by_id[i] for i in b.get('request_ids',[]) if i in by_id and included(i)]
+        events=[x for x in lines(ROOT/'runs/arrivals'/f'{b["id"]}.jsonl') if included(x['id'])]
+        offered=[x for x in events if x['state']=='offered'];starts=[x['planned_epoch'] for x in offered]
+        window=b['end_epoch']-min(starts) if starts else None
+        for ttft in [1,2,5,10]:
+            for tpot in [.02,.05,.1]:
+                good=[]
+                for r in rs:
+                    v=r['timing'].get('first_visible_s');p=r['timing'].get('tpot_compat_s');s=r.get('schedule') or {}
+                    waiting=r['start_epoch']-s.get('planned_epoch',r['start_epoch'])
+                    if r['state']=='received' and not r.get('integrity_flags') and v is not None and p is not None and v+waiting<=ttft and p<=tpot:good.append(r)
+                rejected=sum(x['state'] in ['queue_full','queue_expired','stopped_before_send','not_sent'] for x in events)
+                goodput.append({'block':b['id'],'population':'short_only' if b['id'].startswith('P7b_') else 'all_measured','ttft_visible_target_s':ttft,'tpot_estimate_target_s':tpot,'qualifying':len(good),'measured_sent':len(rs),'measured_offered':len(offered),'full_offered_including_warmup':b.get('offered'),'window_s':window,'goodput_requests_s':len(good)/window if window else None,'qualifying_per_offered':len(good)/len(offered) if offered else None,'qualifying_per_admitted':len(good)/len(rs) if rs else None,'local_rejections':rejected,'thresholds_are_analytical':True})
+    mon=monitoring();internal=internal_blocks()
+    data={'generated_utc':utc(),'run':load(ROOT/'run.json'),'supervisor':load(ROOT/'runs/supervisor_status.json'),'lifecycle':load(ROOT/'runs/lifecycle.json'),'monitor_status':load(ROOT/'monitor/status.json'),'stop':(ROOT/'STOP').read_text() if (ROOT/'STOP').exists() else None,'phase_counts':phase_counts,'total_sent':len(ledger['entries']),'total_results':len(rows),'total_complete':sum(r['state']=='received' for r in rows),'total_integrity_flagged':sum(bool(r.get('integrity_flags')) for r in rows),'actual_current_usd':load(ROOT/'evidence/billing_latest.json',{}).get('observed_current_usd'),'actual_cumulative_usd':load(ROOT/'evidence/billing_latest.json',{}).get('observed_cumulative_usd'),'billing':{k:v for k,v in load(ROOT/'evidence/billing_latest.json',{}).items() if k!='rows'},'reserved_usd':ledger.get('prior_reserved_usd',0)+sum(x['reserved_usd'] for x in ledger['entries'].values()),'groups':summary,'paired_reasoning':summarize_pairs(rows),'blocks':[{k:v for k,v in b.items() if k!='_request_ids'} for b in blocks],'internal_blocks':internal,'monitoring':mon,'goodput':goodput,'rdma':load(ROOT/'evidence/rdma_summary.json'),'start_epoch':rows[0]['start_epoch'] if rows else None,'last_end_epoch':max((r['end_epoch'] for r in rows),default=None),'reference_rate':load(ROOT/'runs/reference_rate.json'),'soak_selection':load(ROOT/'runs/soak_selection.json')}
+    families=collections.defaultdict(list)
+    for r in rows:families[r.get('retry_of') or r['id']].append(r)
+    for family in families.values():family.sort(key=lambda r:r.get('retry_index',0))
+    data['retry_policy']=load(ROOT/'protocol/cf_retry_policy.json')
+    data['retry_summary']={'logical_requests':len(families),'attempts':len(rows),'retry_attempts':sum(bool(r.get('retry_of')) for r in rows),'first_attempt_complete':sum(rs[0]['state']=='received' for rs in families.values()),'observed_eventual_complete':sum(any(r['state']=='received' for r in rs) for rs in families.values()),'recovered_logical_requests':sum(rs[0]['state']!='received' and any(r['state']=='received' for r in rs) for rs in families.values())}
+    data['logical_outcomes']=[load(p) for p in (ROOT/'runs/logical_outcomes').glob('*.json')]
+    data['by_suite']=suites
+    data['transport_incident']=load(ROOT/'evidence/transport_incident.json')
+    data['usage_audit']=load(ROOT/'evidence/usage_incident_resolution.json')
+    data['origin_usage_covered']=len(origin)
+    data['latency_samples']=[{'phase':r['phase'],'cell':r['cell'],'suite':r['suite'],'epoch':r['start_epoch'],'warmup':r.get('warmup',False),'ttft_generated_s':r['timing'].get('first_generated_s'),'ttft_visible_s':r['timing'].get('first_visible_s'),'e2e_s':r['timing'].get('e2e_s'),'output_tokens':(r.get('usage') or {}).get('completion_tokens'),'state':r['state']} for r in rows]
+    dump(out/'analysis.json',data)
+    detail=[]
+    for r in rows:
+        u=r.get('usage') or {};s=r.get('schedule') or {}
+        detail.append({k:r.get(k) for k in ['id','phase','cell','block','prompt_id','suite','warmup','condition_concurrency','effort','retry_of','retry_index','state','status','finish_reason','truncated','start_epoch','end_epoch','output_cap','local_prompt_tokens']}|{'usage_source':r['usage_source'],'prompt_tokens':u.get('prompt_tokens'),'completion_tokens':u.get('completion_tokens'),'api_completion_tokens':(r.get('api_usage') or {}).get('completion_tokens'),'reasoning_tokens':u.get('reasoning_tokens',(u.get('completion_tokens_details') or {}).get('reasoning_tokens')),'cached_tokens':(u.get('prompt_tokens_details') or {}).get('cached_tokens'),'integrity_flags':';'.join(r.get('integrity_flags',[])),'request_id':r.get('response_request_id') or r.get('request_id'),**r['timing'],'api_tpot_compat_s':r['api_timing'].get('tpot_compat_s'),'client_queue_s':s.get('client_queue_s'),'scheduler_delay_s':s.get('scheduler_delay_s')})
+    csv_write(out/'requests.csv',detail);csv_write(out/'hardware.csv',mon['hardware']);csv_write(out/'engine-os.csv',mon['engine']);csv_write(out/'goodput.csv',goodput)
+    if not goodput:(out/'goodput.csv').write_text('block,ttft_visible_target_s,tpot_estimate_target_s,qualifying,measured_sent,measured_offered,window_s,goodput_requests_s,local_rejections\n')
+    print(json.dumps({'utc':data['generated_utc'],'sent':data['total_sent'],'complete':data['total_complete'],'groups':len(summary),'hardware_samples':mon['hardware_samples']}))
+
+if __name__=='__main__':main()

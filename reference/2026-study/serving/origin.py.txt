@@ -1,0 +1,37 @@
+"""SELECT-only extraction of original upstream usage, separate from charged usage."""
+import json
+import time
+from common import ROOT, dump, utc
+
+def collect(client,billing_rows,results,root=ROOT):
+    path=root/'evidence/origin_usage.json'
+    saved=json.loads(path.read_text()) if path.exists() else {'records':{}}
+    records=saved['records'];by_receipt={r.get('response_request_id') or r.get('request_id'):r for r in results};by_case={r['id']:r for r in results}
+    logs={str(r['id']):r for r in billing_rows if r['type']==2}
+    pending=[i for i in logs if i not in records]
+    for start in range(0,len(pending),100):
+        ids=pending[start:start+100]
+        sql="SELECT id,arrayFilter(x -> position(x, '\"usage\":{')>0, splitByChar('\\n',original_response_json)) AS usage_lines,JSONExtractRaw(request_json,'max_tokens') AS upstream_max_tokens,JSONExtractRaw(request_json,'reasoning_effort') AS upstream_reasoning_effort FROM log_contents WHERE id IN ("+','.join(ids)+")"
+        for row in client.query(sql).rows:
+            usages=[]
+            for line in row['usage_lines']:
+                try:j=json.loads(line)
+                except ValueError:continue
+                if isinstance(j,dict) and isinstance(j.get('usage'),dict):usages.append(j)
+            if not usages:continue
+            log=logs[str(row['id'])];r=by_receipt.get(log['request_id'])
+            if not r:continue
+            final=usages[-1];u=final['usage'];a=r.get('usage') or {}
+            records[str(row['id'])]={'utc':utc(),'case_id':r['id'],'request_id':log['request_id'],'log_id':row['id'],'origin_response_id':final.get('id'),'original_usage':u,'usage_lines':row['usage_lines'],'upstream_max_tokens':row['upstream_max_tokens'],'upstream_reasoning_effort':row['upstream_reasoning_effort'],'api_completion_tokens':a.get('completion_tokens'),'billed_completion_tokens':log['completion_tokens'],'completion_difference':a.get('completion_tokens',0)-u.get('completion_tokens',0),'source':'ClickHouse log_contents.original_response_json'}
+    saved.update(utc=utc(),records=records,records_count=len(records));dump(path,saved)
+    issues=[];differences=[]
+    for rec in records.values():
+        u=rec['original_usage'];c=u.get('completion_tokens');r=by_case.get(rec['case_id'])
+        if r and c is not None and c>r['output_cap']:issues.append('origin generated token count exceeds cap '+r['id'])
+        if rec['completion_difference']:differences.append(rec['case_id'])
+        if u.get('total_tokens')!=u.get('prompt_tokens',0)+u.get('completion_tokens',0):issues.append('origin usage total mismatch '+rec['case_id'])
+    known_cases={r['case_id'] for r in records.values()}
+    missing_low=[r['id'] for r in results if r.get('effort')=='low' and r['state']=='received' and r['id'] not in known_cases and time.time()-r['end_epoch']>180]
+    if missing_low:issues.append('low responses missing original usage after 180 seconds')
+    if issues:(root/'STOP').write_text('; '.join(issues))
+    return {'origin_usage_records':len(records),'api_origin_completion_differences':differences,'missing_low_origin_usage':missing_low,'origin_usage_issues':issues}

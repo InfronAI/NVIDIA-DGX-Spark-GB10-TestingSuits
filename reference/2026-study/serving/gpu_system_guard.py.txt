@@ -1,0 +1,115 @@
+"""Shared fail-closed guards for the authorized, resident-model GPU batch."""
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import time
+import urllib.request
+
+GIB = 1024 ** 3
+
+
+def utc():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+
+def write_json(path, data):
+    path = Path(path)
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+    tmp.replace(path)
+
+
+def memory():
+    return {k: int(v) * 1024 for k, v in re.findall(r'^(\w+):\s+(\d+) kB', Path('/proc/meminfo').read_text(), re.M)}
+
+
+def allowance(total, available):
+    reserve = max(16 * GIB, int(total * .15))
+    return max(0, min(int(available * .70), available - reserve))
+
+
+def memory_check(required):
+    m = memory()
+    permitted = allowance(m['MemTotal'], m['MemAvailable'])
+    return {'allowed': required <= permitted, 'required_bytes': required,
+            'allowed_bytes': permitted, 'available_bytes': m['MemAvailable'],
+            'reserve_bytes': max(16 * GIB, int(m['MemTotal'] * .15))}
+
+
+def process_identity(pid):
+    try:
+        fields = Path(f'/proc/{pid}/stat').read_text().rsplit(') ', 1)[1].split()
+        return {'start_ticks': fields[19], 'state': fields[0]}
+    except (OSError, IndexError):
+        return None
+
+
+def owned_process(root, child):
+    current = process_identity(child['pid'])
+    if not current or current['state'] == 'Z' or current['start_ticks'] != child.get('start_ticks'):
+        return False
+    try:
+        return str(root).encode() in Path(f'/proc/{child["pid"]}/cmdline').read_bytes() and os.getpgid(child['pid']) == child['pid']
+    except (OSError, ProcessLookupError):
+        return False
+
+
+def engine_idle():
+    """Head-node check; credentials stay in memory and are never returned."""
+    key = None
+    pids = []
+    for p in Path('/proc').glob('[0-9]*/cmdline'):
+        try:
+            args = p.read_bytes().decode().split('\0')
+            if 'sglang.launch_server' in args:
+                pids.append(int(p.parent.name))
+                if '--api-key' in args:
+                    key = args[args.index('--api-key') + 1]
+        except (OSError, UnicodeError):
+            pass
+    if not pids or not key:
+        return {'idle': False, 'reason': 'engine identity or credentials unavailable'}
+    req = urllib.request.Request('http://127.0.0.1:8000/metrics', headers={
+        'Authorization': 'Bearer ' + key, 'User-Agent': 'Infron-GPU-Study/1.0',
+        'Accept': 'text/plain', 'Connection': 'close'})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(req, timeout=5) as response:
+            body = response.read(3000000).decode()
+    except Exception as exc:
+        return {'idle': False, 'reason': type(exc).__name__}
+    metrics = {}
+    for name in ['sglang:num_running_reqs', 'sglang:num_queue_reqs']:
+        values = [float(x) for x in re.findall(r'^' + re.escape(name) + r'(?:\{[^\n]*\})?\s+([\d.eE+\-]+)', body, re.M)]
+        metrics[name] = max(values) if values else None
+    return {'idle': all(v == 0 for v in metrics.values()), 'metrics': metrics, 'launcher_pids': pids}
+
+
+def check_lease(root, *, now=None):
+    root = Path(root)
+    now = time.time() if now is None else now
+    if (root / 'STOP_GPU').exists():
+        raise RuntimeError('hardware stop requested')
+    lease = json.loads((root / 'lease.json').read_text())
+    if not lease.get('allow_gpu') or now >= lease['expires_epoch'] or now >= lease['deadline_epoch']:
+        raise RuntimeError('exclusive GPU lease absent or expired')
+    if lease.get('serving_state') != 'complete' or lease.get('unknown_sends') != 0:
+        raise RuntimeError('serving completion/drain is not established')
+    return lease
+
+
+def sample_guard(root):
+    check_lease(root)
+    p = Path(root) / 'telemetry_latest.json'
+    d = json.loads(p.read_text())
+    if time.time() - d['epoch'] > 15:
+        raise RuntimeError('hardware telemetry stale')
+    temp = d.get('gpu', {}).get('temperature_c')
+    if temp is None or temp >= 85:
+        raise RuntimeError('temperature missing or engineering stop threshold reached')
+    m = memory()
+    if m['MemAvailable'] < max(16 * GIB, int(m['MemTotal'] * .15)):
+        raise RuntimeError('system memory reserve breached')
+    return d

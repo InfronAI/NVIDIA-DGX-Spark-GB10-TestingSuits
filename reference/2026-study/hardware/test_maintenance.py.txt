@@ -1,0 +1,24 @@
+import json,tempfile,time,unittest
+from pathlib import Path
+from unittest.mock import patch
+import gpu_system_guard as g
+from service_custodian import safe_args,alive
+class MaintenanceTests(unittest.TestCase):
+ def test_only_credentials_redacted(self):
+  a=['python','--api-key','secret','--speculative-num-draft-tokens','4']
+  self.assertEqual(safe_args(a),['python','--api-key','[redacted]','--speculative-num-draft-tokens','4']);self.assertEqual(a[2],'secret')
+ def test_pid_reuse_not_original_service(self):
+  with patch('service_custodian.process_identity',return_value={'start_ticks':'new','state':'S'}):self.assertFalse(alive(1,{'start_ticks':'old'}))
+ def test_service_off_requires_fresh_live_custodian(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/'service_state.json';s={'state':'service_off','custodian_pid':123,'custodian_start_ticks':'a','epoch':time.time()}
+   p.write_text(json.dumps(s))
+   with patch.object(g,'process_identity',return_value={'start_ticks':'a','state':'S'}),patch.object(Path,'glob',return_value=[]):
+    self.assertTrue(g.maintenance_ready(d));s['epoch']-=31;p.write_text(json.dumps(s));self.assertFalse(g.maintenance_ready(d))
+   s['epoch']=time.time();p.write_text(json.dumps(s))
+   with patch.object(g,'process_identity',return_value={'start_ticks':'b','state':'S'}):self.assertFalse(g.maintenance_ready(d))
+ def test_service_off_rejects_new_engine(self):
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d);(p/'service_state.json').write_text(json.dumps({'state':'service_off','custodian_pid':123,'custodian_start_ticks':'a','epoch':time.time()}));cmd=p/'cmdline';cmd.write_bytes(b'python\x00-m\x00sglang.launch_server\x00')
+   with patch.object(g,'process_identity',return_value={'start_ticks':'a','state':'S'}),patch.object(Path,'glob',return_value=[cmd]):self.assertFalse(g.maintenance_ready(d))
+if __name__=='__main__':unittest.main()

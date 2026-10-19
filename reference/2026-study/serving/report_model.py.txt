@@ -1,0 +1,30 @@
+"""Read-only presentation cohorts; raw experiment analysis and decisions remain intact."""
+import csv,collections,math
+from common import ROOT
+def describe(values):
+    xs=sorted(values)
+    def q(p):
+        if not xs:return None
+        j=(len(xs)-1)*p;i=int(j)
+        return xs[i]+(xs[min(i+1,len(xs)-1)]-xs[i])*(j-i)
+    return {'n':len(xs),'mean':sum(xs)/len(xs) if xs else None,'p50':q(.5),'p95':q(.95)}
+
+def presentation(a):
+    with (ROOT/'reports/requests.csv').open() as f:requests=list(csv.DictReader(f))
+    eligible=[];excluded=[]
+    for b in a['blocks']:
+        if b.get('warmup') or not b.get('cell'):continue
+        reasons=[]
+        if b.get('completed')!=b.get('planned') or b.get('sent')!=b.get('planned'):reasons.append('incomplete_or_extra_attempts')
+        if b.get('segment_count',1)>1 or b.get('interruption_s',0)>0 or b.get('interrupted'):reasons.append('interrupted_window')
+        if b.get('stop'):reasons.append('guard_triggered')
+        if b.get('output_tokens') is None or b.get('window_s',0)<=0:reasons.append('missing_token_or_window')
+        (excluded if reasons else eligible).append(dict(b,exclusion_reasons=reasons))
+    groups=[]
+    for key in sorted({b['cell'] for b in eligible}):
+        bs=[b for b in eligible if b['cell']==key];ids={b['id'] for b in bs}
+        rs=[r for r in requests if r['block'] in ids and r['state']=='received' and not r.get('retry_of')]
+        def values(field):return [float(r[field]) for r in rs if r.get(field) not in [None,'']]
+        duration=sum(b['window_s'] for b in bs)
+        groups.append({'key':key,'n':len(rs),'blocks':len(bs),'window_s':duration,'tps':sum(b['output_tokens'] for b in bs)/duration,'ttft':describe(values('first_visible_s')),'e2e':describe(values('e2e_s')),'tpot_ms':describe([1000*x for x in values('tpot_compat_s')]),'output':describe(values('completion_tokens')),'block_ids':sorted(ids)})
+    return {'groups':groups,'eligible_blocks':eligible,'excluded_blocks':excluded,'rule':'Uninterrupted, complete, no extra client attempts, known output tokens. Latency and throughput use the same blocks. Operational full-wall results remain in analysis.json. This is a descriptive presentation cohort, not a change to preregistered execution or selection gates.'}

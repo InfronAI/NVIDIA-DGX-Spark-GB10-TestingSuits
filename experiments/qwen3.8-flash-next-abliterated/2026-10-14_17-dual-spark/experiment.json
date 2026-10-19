@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "2026-10-14_17-dual-spark",
+  "model_id": "qwen3.8-flash-next-abliterated",
+  "dates": [
+    "2026-10-14",
+    "2026-10-17"
+  ],
+  "status": "execution_ended",
+  "evidence_complete": false,
+  "purpose": "Performance, not answer-quality ranking",
+  "hardware_profile": "hardware/dgx-spark-gb10-pair.json",
+  "engine": {
+    "name": "sglang",
+    "version": "0.5.21",
+    "tensor_parallel": 2,
+    "nodes": 2,
+    "context_tokens": 262144,
+    "mtp": {
+      "configured": true,
+      "requested_algorithm": "NEXTN",
+      "resolved_algorithm": "EAGLE",
+      "steps": 3,
+      "topk": 1,
+      "draft_tokens": 4
+    },
+    "chunked_prefill_size": 8192,
+    "max_running_requests": 48,
+    "mem_fraction_static": 0.75,
+    "page_size": 64,
+    "radix_cache": true
+  },
+  "components": [
+    {
+      "id": "service",
+      "path": "data/service",
+      "measurement": "Public Infron endpoint; natural stopping; request and block timing"
+    },
+    {
+      "id": "hardware",
+      "path": "data/hardware",
+      "measurement": "Model unloaded; standalone CUDA/library operations; paired NCCL"
+    },
+    {
+      "id": "engine",
+      "path": "data/engine",
+      "measurement": "Native SGLang phase times and CUDA traces"
+    },
+    {
+      "id": "completion",
+      "path": "data/completion",
+      "measurement": "Independent dated fixed-output, profiling, cache, public-hour and FP64/counter supplement"
+    }
+  ],
+  "coverage_gaps": [
+    "8 public-length cases unsent and 1 incomplete",
+    "0 fully observed interference pairs out of 5 candidates",
+    "No H200 same-workload run",
+    "No wall-meter energy",
+    "No physical DRAM-byte counter",
+    "No exact per-token clocks from SSE"
+  ],
+  "historical_results_pooled": false,
+  "serving_concurrency_tested": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "engine_request_limit_is_not_measured_slo": true
+}

@@ -1,0 +1,128 @@
+# -*- coding: utf-8 -*-
+"""Definitions, provenance and prospective business amendment for the research report."""
+import json
+from common import ROOT
+
+REV='be794b990578ef3031eccf9f28e675a289a09ee9'
+HF='https://huggingface.co/dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4/tree/'+REV
+
+def foundations(a,lang):
+    from build_report import table,fmt
+    T=lambda z,e:z if lang=='zh' else e
+    sub=lambda z,e:'\n\n### '+T(z,e)+'\n\n'
+    link=lambda z,e,p:'['+T(z,e)+']('+p+')'
+    sections={}
+    sections[1]=T(
+      '大语言模型推理服务的性能具有显著的工作负载依赖性。文档摘要、代码生成与多轮交互在输入规模、生成长度和请求到达方式上存在差异，分别改变输入处理、逐步生成与排队等待的时间构成。因此，面向实际部署的评估需要在明确负载条件下，同时考察用户获得响应的速度与系统处理请求的能力，并说明两者之间的权衡。[NVIDIA 的推理性能评测方法](https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/)据此区分首个输出等待时间、完整响应时间、单请求生成速度与系统总吞吐，为解释不同应用场景下的性能提供了测量框架。',
+      'Large language model serving performance depends strongly on the workload. Document summarization, code generation and conversational applications differ in input size, generation length and request arrival patterns, changing the time spent processing inputs, generating outputs and waiting in queues. Deployment evaluation therefore requires joint measurement of user responsiveness and system throughput under explicit workload conditions. [NVIDIA’s inference benchmarking methodology](https://developer.nvidia.com/blog/llm-benchmarking-fundamental-concepts/) distinguishes initial response delay, request completion time, per-request generation speed and aggregate throughput, providing a framework for interpreting performance across application scenarios.')
+    sections[1]+=T(
+      '\n\nNVIDIA DGX Spark 将大容量统一内存与 GPU 推理能力集成于桌面系统，并支持通过高速网络连接两台设备，以扩展本地模型部署规模。[NVIDIA 的双节点部署技术说明](https://developer.nvidia.com/blog/new-software-and-model-optimizations-supercharge-nvidia-dgx-spark/)展示了统一内存、低精度量化与软件优化的组合路径。在具体服务中，这些硬件与软件条件如何转化为响应速度和并发处理能力，仍需结合模型、推理引擎及请求形态进行测量；这也构成本研究考察双节点部署的出发点。',
+      '\n\nNVIDIA DGX Spark combines high-capacity unified memory and GPU inference in a desktop system, with high-speed networking between two devices to expand local model deployment capacity. [NVIDIA’s technical discussion of two-node deployment](https://developer.nvidia.com/blog/new-software-and-model-optimizations-supercharge-nvidia-dgx-spark/) illustrates the combined use of unified memory, low-precision quantization and software optimization. How these conditions translate into responsiveness and concurrent serving performance requires measurement of the particular model, inference engine and request shapes. This deployment question motivates the present study.')
+    sections[1]+=T(
+      '\n\n本研究以已接入 Infron 的 `qwen/qwen3.8-flash-next-abliterated` 为对象，评估其在双 DGX Spark、两路张量并行及 NVFP4 混合精度配置下的文本推理服务。实验记录模型来源、软件配置与测量边界，围绕输入长度、输出预算、并发水平和共享前缀比例组织工作负载，并将客户端流式响应记录与推理节点监控按时间对齐。研究从单请求响应逐步扩展到并发吞吐、长上下文与缓存复用，再考察持续负载下的表现，以建立负载条件、外部服务指标与内部资源状态之间的可追溯关系。',
+      '\n\nThis study evaluates the text inference service exposed through Infron as `qwen/qwen3.8-flash-next-abliterated`, deployed on two DGX Spark nodes with two-way tensor parallelism and NVFP4 mixed precision. The experiment records model provenance, software configuration and measurement boundaries; organizes workloads by input length, output budget, concurrency and shared-prefix ratio; and aligns client stream observations with node telemetry. The investigation progresses from individual request response to concurrent throughput, long contexts and prefix reuse, followed by sustained-load behavior, establishing traceable relationships between workload conditions, service metrics and resource observations.')
+    sections[1]+=T(
+      '\n\n实验组织借鉴 [MLPerf Inference Benchmark（ISCA 2020）](https://arxiv.org/abs/1911.02549)对应用场景、系统边界以及延迟与吞吐联合评价的重视。研究结果用于支持本部署的容量规划、负载适配与后续优化；公开题集和合成业务材料用于构造性能负载，答案正确性评估另属独立研究范围。后文依次给出对象与指标定义、实验设计、观测结果及其适用条件。',
+      '\n\nThe experimental organization draws on the emphasis in [MLPerf Inference Benchmark (ISCA 2020)](https://arxiv.org/abs/1911.02549) on application scenarios, system boundaries and joint assessment of latency and throughput. Findings support capacity planning, workload selection and subsequent optimization of this deployment. Public benchmark prompts and synthetic business materials supply performance workloads; answer correctness is a separate evaluation scope. The following sections define the system and metrics, describe the experiments, and present observations with their conditions of applicability.')
+    sections[1]+=sub('模型身份与权重来源','Model identity and weight provenance')+table([T('项目','Item'),T('定义与本次范围','Definition and scope')],[
+      [T('对外调用名称','Public model identifier'),'qwen/qwen3.8-flash-next-abliterated'],
+      [T('权重仓库与版本','Weight repository and revision'),link('dealignai 发布的模型权重','Weights published by dealignai',HF)+'；`'+REV+'`'],
+      [T('基础模型与修改','Declared base and modification'),T('作者声明基于 Qwen/Qwen3.8-Flash-Next，并进行了权重层面的去拒答修改。该来源声明不构成本报告对行为或质量变化的验证。','The author declares Qwen/Qwen3.8-Flash-Next as the base and a weight-level abliteration modification. This provenance statement is not evidence of behavioral or quality changes in this study.')],
+      [T('模型内部结构标识','Internal architecture identifier'),'Qwen4ExpForConditionalGeneration / qwen4_exp；'+T('配置文件内部类名与对外模型名称不同，按原文件保留。','Internal class names differ from the public model name and are preserved verbatim.')],
+      [T('文本网络结构','Text-network structure'),T('48 层、隐藏维度 2,560；512 个路由专家、每个 token 选择 10 个；36 层线性注意力与 12 层完整注意力。专家数不是参数量；没有经核对的总参数／激活参数数量。','48 layers, hidden dimension 2,560; 512 routed experts with 10 selected per token; 36 linear-attention and 12 full-attention layers. Expert counts are not parameter counts; verified total/active parameter counts are unavailable.')],
+      [T('量化范围','Quantization scope'),T('模型卡说明路由专家使用 NVFP4 W4A4（四位权重与激活）；注意力、共享专家及其他排除模块并非全部四位。量化器配置为 ModelOpt 0.46.0 / NVFP4。','The card specifies NVFP4 W4A4 for routed experts (four-bit weights and activations); attention, shared experts and excluded modules are not all four-bit. Quantizer metadata identifies ModelOpt 0.46.0 / NVFP4.')],
+      [T('模态与上下文','Modalities and context'),T('来源包含文本与视觉组件；本次仅测试文本输入与文本流输出。配置上下文上限为 262,144 token，须容纳输入和生成；该值不是已实测通过的服务边界。','The source includes text and vision components; only text input and streamed text output are tested. The configured context ceiling is 262,144 tokens, accommodating input and generation; it is not a demonstrated serving limit.')],
+      [T('来源核对边界','Provenance verification boundary'),T('保存了模型卡、配置、分词器与聊天模板；节点基线加载路径指向同一仓库版本。没有重新散列全部权重分片。模型卡许可标识为 qwen-community-license-1.0。','Model card, configuration, tokenizer and chat template are archived; the baseline node path points to this repository revision. All weight shards were not independently rehashed. The card records qwen-community-license-1.0.')]
+    ])+'\n\n'+link('固定版本模型配置','Pinned model configuration',HF.replace('/tree/','/blob/')+'/config.json')+' · '+link('本地来源清单与散列','Local provenance manifest and hashes','../../qwen38_abliterated_eval_20261014_mtp/sources/manifest.json')
+    endpoint=json.loads((ROOT/'evidence/report_endpoint.json').read_text())['endpoint']
+    sections[1]+=sub('推理端点与数据范围速览','Endpoint and data scope at a glance')
+    sections[1]+=table([T('硬件参数','Hardware'),T('配置','Specification')],[
+      [T('节点与芯片','Nodes and chip'),'2 × NVIDIA DGX Spark / GB10 Grace Blackwell'],
+      [T('CPU（每节点）','CPU per node'),T('20 核 Arm：10 × Cortex-X925 + 10 × Cortex-A725','20 Arm cores: 10 × Cortex-X925 + 10 × Cortex-A725')],
+      [T('GPU（每节点）','GPU per node'),T('Blackwell；6,144 个 CUDA 核心；第五代 Tensor Core','Blackwell; 6,144 CUDA cores; fifth-generation Tensor Cores')],
+      [T('统一内存','Unified memory'),T('每节点 128 GB LPDDR5x；双节点物理容量合计 256 GB','128 GB LPDDR5x per node; 256 GB physical capacity across two nodes')],
+      [T('内存带宽（每节点）','Memory bandwidth per node'),'273 GB/s；256-bit'],
+      [T('标称计算峰值（每节点）','Rated compute peak per node'),T('最高 1 PFLOP/s（FP4、稀疏计算）','Up to 1 PFLOP/s (FP4 with sparsity)')],
+      [T('网络接口','Network interfaces'),T('ConnectX-7：标称 200 Gb/s；以太网：10 GbE','ConnectX-7: rated 200 Gb/s; Ethernet: 10 GbE')],
+      [T('额定功率（每节点）','Power ratings per node'),T('GB10 热设计功耗 140 W；电源 240 W','GB10 thermal design power 140 W; power supply 240 W')]
+    ])+'\n\n'+link('NVIDIA 硬件规格','NVIDIA hardware specifications','https://docs.nvidia.com/dgx/dgx-spark/hardware.html')+' · '+link('NVIDIA 网络规格','NVIDIA networking specifications','https://www.nvidia.com/en-us/products/workstations/dgx-spark/')
+    sections[1]+=table([T('推理端点核心参数','Core inference settings'),T('配置值','Value')],[
+      [T('平台端点','Platform endpoint'),'POST `'+endpoint+'`'],
+      [T('模型与路由','Model and route'),'`qwen/qwen3.8-flash-next-abliterated`；`infron/cn`；'+T('跨供应商回退关闭','cross-provider fallback disabled')],
+      [T('引擎与并行','Engine and parallelism'),'SGLang 0.5.21；'+T('双节点、两路张量并行','two nodes, tensor parallelism = 2')],
+      [T('量化与加载精度','Quantization and loading dtype'),'NVFP4 / `modelopt_fp4`；`dtype=auto`；`kv_cache_dtype=auto`'],
+      [T('计算后端','Compute backends'),T('注意力：FlashInfer；混合专家：FlashInfer CUTLASS','Attention: FlashInfer; mixture of experts: FlashInfer CUTLASS')],
+      [T('上下文与预填充分块','Context and prefill chunk'),T('上下文上限 262,144 词元（输入 + 输出）；分块 8,192 词元','262,144-token context ceiling (input + output); 8,192-token prefill chunks')],
+      [T('运行槽位与内存分配','Running slots and memory allocation'),T('最大运行请求数 48；静态内存分配比例 0.75','Maximum running requests 48; static memory allocation fraction 0.75')],
+      [T('多词元预测（MTP）','Multi-token prediction (MTP)'),T('开启；EAGLE 路径；预测步数 3、分支数 1、草稿词元数 4','Enabled; EAGLE path; 3 steps, 1 branch, 4 draft tokens')],
+      [T('前缀缓存与调度','Prefix cache and scheduling'),T('RadixCache 开启；计算与调度重叠开启','RadixCache enabled; overlapping scheduling enabled')],
+      [T('测试请求参数','Test request settings'),T('温度 0；流式输出；思考预算 none / low；客户端并发 1 / 2 / 4 / 8','Temperature 0; streaming; reasoning effort none / low; client concurrency 1 / 2 / 4 / 8')]
+    ])+'\n\n'+link('节点配置记录','Recorded node configuration','../evidence/node0_initial.json')
+    from report_endpoint_details import details as endpoint_details
+    sections[1]+=endpoint_details(lang)
+    from report_benchmarks import overview as benchmark_overview
+    sections[1]+=benchmark_overview(lang)
+
+    concepts=[
+      (('词元（token）','Token'),('分词器把文本转换成的计数单位；一个词元不一定等于一个汉字、单词或字符。输入长度按完整聊天模板计数。','A tokenizer unit, not necessarily a character or word. Input length includes the complete chat template.')),
+      (('预填充与解码','Prefill and decode'),('预填充处理已有输入并构建中间状态；解码持续生成后续内容。长输入常增加首片段等待，长输出延长持续占用；具体瓶颈由实测判断。','Prefill processes existing input and constructs intermediate states; decode generates subsequent content. Longer inputs can increase initial waiting, while longer outputs extend occupancy; measurements determine the bottleneck.')),
+      (('前缀缓存','Prefix caching'),('服务复用先前相同起始 token 序列的中间状态。相同文本在不同模板、分词或缓存保留条件下未必复用；本次不清空服务缓存。','The service may reuse intermediate states for an identical starting token sequence. Template, tokenization and residency affect reuse; the experiment does not flush the service cache.')),
+      (('并发与请求速率','Concurrency and arrival rate'),('并发是在途请求数，速率是单位时间到达数。闭环测试维持并发上限；开放到达按独立时刻发起。两者不能互换。','Concurrency counts in-flight requests; arrival rate counts arrivals per time. Closed-loop tests refill a concurrency limit; open-arrival tests schedule independently. These quantities are not interchangeable.')),
+      (('混合专家与张量并行','Mixture of experts and tensor parallelism'),('混合专家按 token 路由到部分专家计算；张量并行把模型计算划分到设备，需要跨设备协作。两台设备并不保证两倍速度。','Mixture-of-experts models route tokens through subsets of experts. Tensor parallelism partitions computation across devices and requires coordination; two devices do not imply twice the speed.')),
+      (('流式片段与完整响应','Stream fragments and completion'),('接口一次事件可能携带多个 token。收到正常结束标志且流结束称为完整响应，不代表回答正确，也不代表输出没有触及上限。','An API event may carry multiple tokens. A valid terminal event and stream end establish transport completion, not correctness or freedom from length truncation.')),
+      (('逻辑任务、尝试与区组','Logical case, attempt and block'),('逻辑任务固定提示和参数；一次网络发送是一次尝试；区组是在同一条件下连续执行的一批任务。重复调用不增加独立题目数量。','A logical case fixes a prompt and settings; each network send is an attempt; a block is a contiguous batch under one condition. Repeated calls do not add unique prompts.')),
+    ]
+    sections[2]=table([T('概念','Concept'),T('解释及其测量意义','Meaning and measurement consequence')],[[T(*x),T(*y)] for x,y in concepts])
+
+    sections[3]=T('系统边界为“测量客户端 → Infron 网关 → 双节点推理服务 → 流式响应客户端”。客户端使用单调时钟测量单请求间隔，接收时间用于与节点监控对齐；网络、网关和排队都属于端到端结果。不同测量边界的延迟不能直接相减得到单一组件耗时。','The measured boundary is client → Infron gateway → two-node inference service → streamed client response. A monotonic clock measures request intervals; receive timestamps align them with node telemetry. Network, gateway and queueing are included in end-to-end results. Latencies from different boundaries cannot simply be subtracted to isolate a component.')
+    sections[3]+=table([T('控制因素','Control'),T('设置与证据范围','Setting and evidence scope')],[
+      [T('推理引擎基线','Engine baseline'),'SGLang 0.5.21；modelopt_fp4；attention_backend=flashinfer；moe_runner_backend=flashinfer_cutlass'],
+      [T('容量与调度基线','Capacity and scheduling baseline'),T('上下文 262,144；输入分块 8,192；引擎运行槽位 48；静态显存分配比例参数 0.75；计算与调度重叠开启。客户端并发另受 8 的上限约束。','Context 262,144; prefill chunk 8,192; 48 running slots; static allocation fraction parameter 0.75; overlapping scheduling enabled. Client concurrency is separately capped at eight.')],
+      [T('精度与缓存类型','Precision and cache types'),T('加载参数 dtype=auto、kv_cache_dtype=auto。不能据此断言所有计算或键值缓存采用某一固定精度。','Loading parameters are dtype=auto and kv_cache_dtype=auto; these do not establish one resolved dtype for all compute or KV cache.')],
+      [T('多词元预测配置','Multi-token prediction configuration'),T('多词元预测一次提出多个候选并验证。基线有效路径 EAGLE，预测步数 3、分支数 1、草稿 token 数 4；本轮不切换服务配置。','Multi-token prediction proposes and verifies several candidates. Baseline effective path EAGLE; three steps, one branch, four draft tokens. This run does not switch the service configuration.')],
+      [T('生成参数','Generation settings'),T('温度 0，流式返回用量；自然负载输出上限 1,024；思考参数 none 与 low 配对，业务扩展固定 none。未显式覆盖的参数由端点决定。模型卡推荐的温度 1 不用于本轮控制实验。','Temperature zero, streamed usage; natural output cap 1,024; reasoning none/low paired, business amendment fixed at none. Unspecified settings are endpoint defaults. The card’s temperature-one recommendation is not used in this controlled run.')],
+      [T('重复与顺序','Replication and order'),T('自然条件各三轮，固定种子打乱顺序；长度矩阵四轮。业务负载使用固定随机种子 202610150710，请求内容与执行顺序在发送前冻结。','Three rounds per natural condition with seeded randomized order; four length-matrix rounds. Business workloads use seed 202610150710, with request contents and execution order frozen before sending.')],
+      [T('节点监控','Node telemetry'),T('通过经身份验证的 SparkDash 接口采集双节点的 GPU 活动、内存、温度、功率、网络及推理服务状态，并按时间戳与客户端请求对齐。各指标的数据来源与有效覆盖范围见第 05 节。','Authenticated SparkDash interfaces collect GPU activity, memory, temperature, power, network and inference-service state for both nodes. Timestamps align telemetry with client requests. Section 05 specifies data sources and valid coverage for each metric.')]
+    ])+'\n\n'+link('节点配置基线','Baseline node configuration','../evidence/node0_initial.json')+' · '+link('固定实验顺序','Frozen experimental order','../plans/schedule.json')+' · '+link('业务负载冻结清单','Frozen business workload manifest','../plans/business/manifest.json')
+    return sections
+
+EXAMPLES={
+ 'triage':('客户已付款，但重置访问权限失败。请分类。','{"category":"access","reason":"付款完成后仍无法访问"}','The customer paid but access reset failed. Classify the ticket.','{"category":"access","reason":"Access failed after payment"}'),
+ 'rewrite':('将运维说明改写成客户操作指南，保留步骤与限制。','第一步，核对订单号；第二步，检查付款状态……','Rewrite the operations note as a customer guide, preserving steps and constraints.','Step 1: verify the order identifier. Step 2: check payment status…'),
+ 'draft':('基于上线简报，撰写含准备、操作和恢复流程的手册。','上线准备：确认负责人、回滚版本和告警规则……','Expand the launch brief into a handbook covering preparation, execution and recovery.','Preparation: confirm owners, rollback version and alert rules…'),
+ 'summary':('以下为长篇运营记录。用五点概括日期与未解决问题。','1. 访问恢复仍待处理；2. 已核对订单付款……','Summarize the long operational record in five bullets with dates and unresolved issues.','1. Access restoration remains open. 2. Order payment was verified…'),
+ 'analysis':('分析多批运营记录，列出趋势、证据、替代解释和下一步。','访问问题集中在付款后流程；需要进一步区分权限同步和客户端状态……','Analyze operational records for trends, evidence, alternative explanations and next steps.','Access incidents cluster after payment; distinguish permission synchronization from client state…'),
+ 'extract':('订单 INV-204，120 美元，已付款。返回四字段 JSON。','{"order_id":"INV-204","amount":120,"currency":"USD","status":"paid"}','Order INV-204: USD 120, paid. Return the four-field JSON object.','{"order_id":"INV-204","amount":120,"currency":"USD","status":"paid"}'),
+ 'code':('修改账单模块，避免超时重试重复处理同一订单。','if invoice_id in processed_ids:\n    return existing_result','Patch the billing module to avoid processing an invoice twice after a timeout.','if invoice_id in processed_ids:\n    return existing_result'),
+ 'dialogue':('历史：客户已付款，访问重置失败。追问：运营团队下一步做什么？','先核对订单与付款状态，再检查访问权限同步并通知客户进展。','History: payment succeeded, access reset failed. Follow-up: what should operations do next?','Verify order and payment status, check permission synchronization, and update the customer.'),
+}
+
+def workloads(lang):
+    from build_report import table
+    T=lambda z,e:z if lang=='zh' else e
+    text='### '+T('实验材料与长度构造','Experimental material and length construction')+'\n\n'
+    text+=T('六套公开基准的来源、固定版本、抽样规则及 60 条提示的长度分布见第 01 节。以下说明如何在这些短题目之外控制输入长度、输出上限和前缀结构。','Section 01 documents the six public benchmarks, pinned versions, selection rules and length distribution of the 60 prompts. The following describes control of input length, output caps and prefix structure beyond that short-prompt bank.')
+    text+=T('\n\n长度控制材料为 Project Gutenberg 的《战争与和平》普通文本；按固定偏移抽取，并在开头放置不同标识，降低跨请求前缀复用。全文来源与 SHA-256 已保存；这类材料用于隔离长度因素，并不代表业务需求分布。业务扩展则使用本地生成的订单、工单、运维记录及代码，不含真实客户内容。','\n\nLength-control material is ordinary prose from Project Gutenberg’s War and Peace, sampled at fixed offsets with distinct leading identifiers to reduce cross-request prefix reuse. Source and SHA-256 are retained. This isolates length effects without claiming a real business demand distribution. Business amendments use locally generated orders, tickets, operations records and code, with no actual customer content.')
+    text+=' [Project Gutenberg](https://www.gutenberg.org/ebooks/2600.txt.utf-8) · ['+T('自然题目抽样清单','Natural selection manifest')+'](../protocol/workload_manifest.json) · ['+T('长文本来源与散列','Long-text provenance and hash')+'](../plans/corpus_provenance.json)'
+    m=json.loads((ROOT/'plans/business/manifest.json').read_text())
+    from report_length import design
+    text+='\n\n'+design(lang)
+    text+='\n\n### '+T('八类业务的短负载基线','Short-workload baselines for the eight business shapes')+'\n\n'
+    text+=T('输入／输出比例先定义为“目标输入 token 数 ÷ 输出 token 上限”。它控制实验形状，但实际生成会提前结束；结果另报实际输入／实际输出比例。每类在并发 1 和 4 下各安排 12 次测量与 1 次预热，合计 208 次。每个条件分成 3 个区组，每组 4 次，区组顺序固定随机化。并发对照使用同一批材料，开头加入不同标识以减少跨条件前缀复用；样本量只支持诊断，不用于稳定的尾分位估计。','Input/output ratio is defined prospectively as target input tokens divided by the output-token cap. It controls experimental shape, but generation may end early; realized input/output ratios are reported separately. Each shape has 12 measurements and one warmup at each of concurrency one and four: 208 calls total. Each condition has three blocks of four measurements, in a fixed randomized order. Concurrency arms share source material but use distinct early identifiers to reduce prefix carryover. This sample supports diagnostics, not stable tail estimates.')
+    purposes=[('短问短答，模拟自动分流；关注等待而非长生成。','Short request and answer for routing; emphasizes waiting over generation.'),('输入输出规模接近，模拟文案重写；观察解码占用。','Similar input/output budgets for rewriting; examines decode occupancy.'),('少量要求生成长文，模拟内容起草；观察长输出成本。','A brief expands into long-form drafting; examines output cost.'),('长材料压缩成短摘要；关注预填充与首片段等待。','Long material compressed into a short summary; emphasizes prefill and first-fragment waiting.'),('长输入结合长分析；观察两阶段共同压力。','Long input plus extensive analysis; combines prefill and decode pressure.'),('文本到短 JSON，模拟字段抽取；未启用 JSON 模式或工具接口。','Text to short JSON for extraction; no JSON mode or native tool API is enabled.'),('代码上下文和局部补丁；观察中长输入后短输出。','Code context with a focused patch; medium/long input followed by short output.'),('带历史的跟进问答；使用真实多条聊天消息结构。','Follow-up assistance with history; uses multiple actual chat messages.')]
+    text+=table([T('场景','Shape'),T('输入目标 → 输出上限','Input target → output cap'),T('名义比例','Nominal ratio'),T('背景与解释','Context and interpretation')],[[T(s['name_zh'],s['name_en']),f'{s["input_target"]:,} → {s["output_cap"]:,}',f'{s["input_target"]/s["output_cap"]:g}:1',T(*p)] for s,p in zip(m['shapes'],purposes)])
+    text+='\n\n<!--SHAPES-->\n\n'+T('业务长度设计图｜横轴为目标输入，纵轴为输出上限，均使用对数刻度。图中是预先固定的实验条件；实测完成后在结果部分报告实际输出。','Business-shape design | Target input and output caps on logarithmic axes. These are prospective conditions; realized output is reported in the results after execution.')
+    text+='\n\n### '+T('典型输入／输出样例','Typical input/output examples')+'\n\n'+T('以下均为精简的教学样例，输出为人工编写的形式示意，**不是本模型的实测回答**。实际请求包含为目标长度生成的记录；输入输出全文保留在逐请求证据中。','The following are shortened teaching examples. Outputs illustrate format and are **not measured model answers**. Actual prompts contain length-controlled generated records; complete prompts and responses remain in per-request evidence.')+'\n\n'
+    text+=table([T('场景','Shape'),T('典型输入（节选）','Typical input excerpt'),T('示意输出（节选）','Illustrative output excerpt')],[[T(s['name_zh'],s['name_en']),EXAMPLES[s['id']][0 if lang=='zh' else 2],EXAMPLES[s['id']][1 if lang=='zh' else 3].replace('\n','<br>')] for s in m['shapes']])
+    text+='\n\n### '+T('缓存比例：从可控输入到可观察命中','Cache ratios: controlled input versus observed reuse')+'\n\n'+T('扩展使用 8,192 与 32,768 两档输入、0%／25%／50%／75%／90%／100% 六档目标共享前缀，每格六个独立前缀对，共 72 对、144 次调用。每对串行执行一次预热和一次测量，输出上限均为 256，其他生成参数也相同。比例按完整聊天模板的 token 最长公共前缀精确复算；0% 仍可能共享模板头，故记录实际比例而不强行记零。','The amendment crosses input lengths 8,192 and 32,768 with target shared-prefix fractions 0/25/50/75/90/100%, using six independent pairs per cell: 72 pairs and 144 calls. Each pair executes a warmup and then a measurement serially, both with a 256-token cap and the same generation parameters. Exact longest common prefixes are computed over the full tokenized chat template. A nominal zero may still share template tokens, so realized overlap is recorded.')
+    text+=table([T('共享目标','Overlap target'),T('业务背景','Business context'),T('输入变化与示意输出','Input variation and illustrative output')],[
+      ['0%',T('互不相关的新工单','Unrelated new tickets'),T('预热：工单 A；测量：不同记录 B。输出：B 的摘要。','Warm: ticket A. Measure: distinct record B. Output: summary of B.')],
+      ['25%',T('少量固定规则，多数动态材料','Small common rules, mostly dynamic data'),T('相同开头规则＋不同订单明细。输出：新订单处理要点。','Same initial rules + different order details. Output: new order actions.')],
+      ['50%',T('公共知识与用户上下文规模相近','Common knowledge and user context of similar size'),T('相同前半部分＋新的后半部分。输出：新上下文摘要。','Same first half + a new second half. Output: new-context summary.')],
+      ['75%',T('较长固定知识材料，多条客户问询','Long shared knowledge, several customer inquiries'),T('知识主体相同，末段工单变化。输出：当前工单建议。','Same knowledge body; final ticket differs. Output: current-ticket advice.')],
+      ['90%',T('大型公共材料，短个性化追问','Large common material with short personalization'),T('保留九成前缀，替换末尾记录。输出：针对新记录的摘要。','Retain most prefix tokens, replace trailing records. Output: updated summary.')],
+      ['100%',T('完全相同输入重复访问','Repeat access to identical input'),T('完整输入相同再次请求。输出：同一材料的摘要；仍执行生成。','Repeat identical full input. Output: summary of the same material; generation still executes.')]
+    ])
+    text+='\n\n<!--CACHE_DESIGN-->\n\n'+T('前缀控制图｜深蓝为目标共享部分，浅蓝为变化部分；只描述输入构造，不表示已达到的缓存命中率。','Prefix-control design | Dark blue is the target shared portion and light blue the varying portion; this describes input construction, not an achieved cache-hit rate.')
+    text+=T('\n\n分别报告三个量：① 目标共享比例；② 分词后实际共享比例；③ 服务报告的已缓存 token／实测输入 token。第三项缺失时保留缺失，不能由更低延迟代替；它也不同于“命中请求数／请求数”。本设计控制前缀结构，未控制缓存驻留、淘汰、缓存页对齐或保留时间，因而不能承诺某一实际命中率。','\n\nReport three distinct quantities: target overlap, realized token-prefix overlap, and service-reported cached tokens divided by measured input tokens. Missing cache fields remain missing rather than being inferred from latency. This token-weighted quantity differs from requests with a hit divided by requests. The design controls prefix structure but not residency, eviction, page alignment or retention; an actual hit ratio is not guaranteed.')
+    return text

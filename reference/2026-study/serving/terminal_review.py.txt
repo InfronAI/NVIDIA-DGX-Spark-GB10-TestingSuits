@@ -1,0 +1,159 @@
+"""Resolve interrupted client streams from exact, terminal upstream evidence.
+
+SELECT only. Client failures remain failures and are never replayed or relabelled.
+"""
+import json
+import re
+import time
+from common import ROOT, digest, dump, utc
+
+STATES = {'transport_error', 'timeout', 'incomplete'}
+
+def compact_request(payload, max_bytes=131072):
+    """Replay the pinned Go JSON / compact-log transform, not omitted content."""
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    for char, escaped in [('<', r'\u003c'), ('>', r'\u003e'), ('&', r'\u0026'), ('\u2028', r'\u2028'), ('\u2029', r'\u2029')]:
+        raw = raw.replace(char, escaped)
+    encoded = raw.encode()
+    if len(encoded) <= max_bytes: return raw
+    front = max_bytes * 60 // 100; back = len(encoded) - max_bytes * 20 // 100
+    while front > 0 and encoded[front] >> 6 == 2: front -= 1
+    while back < len(encoded) and encoded[back] >> 6 == 2: back += 1
+    return encoded[:front].decode() + f'...[truncated {back-front} bytes for log content]...' + encoded[back:].decode()
+
+def payload_evidence(payload, raw):
+    try: decoded = json.loads(raw)
+    except ValueError: decoded = None
+    if decoded == payload:
+        return {'payload_match': 'full_json', 'omitted_request_bytes': 0}
+    assert raw == compact_request(payload), 'original payload mismatch'
+    marker = re.search(r'\.\.\.\[truncated (\d+) bytes for log content\]\.\.\.', raw)
+    assert marker, 'missing known compaction marker'
+    return {'payload_match': 'pinned_compact_transform', 'omitted_request_bytes': int(marker[1]),
+            'payload_limitation': 'Preserved bytes and omission length match; omitted bytes are not independently observable.'}
+
+def request_nonce(payload):
+    messages = payload.get('messages', [])
+    content = messages[0].get('content', '') if messages else ''
+    match = re.match(r'(?:Record|Case) ([a-f0-9]{24})\. ', content) if isinstance(content, str) else None
+    assert match, 'missing strong synthetic request nonce'
+    return match[1]
+
+def verify_evidence(result, payload, logs, contents):
+    rid = result.get('response_request_id') or result.get('request_id')
+    assert result['state'] in STATES, 'unresolved client outcome'
+    identity = 'client_response_header'
+    if not rid:
+        request_nonce(payload)
+        candidates = {x['request_id'] for x in logs}
+        assert len(candidates) == 1, 'ambiguous associated request identity'
+        rid = candidates.pop(); identity = 'unique_nonce_payload_time_route_association'
+    assert logs and all(x['request_id'] == rid for x in logs), 'request identity mismatch'
+    assert all(x['model_provider_id'] == 2084 and x['channel_id'] == 2538 for x in logs), 'route mismatch'
+    successes = [x for x in logs if x['type'] == 2]
+    assert len(successes) == 1, 'exactly one terminal upstream receipt required'
+    log = successes[0]
+    assert result['start_epoch'] - 2 <= log['created_at'] <= result['start_epoch'] + 900, 'receipt outside request window'
+    content = next((x for x in contents if x['id'] == log['id']), None)
+    assert content, 'missing original payload'
+    payload_facts = payload_evidence(payload, content['original_request_json'])
+    events = []; omitted_middle_items = 0
+    for line in content['original_response_json'].splitlines():
+        line = line.removeprefix('data:').strip()
+        if not line or line == '[DONE]': continue
+        omitted = re.fullmatch(r'\[\.\.\.truncated (\d+) items\.\.\.\]', line)
+        if omitted:
+            omitted_middle_items += int(omitted[1]); continue
+        events.append(json.loads(line))
+    assert all(isinstance(x, dict) and not x.get('error') for x in events), 'upstream stream error'
+    finishes = [c['finish_reason'] for x in events for c in x.get('choices', []) if c.get('finish_reason')]
+    usages = [x['usage'] for x in events if isinstance(x.get('usage'), dict)]
+    assert finishes and finishes[-1] in {'stop', 'length', 'tool_calls'} and usages, 'missing terminal upstream stream evidence'
+    usage = usages[-1]
+    assert 0 <= usage['completion_tokens'] <= payload['max_tokens'], 'upstream output exceeds cap'
+    assert usage['total_tokens'] == usage['prompt_tokens'] + usage['completion_tokens'], 'upstream usage mismatch'
+    return {'request_id': rid, 'log_id': log['id'], 'identity_source': identity, **payload_facts, 'upstream_finish_reason': finishes[-1], 'original_usage': usage, 'omitted_middle_items': omitted_middle_items}
+
+def discover_terminal_receipt(client, result, payload):
+    """Bounded SELECT: associate a unique nonce, preserved payload and terminal log."""
+    nonce = request_nonce(payload)
+    rows = client.query('SELECT id,request_id,type,created_at,model_provider_id,channel_id,quota,finish_reason FROM logs WHERE created_at BETWEEN ' + str(int(result['start_epoch'])-2) + ' AND ' + str(int(result['start_epoch'])+900) + ' AND model_provider_id=2084 AND channel_id=2538 ORDER BY created_at LIMIT 101').rows
+    assert len(rows) <= 100, 'association window too busy'
+    ids = [x['id'] for x in rows if x['type'] == 2]
+    contents = client.query('SELECT id,original_request_json,original_response_json FROM log_contents WHERE id IN (' + ','.join(str(int(i)) for i in ids) + ')').rows if ids else []
+    matches = []
+    for content in contents:
+        if not any(prefix + nonce + '. ' in content['original_request_json'] for prefix in ['Record ', 'Case ']): continue
+        try: payload_evidence(payload, content['original_request_json'])
+        except (AssertionError, ValueError): continue
+        matches.append(content['id'])
+    assert len(matches) == 1, 'no unique terminal payload association'
+    rid = next(x['request_id'] for x in rows if x['id'] == matches[0])
+    assert re.fullmatch(r'[A-Za-z0-9_-]+', rid), 'invalid associated identifier'
+    return rid
+
+def verified_case(root, ident, proof=None):
+    root = root.resolve()
+    if proof is None:
+        p = root / 'evidence/terminal_stream_reviews.json'
+        if not p.exists(): return False
+        proof = json.loads(p.read_text()).get('cases', {}).get(ident)
+    if not proof: return False
+    result_path = root / 'runs/requests' / ident / 'result.json'
+    request_path = result_path.with_name('request.json')
+    assert proof['case_id'] == ident and proof['no_replay'], 'invalid terminal review'
+    assert digest(result_path) == proof['result_sha256'] and digest(request_path) == proof['request_sha256'], 'client evidence changed'
+    source = (root / proof['source']).resolve()
+    assert source.is_relative_to(root / 'evidence'), 'source outside evidence directory'
+    assert digest(source) == proof['source_sha256'], 'upstream evidence changed'
+    result = json.loads(result_path.read_text()); evidence = json.loads(source.read_text())
+    facts = verify_evidence(result, json.loads(request_path.read_text()), evidence['logs'], evidence['contents'])
+    assert facts['request_id'] == proof['request_id'] and facts['log_id'] == proof['log_id'], 'review identity changed'
+    return True
+
+def review_pending(root=ROOT, client=None):
+    root = root.resolve(); ledger = json.loads((root / 'runs/ledger.json').read_text())
+    path = root / 'evidence/terminal_stream_reviews.json'
+    saved = json.loads(path.read_text()) if path.exists() else {'cases': {}}
+    unresolved = []; reviewed = []; quarantined = []
+    for ident, entry in ledger['entries'].items():
+        if entry['state'] not in STATES | {'started', 'unknown'}: continue
+        p = root / 'runs/requests' / ident / 'result.json'
+        if not p.exists() or entry['state'] in {'started', 'unknown'}:
+            unresolved.append({'case_id': ident, 'reason': 'unknown send remains unresolved'}); continue
+        from quarantine import verified_quarantine
+        if verified_quarantine(root, ident):
+            quarantined.append(ident); continue
+        if verified_case(root, ident, saved['cases'].get(ident)):
+            reviewed.append(ident); continue
+        result = json.loads(p.read_text()); rid = result.get('response_request_id') or result.get('request_id')
+        if client is None:
+            from insightloop.config.loader import load_settings
+            from insightloop.runtime.clickhouse import build_clickhouse_client
+            client = build_clickhouse_client(load_settings())
+        if not rid:
+            try:
+                payload = json.loads(p.with_name('request.json').read_text())
+                nonce = request_nonce(payload)
+                same_nonce = [q for q in (root/'runs/requests').glob('*/request.json') if any(prefix + nonce + '. ' in q.read_text() for prefix in ['Record ', 'Case '])]
+                assert len(same_nonce) == 1, 'nonce reused in local attempts'
+                rid = discover_terminal_receipt(client, result, payload)
+                assert not any(x.get('request_id') == rid for key, x in saved['cases'].items() if key != ident), 'receipt already associated'
+            except (AssertionError, KeyError, ValueError, TypeError) as e:
+                unresolved.append({'case_id': ident, 'reason': str(e)}); continue
+        if not re.fullmatch(r'[A-Za-z0-9_-]+', rid):
+            unresolved.append({'case_id': ident, 'reason': 'invalid platform request identifier'}); continue
+        logs = client.query("SELECT id,request_id,type,created_at,model_provider_id,channel_id,quota,finish_reason FROM logs WHERE created_at BETWEEN " + str(int(result['start_epoch']) - 2) + ' AND ' + str(int(result['start_epoch']) + 900) + " AND request_id='" + rid + "'").rows
+        ids = [x['id'] for x in logs if x['type'] == 2]
+        contents = client.query('SELECT id,original_request_json,original_response_json FROM log_contents WHERE id IN (' + ','.join(str(int(i)) for i in ids) + ')').rows if ids else []
+        source = root / 'evidence/terminal_stream_sources' / (ident + '_' + str(time.time_ns()) + '.json')
+        dump(source, {'utc': utc(), 'logs': logs, 'contents': contents})
+        try:
+            facts = verify_evidence(result, json.loads(p.with_name('request.json').read_text()), logs, contents)
+        except (AssertionError, KeyError, ValueError, TypeError) as e:
+            unresolved.append({'case_id': ident, 'reason': str(e), 'source': str(source.relative_to(root))}); continue
+        proof = {'utc': utc(), 'case_id': ident, **facts, 'no_replay': True, 'client_state': result['state'], 'result_sha256': digest(p), 'request_sha256': digest(p.with_name('request.json')), 'source': str(source.relative_to(root)), 'source_sha256': digest(source)}
+        saved['cases'][ident] = proof; reviewed.append(ident)
+    saved.update(utc=utc(), unresolved=unresolved, quarantined_unknown_outcomes=quarantined, policy='Retain interrupted client outcomes; verified upstream completion allows only unsent work to continue. Never replay these cases.')
+    dump(path, saved)
+    return {'reviewed': reviewed, 'unresolved': unresolved, 'quarantined_unknown_outcomes': quarantined}

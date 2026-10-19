@@ -1,0 +1,73 @@
+"""Local cost, self-use and external-sales sensitivity calculator."""
+import html
+import json
+import re
+from report_cost_model import CAPEX_USD, ELECTRICITY_USD_KWH
+
+CSS='''
+.cost-tool{margin:24px 0;padding:20px;background:var(--inf-blue-50);border:1px solid #B4C5E0;border-radius:16px}
+.cost-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.cost-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px}
+.cost-fields input,.cost-fields select{font:inherit;padding:8px;border:1px solid #B4C5E0;border-radius:12px;background:white;color:#263040;min-width:0}
+.cost-tool output{display:block;margin-top:16px;color:#004AB9;font-weight:600;font-size:14px;white-space:pre-line;line-height:1.8}
+.cost-tool p{font-size:12px!important}.cost-tool h4{margin:0 0 12px}
+@media(max-width:650px){.cost-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{.cost-tool{display:none!important}}
+'''
+
+def widget(d,lang):
+    T=lambda z,e:z if lang=='zh' else e
+    gs=sorted(d['natural'],key=lambda g:int(re.search(r'_c(\d+)',g['key'])[1]))
+    best=max(gs,key=lambda g:g['tps']) if gs else None
+    if not best:return '', ''
+    options=[];rates=[]
+    for g in gs:
+        rs=[r for r in d['resources'] if r['cell']==g['key']]
+        watts=sum(r['estimated_system_power_mean_w'] for r in rs) if len(rs)==2 and all(r['estimated_system_power_mean_w'] is not None for r in rs) else None
+        price=next((r['usd_per_million_generated'] for r in d['costs'] if r['cell']==g['key']),None)
+        c=int(re.search(r'_c(\d+)',g['key'])[1]);selected=' selected' if g==best else ''
+        options.append(f'<option value="{c}"{selected}>'+T(f'并发 {c} · {g["tps"]:.1f} 词元/s',f'Concurrency {c} · {g["tps"]:.1f} tokens/s')+'</option>')
+        rates.append({'c':c,'tps':g['tps'],'watts':watts,'price':price})
+    base=next(r for r in rates if r['tps']==best['tps'])
+    fields='<label>'+T('实测吞吐条件','Measured-rate condition')+'<select id="cost-rate">'+''.join(options)+'</select></label>'
+    vals=[('capital',T('双机采购价（USD）','Pair purchase price (USD)'),CAPEX_USD,.01,100),
+      ('years',T('单位成本的折旧年限','Depreciation life for unit cost'),3,.1,.5),
+      ('power',T('双机平均功率假设（W）','Assumed pair mean power (W)'),base['watts'],0,1),
+      ('electricity',T('电价（USD/kWh）','Electricity (USD/kWh)'),ELECTRICITY_USD_KWH,0,.001),
+      ('hours',T('年度配置时长（h）','Provisioned hours/year'),8760,1,1),
+      ('utilization',T('自用有效生产比例（%）','Self-use productive fraction (%)'),75,0,1),
+      ('api',T('自用替代 API 价格（USD/百万生成词元）','Avoided API price (USD/1M generated)'),base['price'],0,.01),
+      ('sold',T('有效售出利用率（%）','Effective sold utilization (%)'),75,0,1),
+      ('sale',T('售卖综合价（USD/百万生成词元）','Blended sale price (USD/1M generated)'),base['price'],0,.01),
+      ('fee',T('销售扣费占销售额（%）','Sales deductions / gross sales (%)'),0,0,1),
+      ('other',T('其他年度现金费用（USD）','Other annual cash expense (USD)'),0,0,10)]
+    for key,label,value,minval,step in vals:
+        maxattr=' max="100"' if key in ['utilization','sold','fee'] else ' max="8760"' if key=='hours' else ''
+        value='' if value is None else f'{value:.8f}'.rstrip('0').rstrip('.') if isinstance(value,float) else str(value)
+        fields+=f'<label>{html.escape(label)}<input id="cost-{key}" type="number" value="{value}" min="{minval}" step="{step}"{maxattr}></label>'
+    body='<aside class="cost-tool" id="cost-tool"><h4>'+T('交互测算：持有成本、自用回报与售卖回报','Interactive ownership, self-use and sales returns')+'</h4><div class="cost-fields">'+fields+'</div><output id="cost-output" aria-live="polite">'+T('启用 JavaScript 后可调整参数；固定情景见上表。','Enable JavaScript to adjust inputs; fixed scenarios are tabulated above.')+'</output><p>'+T('仅在本地计算。切换并发会按对应实测条件重置功率、API 参考价和假设售价。两个用途独立测算，不能将收益相加；其他年度费用分别应用于两种用途。折旧年限只改变单位成本，不改变现金 ROI；回本为未折现的理论值，设备寿命需另行验证。未填写的真实费用不代表零；零费用仅为测算假设。页面图表及 PDF 保留固定情景。','Calculations run locally. Changing concurrency resets power, API reference and assumed sale price to the matched condition. The uses are independent: do not add their benefits. Other annual costs apply separately to each use. Depreciation life changes unit cost, not cash ROI; undiscounted theoretical payback does not establish useful device life. Zero entered costs are assumptions, not observed zero costs. Figures and PDFs retain fixed scenarios.')+'</p></aside>'
+    labels={
+      'invalid':T('请输入有效参数：采购价大于零，比例为 0–100%，年度时长不超过 8,760 小时。','Enter valid inputs: positive capital, fractions 0–100%, hours no more than 8,760.'),
+      'unit':T('自用设备与已填费用 / 百万生成词元','Self-use device and entered costs / million generated'),
+      'annual':T('年度设备折旧及运营费','Annual depreciation and operating expense'),
+      'self':T('自用测算','Self-use scenario'),'sales':T('售卖测算','Sales scenario'),
+      'gross_self':T('年避免 API 支出','Annual avoided API expense'),'gross_sales':T('年销售额','Annual gross sales'),
+      'net':T('年净现金收益','Annual net cash'),'payback':T('简单回本','Simple payback'),
+      'never':T('无正净现金流','No positive net cash flow'),'years':T('年','years'),
+      'roi':T('累计 ROI（1／3／5 年）','Cumulative ROI (1 / 3 / 5 years)'),
+      'cash':T('累计净收益（1／3／5 年）','Cumulative net cash (1 / 3 / 5 years)'),
+      'threshold':T('1／3／5 年回本最低综合售价（USD/百万）','Minimum sale price for 1 / 3 / 5-year payback (USD/1M)')}
+    js='\n(()=>{const rates='+json.dumps(rates)+';const labels='+json.dumps(labels,ensure_ascii=False)+''';
+const el=id=>document.getElementById('cost-'+id);if(!el('tool'))return;
+const val=id=>el(id).value.trim()===''?NaN:Number(el(id).value);
+const money=v=>'US$'+v.toFixed(0), years=[1,3,5];
+function recalc(){
+ const r=rates.find(r=>r.c===val('rate')),k=val('capital'),y=val('years'),p=val('power'),e=val('electricity'),h=val('hours'),u=val('utilization')/100,o=val('other'),a=val('api'),s=val('sale'),v=val('sold')/100,f=val('fee')/100;
+ if(!r||![k,y,p,e,h,u,o,a,s,v,f].every(Number.isFinite)||k<=0||y<=0||p<0||e<0||h<=0||h>8760||u<0||u>1||o<0||a<0||s<0||v<0||v>1||f<0||f>1){el('output').textContent=labels.invalid;return;}
+ const operating=p/1000*h*e+o,q=r.tps*3600*h*u/1e6,qs=r.tps*3600*h*v/1e6,annual=k/y+operating;
+ function result(title,grossName,gross,net){return title+' · '+grossName+': '+money(gross)+' · '+labels.net+': '+money(net)+' · '+labels.payback+': '+(net>0?(k/net).toFixed(2)+' '+labels.years:labels.never)+'\\n'+labels.roi+': '+years.map(t=>((t*net-k)/k*100).toFixed(1)+'%').join(' / ')+'\\n'+labels.cash+': '+years.map(t=>money(t*net-k)).join(' / ');}
+ el('output').textContent=labels.unit+': '+(q>0?'US$'+(annual/q).toFixed(2):'—')+' · '+labels.annual+': '+money(annual)+'\\n\\n'+result(labels.self,labels.gross_self,q*a,q*a-operating)+'\\n\\n'+result(labels.sales,labels.gross_sales,qs*s,qs*s*(1-f)-operating)+'\\n'+labels.threshold+': '+years.map(t=>qs>0&&f<1?((k/t+operating)/(qs*(1-f))).toFixed(3):'—').join(' / ');
+}
+el('rate').addEventListener('change',()=>{const r=rates.find(r=>r.c===val('rate'));el('power').value=r.watts===null?'':r.watts;el('api').value=el('sale').value=r.price===null?'':r.price;recalc();});
+document.querySelectorAll('#cost-tool input').forEach(x=>x.addEventListener('input',recalc));recalc();})();'''
+    return body,js

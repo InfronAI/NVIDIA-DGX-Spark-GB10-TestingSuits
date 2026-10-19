@@ -1,0 +1,323 @@
+"""GPU/system protocol and evidence-led report sections. Local reads only.
+
+The manifest is a prospective design, never a GPU executor. No hardware
+measurements are synthesized from the design or from serving telemetry.
+"""
+import json
+import statistics
+import re
+from common import ROOT
+
+MODULES = [
+    ('inventory', '硬件与软件基线', 'Hardware and software baseline',
+     '记录两节点芯片、计算能力、CPU拓扑、内存、网卡、驱动、CUDA、库版本、编译目标、功耗策略和后台进程；确认传感器、计数器及工具支持。',
+     'Record chip, compute capability, CPU topology, memory, NIC, driver, CUDA, libraries, compiler target, power policy and background processes on both nodes; probe tool and counter support.',
+     '配置一致性、可观测字段、环境散列', 'Configuration parity, supported fields, environment hashes'),
+    ('simt', 'CUDA核心计算', 'CUDA-core arithmetic',
+     'FP32乘加：独立运算与依赖链对照；线程块128／256／512；改变并行工作量。检查编译结果，避免被优化掉的循环。',
+     'FP32 multiply-add: independent operations versus dependency chains; 128/256/512-thread blocks and varying parallel work. Inspect compiled code for eliminated work.',
+     'GFLOP/s、依赖延迟、实际活跃线程占比', 'GFLOP/s, dependency latency, achieved occupancy'),
+    ('tensor', 'Tensor Core矩阵计算', 'Tensor Core matrix arithmetic',
+     '原生支持的TF32／FP16／BF16／FP8／NVFP4；方阵边长1,024／2,048／4,096／8,192；小批量M=1／8／32／128／512，N=K=4,096或8,192。稠密与支持的2:4稀疏分开。',
+     'Native TF32/FP16/BF16/FP8/NVFP4 where supported; square sizes 1,024/2,048/4,096/8,192; small-batch M=1/8/32/128/512 with N=K=4,096 or 8,192. Separate dense and supported 2:4 sparse paths.',
+     'TFLOP/s、耗时、数值误差；打包／量化开销另列', 'TFLOP/s, latency, numerical error; separate packing/quantization cost'),
+    ('dram', '内存带宽', 'Memory bandwidth',
+     '读、写、复制、向量三元运算；256MiB／1GiB／4GiB／8GiB总工作集；连续与步长访问。核验超出二级缓存，统计读写总字节。',
+     'Read, write, copy and vector triad; total working sets 256MiB/1GiB/4GiB/8GiB; contiguous and strided access. Verify L2 is exceeded and count both reads and writes.',
+     '有效GB/s、实际内存流量、带宽饱和点', 'Effective GB/s, physical traffic, bandwidth saturation'),
+    ('cache', '硬件缓存、共享内存与延迟', 'Hardware caches, shared memory and latency',
+     '4KiB至1GiB工作集倍增扫描；独立随机指针链、连续／重复访问与竞争访问；共享内存无冲突／冲突对照。转折点加密测量。',
+     'Double working sets from 4KiB to 1GiB; dependent randomized pointer chasing, streaming/reuse/competing access; conflict-free versus conflicting shared-memory access. Refine transition regions.',
+     '访问ns、L1/L2命中分母、共享内存带宽与冲突', 'Access ns, L1/L2 hit denominators, shared-memory bandwidth/conflicts'),
+    ('uma', 'CPU–GPU统一内存协同', 'CPU–GPU unified-memory cooperation',
+     '记录分配类型与支持的驻留策略；CPU／GPU首次访问和重复访问对照；CPU内存流负载0／1／4／10／20线程，并以CPU计算负载作对照。固定核心集合并记录异构核心。',
+     'Record allocation types and supported placement policies; CPU/GPU first-touch versus reuse; CPU memory-stream load at 0/1/4/10/20 threads with compute-only controls. Pin and record heterogeneous CPU cores.',
+     '首次访问耗时、GPU带宽保持率、频率与共享功耗', 'First-touch time, retained GPU bandwidth, clocks and shared power'),
+    ('scheduling', '启动、同步与并发', 'Launch, synchronization and concurrency',
+     '普通启动与CUDA Graphs配对；1／2／4／8条执行流；计算与搬运串行／重叠。空内核与有用计算分别测量。',
+     'Paired ordinary launches and CUDA Graphs; 1/2/4/8 streams; serialized versus overlapping compute/copy. Measure empty kernels and useful work separately.',
+     'CPU提交μs、GPU执行μs、同步等待、并发收益', 'Host-submit μs, device μs, synchronization waits, concurrency gain'),
+    ('operators', '代表性独立算子', 'Representative standalone operators',
+     '矩阵向量乘、归约、Softmax、RMSNorm及兼容注意力内核；合成张量固定形状、类型与布局。预填充／解码形状分组，归一化和归约规模从1K至256K元素。',
+     'Matrix-vector, reduction, Softmax, RMSNorm and compatible attention kernels on fixed synthetic shapes, dtypes and layouts. Separate prefill/decode shapes; normalization/reduction sizes range from 1K to 256K elements.',
+     '算子时间、数据流量、运算强度及参考结果误差', 'Operator time, traffic, arithmetic intensity, reference error'),
+    ('communication', '双机通信与重叠', 'Two-node communication and overlap',
+     'NCCL AllReduce／AllGather／ReduceScatter，8B至1GiB按2的幂扫描；每节点1个GPU进程。单独通信与计算重叠配对；记录网卡、路由、算法、协议和缓冲区类型。',
+     'NCCL AllReduce/AllGather/ReduceScatter, powers of two from 8B to 1GiB; one GPU rank per node. Pair standalone communication with compute overlap; record NIC, route, algorithm, protocol and buffer type.',
+     'μs、算法／总线GB/s、有效重叠、结果校验', 'μs, algorithm/bus GB/s, effective overlap, correctness'),
+    ('sustained', '功耗、热稳态与可靠性', 'Power, thermal steady state and reliability',
+     '稳定基线后，计算密集60分钟、带宽密集60分钟、混合负载120分钟；每阶段先校准自身基线，再比较10分钟窗口。1秒目标采样，保留实际刷新周期。',
+     'After stable baselines: 60 minutes compute, 60 minutes bandwidth and 120 minutes mixed load. Establish a baseline for each stage and compare ten-minute windows; target 1-second telemetry and retain actual refresh periods.',
+     '吞吐保持率、温度、频率、能量、错误／降频原因', 'Throughput retention, temperature, clocks, energy, errors/throttle reasons'),
+]
+
+SOURCES = [
+    ('NVIDIA DGX Spark 硬件规格', 'NVIDIA DGX Spark hardware', 'https://docs.nvidia.com/dgx/dgx-spark/hardware.html'),
+    ('统一内存与监控限制', 'Unified-memory reporting limits', 'https://docs.nvidia.com/dgx/dgx-spark/known-issues.html'),
+    ('CUTLASS架构与精度支持', 'CUTLASS architecture and dtype support', 'https://github.com/NVIDIA/cutlass'),
+    ('nvbandwidth测量方法', 'nvbandwidth methodology', 'https://github.com/NVIDIA/nvbandwidth'),
+    ('NCCL通信指标定义', 'NCCL communication metrics', 'https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md'),
+    ('Nsight计时、计数器与Roofline', 'Nsight timing, counters and roofline', 'https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html'),
+]
+
+def tr(lang, zh, en):
+    return zh if lang == 'zh' else en
+
+def tab(lang, headings, rows):
+    from build_report import table
+    return table([tr(lang, *h) for h in headings], rows)
+
+def figure(token, lang, zh, en):
+    return '\n\n<!--'+token+'-->\n\n'+tr(lang, zh, en)
+
+def sources(lang):
+    return ' · '.join('['+tr(lang,z,e)+']('+u+')' for z,e,u in SOURCES)
+
+def framework(lang):
+    T=lambda z,e:tr(lang,z,e)
+    text=T('系统性能由计算、数据供给、跨设备协作与请求调度共同决定。本方案设置四个测量层级：硬件微基准、独立算子、双机系统、端到端模型服务。每一层固定自己的工作量与计时边界，再利用匹配条件建立解释链。硬件实验使用合成张量；公开题集只用于服务工作负载。算子数值校验属于实现正确性检查，与模型答案评分无关。',
+           'System performance reflects computation, data supply, cross-device coordination and request scheduling. Four measurement layers are used: hardware microbenchmarks, standalone operators, the two-node system and end-to-end model serving. Each fixes its workload and timing boundary before matched conditions support interpretation. Hardware tests use synthetic tensors; public prompts supply serving loads. Operator numerical checks establish implementation correctness, separately from model-answer scoring.')
+    text+=figure('STUDY_LAYERS',lang,'研究层级与证据衔接｜示意图。箭头表示解释依赖，不表示已经完成的测试或可直接相减的耗时。','Study layers and evidence links | Schematic. Arrows indicate interpretive dependencies, not completed tests or directly subtractable timings.')
+    text+=tab(lang,[('层级','Layer'),('测量边界','Measurement boundary'),('可回答的范围','Supported scope')],[
+      [T('GPU硬件','GPU hardware'),T('设备端运算与内存访问','Device arithmetic and memory access'),T('特定精度、规模与状态下的可实现上限','Achievable ceiling at a specified precision, size and state')],
+      [T('独立算子','Standalone operators'),T('数据准备、内核执行、同步分别计时','Separate preparation, kernel execution and synchronization'),T('实现效率、形状敏感性与数据搬运代价','Implementation efficiency, shape sensitivity and data-movement cost')],
+      [T('双机系统','Two-node system'),T('CPU/GPU协同、集合通信与持续负载','CPU/GPU cooperation, collectives and sustained load'),T('资源竞争、通信代价及性能保持','Contention, communication cost and retained performance')],
+      [T('模型服务','Model serving'),T('客户端经Infron至双节点再返回响应','Client through Infron to the two nodes and back'),T('真实路径的等待、吞吐、缓存与费用','Waiting, throughput, cache reuse and cost on the actual path')],
+    ])
+    text+='\n\n'+T('GB10采用共享LPDDR5X统一内存；128GB不等于GPU独占可分配容量，双机256GB也不是单个共享地址池。273GB/s是每节点标称内存带宽；1PFLOP/s是稀疏FP4规格。效率比较必须匹配精度、稀疏性、频率和数据流量口径。GPU的L1/L2缓存以字节访问计数；推理前缀缓存以输入词元复用计数，两者分别统计。',
+      'GB10 uses shared LPDDR5X unified memory. Its 128GB is not an exclusively allocatable GPU pool; 256GB across two nodes is not one shared address space. The 273GB/s memory rating is per node; 1PFLOP/s is a sparse-FP4 rating. Efficiency comparisons must match precision, sparsity, clocks and traffic definitions. GPU L1/L2 caches count memory accesses; serving prefix caches count reused input tokens. They are reported separately.')+' [NVIDIA](https://docs.nvidia.com/dgx/dgx-spark/hardware.html)'
+    text+='\n\n### '+T('理解硬件结果所需的概念','Concepts needed to read hardware results')
+    text+=tab(lang,[('概念','Concept'),('定义与测量意义','Definition and measurement relevance')],[
+      [T('CUDA核心与Tensor Core','CUDA cores and Tensor Cores'),T('前者执行通用并行运算，后者加速特定矩阵乘加。FP32／FP16／FP8／FP4分别描述数值格式；位数较少不等于任意任务必然更快。','CUDA cores execute general parallel arithmetic; Tensor Cores accelerate specific matrix operations. FP32/FP16/FP8/FP4 identify numeric formats; fewer bits do not guarantee faster execution for every task.')],
+      [T('矩阵乘法与M、N、K','Matrix multiplication and M, N, K'),T('GEMM指通用矩阵乘法。A为M×K、B为K×N，输出为M×N。矩阵形状改变并行度与数据复用，须与精度一起报告。','GEMM means general matrix multiplication: A is M×K, B is K×N and output is M×N. Shape affects parallelism and reuse and must accompany precision.')],
+      [T('GPU内核与CUDA Graphs','GPU kernels and CUDA Graphs'),T('内核是一次在GPU执行的程序；执行流组织有序任务。CUDA Graphs复用事先记录的任务依赖，可能减少CPU重复提交开销。','A kernel is a program executed on the GPU; a stream orders work. CUDA Graphs replay captured dependencies and can reduce repeated host submission overhead.')],
+      [T('L1/L2、共享内存与统一内存','L1/L2, shared memory and unified memory'),T('L1/L2是硬件缓存；CUDA共享内存是线程块使用的片上空间；GB10统一内存是CPU/GPU共享的系统内存。三者容量、延迟和访问规则不同。','L1/L2 are hardware caches; CUDA shared memory is on-chip block-local storage; GB10 unified memory is CPU/GPU-shared system memory. Their capacity, latency and access rules differ.')],
+      [T('RDMA与GPU直接路径','RDMA and GPU-direct paths'),T('RDMA允许网卡远程读写注册内存；GPU直接路径还需确认网卡实际访问GPU缓冲区。普通RDMA测试本身不证明GPU直接通信。','RDMA lets NICs remotely access registered memory; a GPU-direct path additionally requires evidence of NIC access to GPU buffers. An ordinary RDMA test does not establish that path.')],
+      [T('NCCL集合通信','NCCL collectives'),T('NCCL是GPU通信库。AllReduce聚合后把结果发给各节点；AllGather收集各节点分片；ReduceScatter聚合后把不同结果分片交给各节点。','NCCL is a GPU communication library. AllReduce combines inputs and gives each rank the result; AllGather collects every rank’s shard; ReduceScatter combines inputs and distributes result shards.')],
+    ])
+    return text
+
+def matrix(lang):
+    return tab(lang,[('模块','Module'),('条件与对照','Conditions and controls'),('主要输出','Primary outputs')],[[tr(lang,r[1],r[2]),tr(lang,r[3],r[4]),tr(lang,r[5],r[6])] for r in MODULES])
+
+def protocol(lang):
+    T=lambda z,e:tr(lang,z,e)
+    text=T('本节为已纳入总体方案的待执行硬件协议。十个模块包括环境核验；当前没有按本协议完成的GPU微基准结果。已有网络测试保留为单独的历史观测。GPU实验使用独立窗口，不与模型负载同时争用资源。',
+           'This prospective hardware protocol is part of the integrated study. Its ten modules include environment verification; no GPU microbenchmark results under this protocol are available yet. Prior network tests remain separate observations. GPU experiments require an isolated window rather than resource contention with serving tests.')
+    text+=matrix(lang)
+    text+='\n\n### '+T('实验单元、重复与选择规则','Experimental units, replication and selection')
+    text+=T('\n\n实验单元是“节点 × 工作负载形状 × 数据类型 × 缓存／并发状态 × 独立轮次”。先固定条件清单、工具提交和种子20261015；每格5轮扫描。预先指定的关键条件至少10轮：4,096方阵、M=1与128且N=K=4,096的小批量矩阵；4GiB连续复制；跨缓存转折的代表工作集；普通启动／图执行；8KiB／8MiB集合通信。扫描后发现的异常条件另标为探索性，新增测量不能替代原样本。主节点执行全部支持项，第二节点重复关键条件用于检查节点差异；其余第二节点条件标记为未覆盖。',
+      '\n\nThe experimental unit is node × workload shape × dtype × cache/concurrency state × independent round. Freeze the condition list, tool commits and seed 20261015 first; screen each cell in five rounds. Predeclared key conditions receive at least ten rounds: 4,096-square GEMM; M=1 and 128 with N=K=4,096; 4GiB streaming copy; representative cache-transition sets; ordinary versus graph launches; and 8KiB/8MiB collectives. Anomalies selected after screening are exploratory and retain all original samples. The primary node runs all supported items; the second repeats key conditions for node comparison, with other second-node conditions marked uncovered.')
+    text+=T('\n\n同一轮内批量迭代累计至少1秒，提高微秒计时的分辨率；轮内迭代不充当独立重复。支持的精度与布局在运行前冻结，不支持的条件保留原因。固定默认功耗策略，记录自然频率，不改变服务驱动或全局功耗配置。先分别记录库默认实现与预先完成调优的实现；调优搜索时间单列，独立确认轮用于报告调优后性能。',
+      '\n\nBatch inner iterations for at least one second per timing sample to resolve microsecond operations; inner iterations are not independent replicates. Freeze supported dtypes/layouts before running and retain reasons for unsupported cells. Keep the default power policy, log actual clocks and avoid changing the serving driver or global power configuration. Separate library-default and pretuned implementations; report tuning time separately and use independent confirmation rounds for tuned results.')
+    text+='\n\n### '+T('预热、热状态与数值正确性','Warmup, thermal state and numerical correctness')
+    text+=T('\n\n首次初始化、编译、内存分配、算法选择、打包与量化分别记录。稳定测量先预热至少5分钟，再比较连续三个60秒窗口：吞吐变动不超过3%、平均温度跨度不超过2°C作为本实验的稳态操作标准；15分钟仍未满足则记录未稳态，不丢弃较慢窗口。该规则是实验判定，不是厂商验收标准。缓存复用、首次访问和大工作集带宽各用明确的缓冲区生命周期，不能把预热后缓存命中当作外部内存带宽。',
+      '\n\nRecord initialization, compilation, allocation, algorithm selection, packing and quantization separately. Warm up for at least five minutes, then assess three consecutive 60-second windows: throughput variation ≤3% and a range of mean temperatures ≤2°C define operational steady state for this study. If unmet within 15 minutes, label the run non-steady and retain slower windows. These are experimental criteria, not vendor acceptance limits. Cache reuse, first touch and large-working-set bandwidth use explicit buffer lifecycles so warm cache hits cannot masquerade as external-memory bandwidth.')
+    text+=T('\n\n浮点计算报告最大绝对误差、相对误差和归一化均方根误差；容差按数据类型、归约长度和官方校验规则在执行前冻结。低精度内核先对照同一量化输入的高精度计算，再单独报告相对于未量化输入的误差。正确性不通过的结果保留为失败，不进入有效性能汇总。线程占比、Tensor管线活跃度与GPU整体活跃度分别解释。',
+      '\n\nReport maximum absolute/relative error and normalized root-mean-square error, with tolerances frozen by dtype, reduction length and official validation rules before execution. Check low-precision kernels against high-precision computation on identical quantized inputs, and separately quantify error against original unquantized inputs. Incorrect results remain failures and are excluded from valid-performance summaries. Occupancy, Tensor-pipeline activity and overall GPU activity retain distinct meanings.')
+    text+='\n\n### '+T('统一内存、计数器与通信控制','Unified-memory, counter and communication controls')
+    text+=T('\n\n总分配量不超过预检可用内存扣除max(16GiB,物理内存的15%)后的余量，并限制在预检可用内存的70%以内；每次分配前重新检查。实际驱动分配上限、系统页缓存和进程驻留量单独记录，不以触发系统内存耗尽寻找边界。CPU内存压力与CPU计算压力配对，结合频率、温度和功耗解释共享资源竞争；不把统一内存访问一概解释为PCIe数据迁移。',
+      '\n\nCap total allocations at the smaller of 70% of preflight available memory and available memory minus max(16GiB,15% of physical memory), rechecking before each allocation. Record driver allocation limits, OS page cache and process residency separately; do not seek capacity by exhausting system memory. Pair CPU memory and compute pressure and inspect clocks, temperature and power to explain shared-resource competition; unified-memory access is not automatically PCIe migration.')
+    text+=T('\n\nNCCL记录rank映射、消息口径、实际传输路径、网卡及版本；8B–1GiB只运行满足数据类型和rank整除规则的尺寸。GPU直接RDMA须有缓冲区类型与运行日志证据，否则标为未确认或主机中转。两个逻辑接口的单独结果不能相加为聚合带宽。诊断采样与正式计时分开；原始计数器缺失时不估算缓存命中或理论峰值利用率。',
+      '\n\nFor NCCL retain rank mapping, message conventions, transport path, NIC and versions; run only sizes from 8B–1GiB satisfying dtype/rank divisibility. GPU-direct RDMA requires buffer and runtime evidence; otherwise label unverified or host-staged. Separate logical-interface results are not additive aggregate bandwidth. Separate profiling from timed runs; absent counters cannot support inferred cache hits or peak utilization.')
+    text+='\n\n'+sources(lang)
+    return text
+
+def metrics(lang):
+    T=lambda z,e:tr(lang,z,e)
+    rows=[
+      ('计算吞吐','Compute throughput','稠密GEMM约2MNK/t；TFLOP/s=FLOP/s÷10¹²。注明输入／累加精度与是否计入转换。稀疏另列有效运算口径。','Dense GEMM ≈2MNK/t; TFLOP/s = FLOP/s / 10¹². State input/accumulator precision and conversion inclusion. Sparse effective-operation counts are separate.'),
+      ('内存带宽','Memory bandwidth','有效带宽=(读字节+写字节)/t；复制的有效流量通常为2N字节。工具的单向载荷带宽保留原定义。物理流量以有效计数器为准。','Effective bandwidth = (read + written bytes)/t; copy normally counts 2N bytes. Preserve a tool’s one-way payload convention. Physical traffic requires valid counters.'),
+      ('内存访问与缓存','Memory access and cache','依赖访问延迟=链式访问时间/次数；明确缓存、地址转换缓存与时钟状态。L1/L2命中率按计数器原定义和访问分母报告。','Dependent-access latency = chain time/accesses; specify cache, translation-cache and clock state. L1/L2 hit rates retain counter-specific access denominators.'),
+      ('执行与启动','Execution and launch','CUDA事件记录设备端时间；主机单调时钟记录提交及含同步的总时间。Graph实例化、首次执行与重放分别报告。','CUDA events measure device time; a host monotonic clock measures submission and synchronized elapsed time. Separate graph instantiation, first execution and replay.'),
+      ('并发与重叠','Concurrency and overlap','并发收益=总工作量相同条件下的吞吐比；重叠收益=(串行耗时−重叠耗时)/串行耗时。保留每任务延迟。','Concurrency gain is a throughput ratio at matched total work; overlap benefit = (serial−overlapped time)/serial time. Retain per-task latency.'),
+      ('通信','Communication','algbw=工具定义的消息字节/t；AllReduce busbw=algbw×2(n−1)/n，其他操作使用各自公式。单位GB/s和Gb/s不混用。','algbw = tool-defined message bytes/t; AllReduce busbw = algbw×2(n−1)/n; other operations use their formulas. Distinguish GB/s from Gb/s.'),
+      ('持续性能','Sustained performance','每阶段10分钟窗口吞吐/同阶段预热后基线；分别报告计算、带宽和混合负载。不同工作量的速度不可混合求保持率。','Ten-minute-window throughput / that stage’s post-warmup baseline; separate compute, bandwidth and mixed workloads. Do not mix unlike work.'),
+      ('能量与能效','Energy and efficiency','能量E=∫P(t)dt，单位J；能效=工作量/E。芯片、估算整机、插座实测三种边界分开；动态能量另减同边界空闲基线。','Energy E=∫P(t)dt in J; efficiency = work/E. Separate chip, estimated system and outlet-metered boundaries; dynamic energy subtracts a matched idle baseline.'),
+      ('数值与可靠性','Numerics and reliability','校验误差、有效／无效轮次、实际观测时长、新出现的驱动异常、内存分配失败及降频原因。短时无错误不外推平均故障间隔。','Validation errors, valid/invalid rounds, observed duration, new driver faults, allocation failures and throttle reasons. Short error-free tests do not estimate MTBF.'),
+      ('性能上限图','Roofline','运算强度I=运算量/同层级字节流量；参考上限min(P,B×I)。P、B来自相同精度与状态的实测或明确标注的规格；接近上限需结合执行轨迹解释。','Arithmetic intensity I=operations/bytes at the same memory level; reference ceiling min(P,B×I). P and B use matched measured or explicitly rated ceilings; interpret proximity with execution traces.'),
+    ]
+    return tab(lang,[('指标','Metric'),('定义、单位与边界','Definition, unit and boundary')],[[T(z,e),T(zd,ed)] for z,e,zd,ed in rows])
+
+def statistics_protocol(lang):
+    return tr(lang,
+      '统计以独立轮次或配对区组为单位，报告全部样本、有效分母、中位数、四分位距及95%区间；关键配对比较采用轮次成簇重采样，并给出各轮原始点。5轮扫描以描述性统计为主；10轮也不保证高精度区间。比率先在配对轮内计算再汇总。固定阶段之间随机化条件顺序，冷／热缓存及首次访问实验单列。短时微基准不报告服务尾延迟；少量轮次不报告稳健p99。稳态性能下降超过5%且持续两个10分钟窗口标为复核信号，结合温度、频率和负载验证，不能直接判为硬件故障。细粒度剖析有额外开销，计时结果与剖析结果分开保存。',
+      'Use independent rounds or paired blocks as statistical units; report all samples, valid denominators, medians, interquartile ranges and 95% intervals. Key paired comparisons use round-cluster resampling with raw round points. Five-round screens are descriptive; ten rounds still do not guarantee precise intervals. Calculate ratios within paired rounds before aggregation. Randomize conditions within fixed stages and separate cold/warm-cache and first-touch tests. Microbenchmarks do not estimate serving tails; few rounds cannot support robust p99. A >5% decline lasting two ten-minute windows is an investigation flag, assessed with clocks, temperatures and work, not a hardware-failure verdict. Preserve timing and intrusive profiling runs separately.')
+
+def schedule(lang):
+    T=lambda z,e:tr(lang,z,e)
+    text=T('模型服务实验继续使用原冻结请求、并发≤8、8,171次实际尝试、累计US$500及2026年10月16日12:40:53北京时间截止。硬件测试按设备占用小时计量，不加入API调用分母，也不自动延长上述期限。新增硬件阶段状态为“已设计、待执行”，独占窗口尚未激活；本次文档更新不启动GPU负载。',
+      'Serving experiments retain the frozen requests, concurrency ≤8, 8,171 actual attempts, cumulative US$500 limit and 2026-10-16 12:40:53 China Standard Time deadline. Hardware work is budgeted in device-hours, not API calls, and does not automatically extend that deadline. The hardware stage is designed but unexecuted; its exclusive window is not activated by this document update.')
+    text+=tab(lang,[('阶段','Stage'),('预计墙钟时间','Estimated wall time'),('前置与完成条件','Entry and completion conditions')],[
+      [T('环境与正确性预检','Environment and correctness preflight'),'0.5–1 h',T('识别工具支持，保存配置与校验；时间不含依赖适配','Resolve support and retain configuration/checks; excludes dependency adaptation')],
+      [T('单机与第二节点关键复验','Single-node suite and key second-node checks'),'3–4 h',T('确认无推理请求和竞争GPU进程，按固定条件清单执行','No serving requests or competing GPU processes; use frozen conditions')],
+      [T('双机通信','Two-node communication'),'1–2 h',T('两节点同时可用，验证实际网络与缓冲区路径','Both nodes available; validate network and buffer paths')],
+      [T('持续运行','Sustained operation'),'4 h',T('计算60分钟＋带宽60分钟＋混合120分钟；逐阶段基线','60 min compute + 60 min bandwidth + 120 min mixed; stage-specific baselines')],
+      [T('总计','Total'),'8.5–11 h',T('另计工具适配、分析与报告；12–24小时扩展单列','Excludes tool adaptation, analysis and reporting; 12–24h extension separate')],
+    ])
+    text+=figure('GPU_SEQUENCE',lang,'GPU实验顺序｜示意排程；模型服务测量与独占硬件负载分时执行，持续阶段有自身基线。','GPU experiment sequence | Proposed schedule; serving and exclusive hardware load occupy separate windows, with baselines for each sustained stage.')
+    text+='\n\n'+T('硬件阶段正式开始前生成带时间、配置散列和实际条件的激活记录。高负载前确认推理请求排空；驻留模型须在专门安排的服务窗口释放。恢复服务后核对同一配置与健康状态。无需为本次文档修订停止服务。每轮保存开始、完成和校验记录；未知终态先核查，瞬态工具失败有界重试并保留原失败，数值错误、驱动故障和内存压力不无限重试。保护阈值取设备支持值，遇硬件保护、系统内存余量不足或监控失效即停止当前负载。',
+      'Before hardware execution, create an activation record with time, configuration hashes and actual conditions. Drain serving requests before saturation; release resident models in a specifically scheduled service window. Verify matching configuration and health after restoration. This documentation change requires no service stop. Preserve start, terminal and validation records for each round; resolve unknown outcomes before resuming, bound retries of transient tool failures and retain originals. Numerical errors, driver faults and memory pressure are not retried indefinitely. Use supported device protection limits and stop the active load on hardware protection, insufficient memory headroom or lost monitoring.')
+    return text
+
+def execution_status(lang):
+    T=lambda z,e:tr(lang,z,e)
+    p=ROOT/'runs/gpu_system/status.json'
+    if not p.exists():return ''
+    d=json.loads(p.read_text())
+    states={'running':T('运行中','Running'),'stopped':T('已停止，需按阶段记录解释','Stopped; interpret phase receipts'),'batch_complete':T('首批执行完成，结果待汇总','First batch executed; analysis pending'),'waiting_for_serving':T('等待模型请求排空','Waiting for serving drain')}
+    phase={'single':T('单节点计算、带宽与算子','Single-node compute, bandwidth and operators'),'communication':T('双机集合通信','Two-node collectives'),'soak':T('持续负载','Sustained load'),'preflight':T('环境检查','Preflight')}.get(d.get('phase'),d.get('phase','—'))
+    text=tab(lang,[('项目','Item'),('状态','Status')],[[T('任务状态','Task state'),states.get(d.get('state'),d.get('state','—'))],[T('当前阶段','Current phase'),phase],[T('状态时间（UTC）','Status time (UTC)'),d.get('utc','—')]])
+    text+='\n\n'+T('首批覆盖107个单节点条件、每条件10轮，并安排双机集合通信和持续负载；广义方案中的硬件缓存、CPU竞争及指令级测量仍为后续项目。测试保持模型驻留，启动前已清理操作系统文件缓存；数值校验、内存保护跳过和未完成条件分别记录。任务运行状态不等于已通过验证的性能结果。', 'The first batch covers107 single-node conditions with10 rounds each, followed by two-node collectives and sustained load. Hardware caches, CPU contention and instruction-level studies remain future modules. Models stay resident and OS file cache was cleared before launch. Numerical checks, memory-guard skips and incomplete conditions remain distinct. Runtime status is not a validated performance result.')
+    text+='\n\n'+T('[执行清单](../runs/gpu_system/manifest.json) · [阶段状态](../runs/gpu_system/status.json)','[Execution manifest](../runs/gpu_system/manifest.json) · [Phase status](../runs/gpu_system/status.json)')
+    return text
+
+
+def result_hardware(lang):
+    from hardware_completion_report import data, hardware
+    if data():
+        return hardware(lang)
+    from hardware_partial import records, text as partial_text
+    if records():return execution_status(lang)+'\n\n'+partial_text(lang)
+    T=lambda z,e:tr(lang,z,e)
+    text=execution_status(lang)+'\n\n'+T('独立硬件测量的正式统计尚未汇总，以下结果组等待逐轮校验。标称规格作为设备描述；当前不计算实测峰值利用率、Roofline位置或单位能量硬件吞吐。','Formal hardware statistics are pending per-round validation. Ratings describe the device; measured peak utilization, roofline positions and hardware work per joule are not calculated.')
+    text+=tab(lang,[('结果组','Result group'),('本快照证据','Evidence in this snapshot'),('正式结果应包含','Required measured result')],[
+      [T('计算与精度','Compute and precision'),T('待测','Not measured'),T('精度×矩阵规模热力图、轮次分布、数值校验','Precision/size heatmap, round distributions, numerical checks')],
+      [T('带宽与缓存','Bandwidth and caches'),T('待测','Not measured'),T('工作集—带宽／延迟曲线、访问分母、缓存转折','Working-set bandwidth/latency curves, access denominators, transitions')],
+      [T('统一内存与并发','Unified memory and concurrency'),T('待测','Not measured'),T('CPU干扰曲线、启动／同步开销、重叠对照','CPU-interference curves, launch/sync costs, overlap controls')],
+      [T('独立算子效率','Standalone operator efficiency'),T('待测','Not measured'),T('形状和精度匹配的算子时间、流量与性能上限图','Shape/dtype-matched operator timing, traffic and roofline')],
+    ])
+    text+='\n\n'+T('判断顺序为：先通过结果校验，再比较相同工作量，随后结合数据流量和执行轨迹定位限制。统一内存的可用容量与数据供给速度分别分析；高GPU活跃度本身不证明Tensor Core充分利用或内存带宽饱和。',
+      'Interpretation proceeds from correctness to matched work, then traffic and execution traces. Analyze unified-memory availability separately from data-supply speed; high GPU activity alone proves neither Tensor Core utilization nor bandwidth saturation.')
+    return text
+
+def rdma_rows():
+    d=json.loads((ROOT/'evidence/rdma_summary.json').read_text())
+    groups={}
+    for r in d['rows']:
+        if r['client_returncode'] or r['server_returncode'] or not r['data_row']:continue
+        parts=r['data_row'].split()
+        value=float(parts[3] if r['tool']=='ib_write_bw' else parts[2])
+        groups.setdefault((r['device'],r['tool'],r['message_bytes']),[]).append(value)
+    return [(device,tool,size,len(values),statistics.median(values),min(values),max(values)) for (device,tool,size),values in groups.items()]
+
+def result_communication(lang):
+    from hardware_completion_report import data, communication
+    if data():
+        from hardware_h200_report import communication as transfer
+        return transfer(lang,data())+communication(lang)
+    T=lambda z,e:tr(lang,z,e)
+    text=T('下面是2026年10月14日保存的独立RDMA工具观测，各行对应单独测试的逻辑接口。它们不属于新增GPU协议的完成量。GB/s表示每秒十亿字节，Gb/s表示每秒十亿比特，两者相差8倍。',
+      'The table contains independent RDMA-tool observations saved on 2026-10-14, with each row representing a separately tested logical interface. They do not count as completion of the new GPU protocol. GB/s denotes billions of bytes per second and Gb/s billions of bits per second, differing by eight.')
+    rows=[]
+    for device,tool,size,n,med,low,high in rdma_rows():
+        unit='Gb/s' if tool=='ib_write_bw' else 'μs'
+        rows.append([device,tool,'8 MiB' if size==8388608 else '8 B',n,f'{med:.2f} {unit}',f'{low:.2f}–{high:.2f} {unit}'])
+    text+=tab(lang,[('逻辑接口','Logical interface'),('工具','Tool'),('消息','Message'),('重复','Repeats'),('中位数','Median'),('范围','Range')],rows)
+    text+=figure('RDMA_LINKS',lang,'独立网络观测｜每点一次有效测量；不包含GPU集合通信结果。各逻辑接口单独测试。','Independent network observations | Each point is one valid measurement, excluding GPU collective results. Logical interfaces were tested separately.')
+    text+='\n\n'+T('**可支持的结论：**所测8MiB写入条件下，单个逻辑接口报告约109Gb/s；所测8B读取条件下，延迟约2.62–2.89μs。每行仅3次重复；保留工具测量区间与进程墙钟时间的区别。实际GPU缓冲区路径、集合通信效率及双接口同时聚合收益尚未由这些记录建立。',
+      '**Supported observation:** the tested 8MiB writes report about 109Gb/s on each separately measured logical interface; tested 8B reads report about 2.62–2.89μs. Each row has only three repeats; tool measurement intervals differ from process wall time. These records do not establish GPU-buffer paths, collective efficiency or simultaneous multi-interface aggregation.')
+    text+='\n\n'+T('**集合通信：部分实测已归档。** 下文按消息大小展示AllReduce、AllGather、ReduceScatter的延迟与带宽，并列出有效重复次数和数值校验结果。计算与通信重叠未测；这些结果不能用于推算双机相对单机的模型加速倍数。',
+      '**Collectives: partial measurements archived.** The following results present latency and bandwidth by message size for AllReduce, AllGather and ReduceScatter, with valid repeat counts and numerical checks. Compute/communication overlap was not measured; no model speedup over one node is inferred.')
+    from hardware_collective_analysis import report as collective_report
+    text+=collective_report(lang)
+    text+='\n\n['+T('原始RDMA汇总与测量说明','Raw RDMA summary and measurement notes')+'](../evidence/rdma_summary.json) · [NCCL](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md)'
+    return text
+
+def attribution(lang):
+    T=lambda z,e:tr(lang,z,e)
+    text=T('本节将观测与解释分开。服务速度、GPU活跃度或网卡带宽的单项变化只能提出候选解释。归因需要同一负载、相同配置、对齐时间窗及控制实验共同支持；无法匹配时保留为待验证机制。',
+      'This section separates observations from explanations. A change in serving speed, GPU activity or NIC bandwidth alone only suggests a candidate mechanism. Attribution requires matched work, configuration, aligned time windows and controlled experiments; unmatched mechanisms remain hypotheses.')
+    text+=tab(lang,[('候选限制','Candidate limit'),('需要的联合证据','Required joint evidence'),('本快照的判定','Snapshot assessment')],[
+      [T('计算供给','Compute supply'),T('对应精度GEMM上限＋同形状算子轨迹＋计算管线计数','Matched-dtype GEMM ceiling + same-shape operator trace + pipeline counters'),T('按第05节逐条件实测与剖析覆盖判断，不能仅凭峰值认定服务计算瓶颈','Use condition-specific measurements and profiling in section05; peaks alone do not establish a serving compute bottleneck')],
+      [T('内存或缓存','Memory or caches'),T('超L2工作集带宽＋实际流量／访问命中＋CPU干扰对照','Beyond-L2 bandwidth + traffic/hit counters + CPU-interference controls'),T('服务前缀复用按第07节分析；硬件缓存机制待测','Serving reuse is analyzed in section 07; hardware cache mechanism pending')],
+      [T('跨节点通信','Inter-node communication'),T('集合通信曲线＋真实传输路径＋算子计算/通信重叠轨迹','Collective curves + verified transport + compute/communication traces'),T('集合通信和计算重叠按第06节配对数据判断；模型因果收益未建立','Use paired collective/overlap results in section06; causal model benefit is not established')],
+      [T('调度与排队','Scheduling and queues'),T('计划到达／发送／首片段时间＋引擎队列＋固定负载对照','Scheduled/send/first-fragment times + engine queue + fixed-load controls'),T('按服务阶段实际覆盖判断；微基准不能替代服务排队','Assess actual serving-stage coverage; microbenchmarks do not establish queues')],
+      [T('热或功耗限制','Thermal or power limits'),T('同负载性能漂移＋频率/温度/限制原因＋独占稳态复验','Matched-work drift + clocks/temperature/limit reasons + isolated steady-state repeat'),T('按第08节分窗保持率、温度、频率与传感器证据判断','Use windowed retention, temperature, frequency and sensor evidence in section08')],
+    ])
+    text+='\n\n### '+T('结论的证据层级','Evidence levels for conclusions')
+    text+=T('\n\n**直接观测**列出请求／轮次、条件和时间窗；**受控比较**报告匹配因素、配对差值及不确定性；**机制解释**需计数器、时间线和干预对照一致；**经济情景**显式列出价格、利用率、能量边界与期限。规格值、未来计划和情景结果都不进入实测性能分母。多个性能维度不压缩成一个未定义权重的总分。',
+      '\n\n**Direct observations** identify requests/rounds, conditions and windows. **Controlled comparisons** specify matching, paired differences and uncertainty. **Mechanistic explanations** require consistent counters, timelines and interventions. **Economic scenarios** specify price, utilization, energy scope and horizon. Ratings, plans and scenarios never enter measured-performance denominators. Multiple dimensions are not collapsed into an arbitrarily weighted score.')
+    text+='\n\n'+T('后续Roofline采用实测计算上限与带宽，先定义运算强度再绘制算子点；时间分解采用同一执行轨迹，不能将公网端到端延迟减去另一时段的内核时间来估算网关开销。跨软件版本或服务恢复前后的样本分段分析。',
+      'Future rooflines use measured compute and bandwidth ceilings, defining arithmetic intensity before plotting operators. Time decomposition uses the same execution trace; subtracting a kernel time from another period from public end-to-end latency cannot estimate gateway overhead. Segment samples across software versions or service restoration.')
+    return text
+
+def conclusion(lang):
+    from hardware_completion_report import data, conclusion as completed_conclusion
+    if data():return completed_conclusion(lang)
+    return tr(lang,'GB10计算和部分独立算子已有首轮部分记录，完整重复、硬件缓存及4小时持续负载尚未完成；已有RDMA观测只限定所测接口与消息条件。当前可以描述模型服务在已测负载下的表现，尚不能确定GPU峰值效率或唯一硬件瓶颈。',
+      'GB10 compute and some standalone operators have partial first-round records; complete repeats, hardware caches and four-hour sustained load remain unfinished. Existing RDMA observations apply only to the tested interfaces and messages. Serving behavior can be described for measured loads; GPU peak efficiency and a unique hardware bottleneck remain undetermined.')
+
+def integrated_report(a,lang,original):
+    """Compose final reading order without changing any saved measurements."""
+    T=lambda z,e:tr(lang,z,e)
+    pieces=re.split(r'\n\n## (\d{2}) · ([^\n]+)\n\n',original)
+    assert len(pieces)==34, 'Expected eleven source report sections'
+    sections={int(pieces[i]):pieces[i+2] for i in range(1,len(pieces),3)}
+    remap={1:1,2:2,3:3,4:4,5:7,6:8,7:10,8:11,9:12,10:13,11:14}
+    for k,v in sections.items():
+        v=re.sub(r'第\s?(\d{2})\s?节',lambda m:'第'+str(remap[int(m[1])]).zfill(2)+'节',v)
+        v=re.sub(r'section (\d{2})',lambda m:'section '+str(remap[int(m[1])]).zfill(2),v)
+        sections[k]=v
+    head=T('# NVIDIA DGX Spark：双节点系统与推理性能评估','# NVIDIA DGX Spark: Two-Node System and Inference Performance Evaluation')
+    head+='\n\n'+T('**服务、硬件、集合通信与独立引擎实验均按实际完成范围报告。**','**Serving, hardware, collective and independent engine experiments reflect actual completed coverage.**')
+    head+='\n\n'+T('数据快照（UTC）：','Data snapshot (UTC): ')+a['generated_utc']
+    bridge=T('研究采用分层测量：GPU硬件提供计算与数据供给基线，独立算子建立形状与实现效率的联系，双机实验考察通信与共享资源，服务实验记录用户可见表现。各层固定自己的工作量和计时范围，通过匹配条件解释性能变化。本轮已获得模型服务、节点资源、GPU微基准及双机通信证据；每一层的实际覆盖、重复次数和持续时长单独列出。机制解释须由匹配对照支持，不能由单项速率认定唯一硬件瓶颈。',
+      'The study uses layered measurement: GPU hardware establishes compute and data-supply baselines, standalone operators connect shapes with implementation efficiency, two-node experiments assess communication and shared resources, and serving measures user-visible behavior. Each layer fixes its work and timing boundary, with matched conditions supporting interpretation. Evidence covers serving, node resources, GPU microbenchmarks and two-node communication, with actual coverage, repeats and duration reported separately. Mechanistic explanations require matched controls; individual rates do not establish a unique hardware bottleneck.')
+    pos=sections[1].index('\n\n### ')
+    sections[1]=sections[1][:pos]+'\n\n'+bridge+sections[1][pos:]
+    sections[2]=framework(lang)+'\n\n### '+T('模型服务实验与材料','Model-serving experiments and materials')+'\n\n'+sections[2]
+    sections[2]+='\n\n### '+T('GPU与系统实验控制','GPU and system controls')+'\n\n'+T('独占窗口覆盖计算、内存、缓存、调度和独立算子；第二节点复验关键条件，双机执行集合通信。固定版本、数据类型、布局、内存状态及功耗策略；基础矩阵每格10轮；扩展矩阵一般5轮、预设关键条件10轮。普通启动与CUDA Graphs、串行与重叠、CPU内存与计算干扰采用配对条件。数值校验与性能剖析分开记录。完整条件、稳态规则及排程见测试计划第03节。',
+      'An exclusive window covers compute, memory, caches, scheduling and standalone operators; the second node repeats key conditions and both run collectives. Freeze versions, dtypes, layouts, memory state and power policy. The base matrix uses ten rounds per condition; extensions use five generally and ten for predeclared key conditions. Pair ordinary/graph launches, serial/overlapped work and CPU memory/compute interference. Retain correctness and profiling separately. Section 03 of the test plan gives full conditions, steady-state rules and scheduling.')
+    sections[3]+='\n\n### '+T('GPU与系统指标的边界','GPU and system measurement boundaries')+'\n\n'+T('计算以指定精度的运算量／设备时间报告；内存带宽区分有效读写字节和实际总线流量。硬件缓存的分母是访问量，前缀缓存的分母是输入词元。内核时间、CPU提交、集合通信与公网服务时间分别报告，不能跨实验相减。持续性能采用同负载预热基线；能效使用相同边界的积分能量。附录A给出公式、单位和数值校验要求。',
+      'Compute uses operations at the specified precision per device time; bandwidth separates useful read/write bytes from physical traffic. Hardware caches count accesses, while prefix caches count input tokens. Kernel, host-submit, collective and public-serving times are separate and cannot be subtracted across experiments. Sustained performance uses a same-workload warm baseline; efficiency uses integrated energy at a matching boundary. Appendix A defines formulas, units and numerical checks.')+'\n\n'+statistics_protocol(lang)
+    sections[4]+='\n\n'+T('硬件工作量不加入API请求分母。本批执行范围、阶段状态与受限条件见第05节；原始执行清单和状态文件保留独立记录。','Hardware work is excluded from API-request denominators. Section05 lists the batch scope, phase status and constrained conditions; execution manifests and status records remain separate.')
+    sections[6]+='\n\n'+T('本节首先展示模型服务窗口监控；独立GPU持续负载在下文按实际覆盖列出。两类持续测试的工作量与基线不同，不能合并为一段稳定性时长。传感器、估算整机与插座电量的边界分别保留；缺少插座电量时，后续成本仍为情景估算。',
+      'The opening telemetry belongs to serving windows; independent GPU sustained work is reported below by actual coverage. Their work and baselines differ and durations cannot be combined into one stability claim. Keep sensor, estimated system and outlet-metered energy separate; absent outlet measurements, cost remains scenario-based.')
+    from hardware_completion_report import data as completion_data, sustained, appendix
+    if completion_data():
+        sections[6]+=sustained(lang)
+        sections[11]+=appendix(lang)
+    target='\n\n### '+T('后续工作','Next work')
+    sections[8]=sections[8].replace(target,'\n\n### '+T('硬件与系统结论','Hardware and system conclusion')+'\n\n'+conclusion(lang)+target,1)
+    sections[8]+='\n\n'+T('系统测评按“独占环境与校验 → GPU计算／内存／缓存 → 独立算子 → 双机集合通信 → 4小时持续负载”推进，完成后更新第05、06、09节的上限与归因。预计独占窗口8.5–11小时，工具适配和分析另计，不自动延长API测试期限。优化建议需由相同工作负载下的硬件、算子和服务证据共同支持。',
+      'System measurement proceeds through exclusive preflight, GPU compute/memory/caches, standalone operators, collectives and four-hour sustained load before updating sections 05, 06 and 09. The estimated exclusive window is 8.5–11 hours excluding adaptation and analysis, with no automatic extension of the API deadline. Optimization recommendations require aligned hardware, operator and serving evidence.')
+    sections[9]+='\n\n### '+T('GPU与系统指标字典','GPU and system metric dictionary')+'\n\n'+metrics(lang)+'\n\n'+sources(lang)
+    from engine_split_report import report as engine_split_report
+    engine_section=engine_split_report(lang)
+    if engine_section:
+        sections[5]+='\n\n'+engine_section
+        engine_data=json.loads((ROOT/'engine_split_20261016/analysis/summary.json').read_text())
+        sections[4]+='\n\n'+T(f"独立引擎实验另计：当前归档{engine_data['valid_blocks']}组、{engine_data['valid_requests']}条可分析正式请求，另有2条预检／剖析请求及双节点4份GPU时间线。该实验直接访问源站，不加入公网API请求及费用分母；完整定义与结果见第07节。",f"Independent engine experiment: {engine_data['valid_blocks']} archived analyzable blocks and {engine_data['valid_requests']} formal requests, plus two pilot/profile requests and four GPU traces across both ranks. These direct-origin observations do not enter public-API request or cost denominators; definitions and results are in section07.")
+        if engine_data['valid_blocks']:
+            sections[8]+='\n\n### '+T('独立引擎实验结论与适用范围','Independent engine findings and applicability')+'\n\n'+T('本轮通过原生请求元数据建立预填充、排队和解码的独立计时，并以双节点GPU轨迹验证计算、通信及MTP执行路径。该证据支持相同合成输入、固定输出与当前部署下的阶段速率比较。尚未建立所有长度／批量条件下的纯GPU步级吞吐，也未通过关闭MTP、改变通信或替换内核的受控实验确定因果瓶颈。','Native request metadata establishes separate prefill, queue and decode timing, while two-rank GPU traces verify computation, communication and MTP paths. Evidence supports stage-rate comparisons under matching synthetic inputs, fixed outputs and the current deployment. Pure device-step throughput across every length/batch and causal bottlenecks from MTP-off, communication or kernel interventions remain unestablished.')
+        sections[11]+='\n\n### '+T('独立引擎实验代码与原始数据','Independent engine code and raw evidence')+'\n\n'+T('本机根目录：','Local root: ')+str(ROOT/'engine_split_20261016')+'\n\n'+T('执行器：engine_probe.py、run_engine.py；采集器：collect_engine.py；离线分析：analyze_engine.py；原始请求／响应与GPU时间线：raw/node0、raw/node1；计时表：analysis/*.csv；已安装源码快照：evidence/source。远端目录：','Executor: engine_probe.py and run_engine.py; collector: collect_engine.py; offline analysis: analyze_engine.py; raw requests/responses and GPU traces: raw/node0 and raw/node1; timing tables: analysis/*.csv; installed-source snapshot: evidence/source. Remote directory: ')+'/home/benchmark/infron-benchmarks/engine-split-20261016'
+    ordered=[
+      ('研究摘要、对象与部署','Study summary, target and deployment',sections[1]),
+      ('分层方法与工作负载','Layered methods and workloads',sections[2]),
+      ('指标定义与统计方法','Metric definitions and statistics',sections[3]),
+      ('实验覆盖与证据状态','Experiment coverage and evidence status',sections[4]),
+      ('GPU计算、内存与算子','GPU compute, memory and operators',result_hardware(lang)),
+      ('双机通信与系统协同','Two-node communication and cooperation',result_communication(lang)),
+      ('模型服务性能与缓存','Model-serving performance and caching',sections[5]),
+      ('持续运行与节点资源','Sustained operation and node resources',sections[6]),
+      ('综合瓶颈分析与证据边界','Integrated bottleneck analysis and evidence limits',attribution(lang)),
+      ('费用、持有成本与投资回报','API cost, ownership and investment return',sections[7]),
+      ('整体结论与后续工作','Overall conclusions and next work',sections[8]),
+      ('附录A：完整指标与统计定义','Appendix A: complete metric and statistical definitions',sections[9]),
+      ('附录B：补充图表与统计明细','Appendix B: supplementary figures and statistics',sections[10]),
+      ('附录C：测试代码与数据磁盘路径','Appendix C: test code and data disk paths',sections[11]),
+    ]
+    from report_review import revise
+    ordered=revise(ordered,lang)
+    from report_gap_completion import augment
+    ordered=augment(ordered,lang)
+    text=head+'\n\n'+'\n\n'.join(f'## {i:02d} · '+T(z,e)+'\n\n'+body for i,(z,e,body) in enumerate(ordered,1))
+    counts={}
+    def renumber(m):
+        section=int(re.findall(r'(?m)^## (\d+) ·',text[:m.start()])[-1])
+        counts[section]=counts.get(section,0)+1
+        number=f'{section:02d}-{counts[section]:02d}'
+        caption=re.sub(r'^(?:图 \d+(?:-\d+)?｜|Figure \d+(?:-\d+)? \| )','',m[2])
+        return m[1]+T(f'图 {number}｜',f'Figure {number} | ')+caption
+    return re.sub(r'(<!--[A-Z_]+-->\n\n)([^\n]+)',renumber,text)

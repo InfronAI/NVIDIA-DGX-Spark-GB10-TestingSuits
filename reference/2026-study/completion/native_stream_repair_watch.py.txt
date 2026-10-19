@@ -1,0 +1,58 @@
+"""One conditional native-client repair; no replay of validated requests."""
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+
+ROOT=Path(__file__).resolve().parent
+PY='/home/benchmark/Projects/qwen38/.sglang/bin/python3'
+
+
+def read(name):return json.loads((ROOT/name).read_text())
+def save(data):
+    data['epoch']=time.time();p=ROOT/'native_stream_repair.json';tmp=p.with_suffix('.tmp')
+    tmp.write_text(json.dumps(data,indent=2));tmp.replace(p)
+def alive(pid):
+    try:
+        s=Path(f'/proc/{pid}/stat').read_text().split(')',1)[1].split()
+        return s[0]!='Z'
+    except FileNotFoundError:return False
+def launch(script,args,log):
+    with (ROOT/log).open('ab') as f:
+        return subprocess.Popen([PY,str(ROOT/script),*args],stdin=subprocess.DEVNULL,stdout=f,stderr=subprocess.STDOUT,start_new_session=True).pid
+
+
+def main():
+    lock=(ROOT/'native_stream_repair.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    deadline=read('manifest.json')['deadline_epoch'];save({'state':'awaiting_known_read_timeout','pid':os.getpid()})
+    while time.time()<deadline and not (ROOT/'STOP').exists():
+        state=read('native_status.json')
+        if state['state'] in ['complete','complete_with_rejections']:
+            save({'state':'not_needed_native_complete'});return
+        if state['state']=='stopped' and not alive(state['pid']):
+            case=read('native/'+state['current_case']+'/result.json')
+            if state.get('error')!='RuntimeError: bounded retries exhausted' or case.get('error')!='ReadTimeout: ' or not case.get('drained') or case.get('abort_status')!=200:
+                save({'state':'requires_review','reason':'not a confirmed drained read-timeout termination'});return
+            pid=launch('native_completion_stream_safe.py',['--resume-stream-gap'],'native_stream_safe.log')
+            save({'state':'native_repaired','native_pid':pid,'prior_pid':state['pid'],
+                  'read_timeout_removed':True,'independent_deadline_and_temperature_guards_retained':True})
+            # The profile arm has not sent anything while waiting for its predecessor.
+            for _ in range(12):
+                time.sleep(2);p=read('profile_status.json')
+                if p['state']=='awaiting_native' and alive(p['pid']):continue
+                if p['state']=='stopped' and not alive(p['pid']):
+                    assert p.get('error')=='RuntimeError: native arm requires review'
+                    assert p['completed_pairs']==p['completed_cache_pairs']==0
+                    old=ROOT/'profile_status.before_stream_repair.json';assert not old.exists()
+                    (ROOT/'profile_status.json').replace(old)
+                    profile_pid=launch('profile_completion.py',[],'profile_after_stream_repair.log')
+                    save({'state':'repaired','native_pid':pid,'profile_pid':profile_pid,'prior_native_pid':state['pid']});return
+                if p['state'] not in ['awaiting_native','stopped']:return
+            save({'state':'repaired','native_pid':pid,'profile_pid':read('profile_status.json')['pid']});return
+        time.sleep(5)
+    save({'state':'expired_without_activation'})
+
+
+if __name__=='__main__':main()

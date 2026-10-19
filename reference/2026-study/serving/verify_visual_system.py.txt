@@ -1,0 +1,41 @@
+"""Check the delivered visual system and archived data invariance, offline."""
+import base64
+import hashlib
+import json
+from pathlib import Path
+import re
+from bs4 import BeautifulSoup
+from common import ROOT,utc
+
+
+def main():
+    evidence=ROOT/'evidence/visual_system_revision_20261017'
+    frozen=json.loads((evidence/'measurement_inputs.json').read_text())
+    assert all(hashlib.sha256((ROOT/p).read_bytes()).hexdigest()==h for p,h in frozen.items())
+    result={'utc':utc(),'historical_measurements_unchanged':True,'languages':{}}
+    for lang in ['zh','en']:
+        s=BeautifulSoup((ROOT/f'reports/report.{lang}.html').read_text(),'html.parser')
+        tables=s.select('.document table');figures=s.select('.document figure')
+        for t in tables:
+            assert 'result-table' in t.get('class',[])
+            cap=t.find('caption');assert cap and cap.select_one('.visual-label') and cap.select_one('.visual-title')
+            assert all(h.get('scope')=='col' for h in t.select('thead th'))
+            assert t.parent.get('aria-labelledby')==cap['id']
+            assert t.parent.get('tabindex')=='0'
+        for f in figures:
+            cap=f.find('figcaption');assert cap and cap.select_one('.visual-label')
+            assert f.get('aria-labelledby')==cap['id']
+            img=f.find('img');assert img and img['alt'] and '_' not in img['alt']
+            svg=base64.b64decode(img['src'].split(',',1)[1]).decode()
+            assert 'GeneralSans' in svg or 'General Sans' in svg,f.get('id')
+            assert not any(c in svg.lower() for c in ['#70a6ff','#1f77b4','#6495ed','#b4c5e0']),f.get('id')
+        ids=[x['id'] for x in s.select('[id]')];assert len(ids)==len(set(ids))
+        result['languages'][lang]={'tables':len(tables),'figures':len(figures),
+            'numbered_captions':True,'semantic_headers':True,'keyboard_scroll_regions':True,
+            'descriptive_chart_alternatives':True,'shared_chart_typography_and_palette':True}
+    assert result['languages']['zh']==result['languages']['en']
+    (evidence/'visual_system_qa.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
+    print(json.dumps(result,ensure_ascii=False))
+
+
+if __name__=='__main__':main()

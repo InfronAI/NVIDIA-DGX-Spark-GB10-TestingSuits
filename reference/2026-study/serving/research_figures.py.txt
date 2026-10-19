@@ -1,0 +1,60 @@
+# -*- coding: utf-8 -*-
+"""Scientific figures for the task-centred report; local snapshots only."""
+import re
+import matplotlib.pyplot as plt
+from report_model import presentation
+from report_labels import condition_name, metric_name
+
+def extra_figures(a,lang,save,empty):
+    T=lambda z,e:z if lang=='zh' else e;v=presentation(a)
+    from report_coverage import draw as coverage_figure
+    coverage_figure(lang,save)
+    fig,ax=plt.subplots(figsize=(9,3.5));pairs=[x for x in a['paired_reasoning'] if x['metric'] in ['first_visible_s','e2e_s'] and x['pairs']]
+    if pairs:
+        for i,p in enumerate(pairs):
+            mean=p['difference_s']['mean'];ci=p.get('difference_prompt_cluster_ci');color='#004AB9' if p['metric']=='first_visible_s' else '#70A6FF'
+            ax.plot(mean,i,'o',color=color)
+            if ci and ci.get('low') is not None:ax.hlines(i,ci['low'],ci['high'],color=color,linewidth=2)
+            ax.annotate(T(f'{p["pairs"]} 对',f'{p["pairs"]} pairs'),(mean,i),xytext=(6,8),textcoords='offset points',fontsize=8)
+        ax.set_yticks(range(len(pairs)),[T(f'并发 {p["concurrency"]}',f'Concurrency {p["concurrency"]}')+' · '+metric_name(p['metric'],lang) for p in pairs]);ax.set_ylim(-.6,len(pairs)-.3);ax.axvline(0,color='#A1B0C4',linestyle='--');ax.set_xlabel(T('低思考预算 − 关闭思考：配对均值差（秒），95% 置信区间','Low reasoning − disabled: paired mean difference (s), 95% confidence interval'))
+    else:empty(ax,T('等待 none / low 配对数据','Awaiting paired none / low observations'))
+    save(fig,'reasoning',lang)
+    fig,ax=plt.subplots(figsize=(9,3.7));bs=sorted([b for b in a['blocks'] if b.get('phase')=='P1' and b.get('completed')==b.get('planned') and b.get('output_tokens_s') is not None],key=lambda b:b['start_epoch']);eligible={b['id'] for b in v['eligible_blocks']};palette={1:'#004AB9',2:'#70A6FF',4:'#1E324C',8:'#6E7A8A'}
+    if bs:
+        for c in [1,2,4,8]:
+            ps=[(i,b) for i,b in enumerate(bs) if b.get('concurrency')==c and b['id'] in eligible]
+            if ps:ax.plot([i for i,b in ps],[b['output_tokens_s'] for i,b in ps],marker='o',color=palette[c],label=T(f'并发 {c}',f'Concurrency {c}'))
+        excluded=[(i,b) for i,b in enumerate(bs) if b['id'] not in eligible]
+        if excluded:ax.scatter([i for i,b in excluded],[b['output_tokens_s'] for i,b in excluded],marker='x',s=55,color='#A1B0C4',label=T('中断区组墙钟值','Interrupted wall-clock value'))
+        ax.set_xticks(range(len(bs)),[condition_name(b['id'],lang,False).replace(' · ','\n') for b in bs],rotation=0,ha='center');ax.tick_params(axis='x',labelsize=7);ax.legend(fontsize=8,ncol=3);ax.set_xlabel(T('自然负载完整区组执行顺序','Execution order of complete natural-workload blocks'));ax.set_ylabel(T('合计输出 token/秒','Aggregate output tokens/s'))
+    else:empty(ax,T('等待完整区组','Awaiting complete blocks'))
+    save(fig,'evolution',lang)
+    design_figures(lang,save)
+
+def design_figures(lang,save):
+    import json
+    from common import ROOT
+    T=lambda z,e:z if lang=='zh' else e
+    m=json.loads((ROOT/'plans/business/manifest.json').read_text())
+    fig,ax=plt.subplots(figsize=(9,4.4))
+    offsets=[(8,10),(10,-22),(8,-22),(8,12),(-115,-25),(-95,12),(8,12),(8,-23)]
+    for s,offset in zip(m['shapes'],offsets):
+        ax.scatter(s['input_target'],s['output_cap'],s=65,color='#004AB9',zorder=3)
+        ax.annotate(s['name_'+lang],(s['input_target'],s['output_cap']),xytext=offset,textcoords='offset points',fontsize=9)
+    ax.set_xscale('log');ax.set_yscale('log');ax.set_xticks([512,2048,8192,32768],['512','2,048','8,192','32,768']);ax.set_yticks([64,128,512,2048],['64','128','512','2,048']);ax.set_xlim(300,100000);ax.set_ylim(35,4000)
+    ax.set_xlabel(T('目标输入 token（完整聊天模板）','Target input tokens (complete chat template)'));ax.set_ylabel(T('输出上限 token','Output cap tokens'));ax.grid(True,alpha=.15);ax.set_title(T('预先固定的业务形态 · 非实测结果','Prospective business shapes · not measured results'),fontsize=11)
+    save(fig,'shapes',lang)
+    fig,ax=plt.subplots(figsize=(9,3.5));ratios=m['cache_ratios_percent']
+    ax.barh(range(6),ratios,color='#004AB9',label=T('目标共享前缀','Target shared prefix'));ax.barh(range(6),[100-x for x in ratios],left=ratios,color='#D3E3FF',label=T('变化后缀','Varying suffix'))
+    ax.set_yticks(range(6),[f'{r}%' for r in ratios]);ax.invert_yaxis();ax.set_xlim(0,100);ax.set_xlabel(T('完整输入 token 的设计比例（实际分词比例另存）','Design fraction of full input tokens (actual overlap recorded separately)'));ax.legend(loc='lower right',fontsize=9);ax.set_title(T('两档输入 8,192 / 32,768 · 每格六对 · 目标不是命中率','Input 8,192 / 32,768 · six pairs per cell · targets are not hit rates'),fontsize=10)
+    save(fig,'cache_design',lang)
+    fig,ax=plt.subplots(figsize=(9,3.5));xs=[0,1.4,3.4,5.3,7.7,9.3]
+    labels=[T('发送请求','Send'),T('响应头','Headers'),T('首个生成片段','First generated'),T('首个正文片段','First visible'),T('末生成片段','Last generated'),T('流结束','Stream end')]
+    ax.plot(xs,[1]*6,color='#70A6FF',linewidth=2)
+    for x,label in zip(xs,labels):
+        ax.scatter(x,1,s=48,color='#004AB9');ax.text(x,1.17,label,ha='center',fontsize=9)
+    for start,end,y,label in [(0,3.4,.65,T('首个生成片段延迟','First-generated latency')),(0,5.3,.25,T('正文首字延迟','First-visible latency')),(0,9.3,-.15,T('端到端延迟','End-to-end latency'))]:
+        ax.annotate('',(end,y),(start,y),arrowprops={'arrowstyle':'<->','color':'#004AB9'});ax.text((start+end)/2,y+.07,label,ha='center',fontsize=9)
+    ax.text(6.6,.6,T('首次事件可能重合；片段可能包含多个 token','First events may coincide; fragments can contain multiple tokens'),ha='center',fontsize=8,color='#6E7A8A',wrap=True)
+    ax.set_xlim(-.65,10);ax.set_ylim(-.45,1.6);ax.axis('off');ax.set_title(T('客户端测量位置示意 · 不是耗时比例','Client measurement positions · not a duration scale'),fontsize=11)
+    save(fig,'measurement',lang)

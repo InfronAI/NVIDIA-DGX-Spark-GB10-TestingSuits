@@ -1,0 +1,133 @@
+"""Offline bilingual, standalone HTML and PDF report. No requests of any kind."""
+import base64
+import html
+import importlib.util
+import json
+import re
+from datetime import datetime
+from pathlib import Path
+import markdown
+from fontTools import subset
+from fontTools.ttLib import TTFont
+from weasyprint import HTML
+from weasyprint.text.fonts import FontConfiguration
+from pypdf import PdfReader
+from common import ROOT, dump
+
+OUT=ROOT/'reports';REPO=ROOT.parents[1];DESIGN=REPO/'docs/design/infron-design-system';OLD=ROOT.parent/'qwen38_abliterated_eval_20261014_mtp';ASSETS=OLD/'assets'
+NAMES={'mmlu_pro':'MMLU-Pro','math500':'MATH-500','gsm8k':'GSM8K','ifeval':'IFEval','humaneval_plus':'HumanEval+','mbpp_plus':'MBPP+'}
+
+def fmt(x,d=3):return '—' if x is None else f'{x:,.{d}f}'
+def table(head,rows):return '\n\n| '+' | '.join(head)+' |\n| '+' | '.join(['---']*len(head))+' |\n'+''.join('| '+' | '.join(str(x).replace('|','/') for x in row)+' |\n' for row in rows)+'\n'
+def uri(path,mime):return 'data:'+mime+';base64,'+base64.b64encode(path.read_bytes()).decode()
+def ci(v):return '—' if not v or v.get('low') is None else fmt(v['low'])+'–'+fmt(v['high'])
+
+from report_narrative import report_md
+from report_model import presentation
+from report_chart_catalog import CHARTS
+from report_cost_widget import widget, CSS as COST_CSS
+from report_emphasis import emphasize_markdown, decorate_html, CSS as EMPHASIS_CSS
+from report_visual_layout import decorate as decorate_visuals, CSS as VISUAL_CSS
+
+def main():
+    a=json.loads((OUT/'analysis.json').read_text());diagnostics=json.loads((OUT/'diagnostics.json').read_text());assert diagnostics['generated_utc']==a['generated_utc'];widgets={l:widget(diagnostics,l) for l in ['zh','en']};view=presentation(a);dump(OUT/'presentation.json',{'generated_utc':a['generated_utc'],**view});docs={l:report_md(a,l) for l in ['zh','en']}
+    docs={lang:emphasize_markdown(doc) for lang,doc in docs.items()}
+    font=TTFont(ASSETS/'cjk.ttf');sub=subset.Subsetter();sub.populate(text=''.join(docs.values())+''.join(''.join(w) for w in widgets.values())+'测试进行中阶段性结果核心覆盖合计吞吐正文首字延迟连续区组固定独立题目当前配置双节点监控同组首字延迟第百分位四位浮点量化两台两路张量并行数据截止协调世界时');sub.subset(font);font.save(OUT/'report-cjk.ttf')
+    fonts=''
+    for family,path,weight,mime in [('General Sans',ASSETS/'fonts/general-sans/GeneralSans-Regular.woff2',400,'font/woff2'),('General Sans',ASSETS/'fonts/general-sans/GeneralSans-Semibold.woff2',600,'font/woff2'),('Gelasio',ASSETS/'fonts/gelasio/Gelasio-Regular.ttf',400,'font/ttf'),('Plan CJK',OUT/'report-cjk.ttf',400,'font/ttf')]:fonts+=f"@font-face{{font-family:'{family}';src:url('{uri(path,mime)}');font-weight:{weight};font-display:swap}}\n"
+    spec=importlib.util.spec_from_file_location('plan_style',OLD/'test_plan/build_plan.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);css=module.CSS.replace('PERFORMANCE PLAN P3','INFERENCE PERFORMANCE STUDY')+'\n.overview-evidence th:first-child,.overview-evidence td:first-child{width:18%;white-space:nowrap}.document h3{font-size:18px;color:var(--inf-brand);margin-top:24px}.document blockquote{border-left:3px solid var(--inf-brand);margin:20px 0;padding:8px 18px;background:var(--inf-blue-50);font-size:14px}.document blockquote p{margin:0}.figure{padding:18px}figcaption{font-size:12px;color:var(--inf-text-muted);line-height:1.7;margin-top:10px}.interactive{min-height:350px}@media print{#section-07{break-before:page}.document blockquote{font-size:9pt}.document h3{font-size:12pt;break-after:avoid}.figure{padding:8px}html[lang=en] .document{font-size:9pt;line-height:1.65}html[lang=en] .document p{margin:8px 0}figcaption{font-size:8pt;line-height:1.6;margin-top:6px}}\n.static-chart{width:100%;height:auto}.interactive{height:340px;display:none}.enhanced .interactive{display:block}.enhanced .static-chart{display:none}@media print{.interactive{display:none!important}.enhanced .static-chart{display:block!important}}'
+    css+='\n.sidebar a.subnav{padding-left:24px;font-size:11px;color:var(--inf-brand)}'
+    css+='\n@media print{#section-06,#section-10,#section-12,#section-13{break-before:page}}'
+    css+='\n.document pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.5;padding:12px;background:var(--inf-blue-50);border-radius:8px}.document pre code{white-space:inherit;overflow-wrap:inherit}@media print{.document pre{font-size:7.8pt;padding:8px}}'
+    css+=COST_CSS+'\n#section-15~.table-wrap table{table-layout:fixed}#section-15~.table-wrap th:first-child,#section-15~.table-wrap td:first-child{width:27%}#section-15~.table-wrap td:last-child{overflow-wrap:anywhere;word-break:break-all}#section-15~.table-wrap td:last-child a{font-size:12px;overflow-wrap:anywhere}@media print{#section-15{break-before:page}#section-15~.table-wrap td:last-child a{font-size:7.4pt}}'
+    css+=EMPHASIS_CSS
+    css+='\n.study-overview{table-layout:fixed}.study-overview th:first-child,.study-overview td:first-child{width:15%;font-weight:600}.study-overview th:nth-child(2),.study-overview td:nth-child(2){width:30%}.study-overview td:last-child{background:var(--inf-blue-50)}.study-overview td,.study-overview th{overflow-wrap:anywhere}.document #study-overview{scroll-margin-top:24px}@media print{#section-02{break-before:page}.study-overview td,.study-overview th{font-size:8pt;line-height:1.55;padding:6px 7px}}'
+    css+='\n'+VISUAL_CSS
+    tokens='\n'.join((DESIGN/'tokens'/n).read_text() for n in ['colors.css','typography.css','spacing.css']);logo=uri(DESIGN/'assets/logo-flat/horizontal-default.png','image/png');echarts=(ASSETS/'echarts.min.js').read_text().replace('</script','<\\/script');qa={}
+    favicon=uri(DESIGN/'assets/logo-flat/appicon-rounded-default.png','image/png')
+    for lang,doc in docs.items():
+        zh=lang=='zh';T=lambda x,y:x if zh else y;other='en' if zh else 'zh'
+        markdown_doc=doc
+        for token,name in CHARTS:
+            markdown_doc=markdown_doc.replace('<!--'+token+'-->', '<!--'+token+'-->\n\n!['+name+']('+name+'.'+lang+'.svg)')
+        markdown_doc=markdown_doc.replace('<div id="cost-calculator-slot"></div>', '['+T('打开交互式成本计算器','Open the interactive cost calculator')+'](report.'+lang+'.html#cost-tool)')
+        markdown_doc=re.sub(r'(?m)^(## (\d{2}) · )',lambda m:f'<a id="section-{m[2]}"></a>\n\n'+m[1],markdown_doc)
+        (OUT/f'report.{lang}.md').write_text(markdown_doc)
+        body=markdown.markdown(doc,extensions=['tables','fenced_code']);toc=[]
+        body=re.sub(r'<p>(?:数据快照（UTC）：|Data snapshot \(UTC\): )[^<]*</p>','',body)
+        def heading(m):
+            label=re.sub('<[^>]+>','',m[1]);anchor='section-'+label[:2];toc.append((anchor,label));return f'<h2 id="{anchor}">{m[1]}</h2>'
+        body=re.sub(r'<h2>(.*?)</h2>',heading,body)
+        body,emphasis_counts=decorate_html(body)
+        body=re.sub(r'(<table\b[^>]*>.*?</table>)',r'<div class="table-wrap">\1</div>',body,flags=re.S)
+        bars=''.join(f'<div class="barrow"><span>{x["phase"]}</span><div class="track"><div class="fill" style="width:{100*x.get("logical_sent",x["sent"])/x["cap"]:.3f}%"></div></div><span>{x["sent"]}/{x["cap"]}</span></div>' for x in a['phase_counts'])
+        body=body.replace('<!--PROGRESS-->','<div class="figure">'+bars+'</div>')
+        for token,name in CHARTS:
+            path=OUT/f'{name}.{lang}.svg';graphic=f'<img class="static-chart" src="{uri(path,"image/svg+xml")}" alt="{name}">' if path.exists() else ''
+            div='<div id="capacity-chart" class="interactive"></div>' if name=='capacity' else ''
+            pattern=r'<!--'+token+r'-->\s*<p>(.*?)</p>'
+            body=re.sub(pattern,lambda m:f'<figure class="figure" id="figure-{name}">{div}{graphic}<figcaption>{m[1]}</figcaption></figure>',body,flags=re.S)
+        body=body.replace('<div id="cost-calculator-slot"></div>',widgets[lang][0])
+        body,visual_counts=decorate_visuals(body,lang)
+        nav=''.join(f'<a href="#{i}">{html.escape(label)}</a>'+(f'<a class="subnav" href="#ownership-cost">'+T('设备与电费','Device and electricity')+'</a><a class="subnav" href="#investment-returns">'+T('1／3／5 年回本与回报','1 / 3 / 5-year payback and returns')+'</a>' if i=='section-11' else '') for i,label in toc)
+        title=T('NVIDIA DGX Spark<br><em>双节点系统与推理性能评估</em>','NVIDIA DGX Spark<br><em>Two-Node System and Inference Performance Evaluation</em>');state=T('服务测试进行中 · GPU专项待测','Serving tests running · GPU suite pending')
+        page_title=html.escape('Infron · '+doc.splitlines()[0].removeprefix('# '))
+        if a['stop']:state=T('阶段性数据 · 以实际覆盖解释','Interim data · Interpret actual coverage')
+        if (a.get('lifecycle') or {}).get('state')=='complete':state=T('服务测试结束 · GPU专项待测','Serving tests ended · GPU suite pending')
+        hardware_status_path=ROOT/'runs/gpu_system/status.json'
+        if hardware_status_path.exists():
+            hardware_status=json.loads(hardware_status_path.read_text())
+            if hardware_status.get('state')=='running':state=T('服务测试结束 · 硬件测试运行中','Serving tests ended · Hardware tests running')
+            elif hardware_status.get('gpu_workload_started'):state=T('服务测试结束 · 硬件部分实测','Serving tests ended · Partial hardware measurements')
+        engine_status_path=ROOT/'engine_split_20261016/remote_status.json'
+        if engine_status_path.exists():
+            engine_state=json.loads(engine_status_path.read_text()).get('state')
+            if engine_state in ['running','preflight']:
+                state=T('公网测试结束 · 独立引擎测试进行中','Public-endpoint tests ended · Engine experiment running')
+            elif engine_state=='complete':
+                state=T('服务与独立引擎测试结束 · 硬件部分实测','Serving and engine experiments ended · Partial hardware coverage')
+        completion_status_path=ROOT/'hardware_completion_20261016/status.json'
+        if (ROOT/'hardware_unloaded_20261016/status.json').exists():completion_status_path=ROOT/'hardware_unloaded_20261016/status.json'
+        if (ROOT/'hardware_unloaded_confirmed_20261016/status.json').exists():completion_status_path=ROOT/'hardware_unloaded_confirmed_20261016/status.json'
+        if completion_status_path.exists():
+            completion_status=json.loads(completion_status_path.read_text())
+            if completion_status.get('state') in ['running','preparing_maintenance','stopping_service','restoring_service','awaiting_collection']:state=T('服务与引擎测量完成 · 硬件补测进行中','Serving and engine measurements complete · Hardware completion running')
+            elif completion_status.get('state')=='batch_complete':state=T('硬件补测批次结束 · 按逐项有效覆盖解释','Hardware completion batch ended · Interpret validated coverage')
+            else:state=T('硬件补测阶段数据 · 受限项单列','Hardware completion phase data · Constraints reported separately')
+        gap_path=ROOT/'gap_completion_20261017/analysis/summary.json'
+        gap=json.loads(gap_path.read_text()) if gap_path.exists() else None
+        if gap:
+            finished=gap.get('completion_ready',False)
+            state=T('补充实验完成 · 按独立批次解读','Additional experiments complete · Interpret independent batches') if finished else T('补充实验运行中 · 已完成样本持续更新','Additional experiments running · Completed observations updated')
+        natural=[g for g in view['groups'] if g['key'].startswith('P1_')]
+        peak=max(natural,key=lambda g:g['tps']) if natural else None
+        core=sum(p['complete']+p['expected_context_rejections'] for p in a['phase_counts'] if p['phase'] in ['P0','P1','P2','P3','P4','P5'])
+        deployment=T('Qwen3.8 Flash Next Abliterated · GB10硬件、双机系统与模型服务的分层测量','Qwen3.8 Flash Next Abliterated · Layered measurement of GB10 hardware, the two-node system and model serving')
+        graph=[{'c':int(re.search(r'_c(\d+)',g['key'])[1]),'tps':g['tps'],'p50':g['ttft']['p50'],'p95':g['ttft']['p95'],'n':g['n'],'blocks':g['blocks']} for g in natural];graph.sort(key=lambda x:x['c'])
+        labels={'throughput':T('合计输出 token/s','Aggregate output token/s'),'latency':T('正文首字延迟第 95 百分位（秒）','95th-percentile first-content latency (s)'),'median':T('正文首字延迟中位数（秒）','Median first-content latency (s)'),'concurrency':T('并发','Concurrency'),'samples':T('响应','Responses'),'blocks':T('连续区组','Continuous blocks')}
+        js='const d='+json.dumps(graph)+';const L='+json.dumps(labels,ensure_ascii=False)+""";
++if(window.echarts&&d.length){
++ const el=document.getElementById('capacity-chart');const c=echarts.init(el,null,{renderer:'svg'});const xs=[1,2,4,8];
++ const axis={axisLine:{lineStyle:{color:'#D8E2F0'}},axisLabel:{color:'#454B54',fontSize:11},nameTextStyle:{color:'#2A2E34',fontSize:11},splitLine:{lineStyle:{color:'#E5EDF9'}}};
++ c.setOption({animation:false,textStyle:{fontFamily:'General Sans, Plan CJK, sans-serif'},color:['#004AB9','#4D86FF'],
++ tooltip:{trigger:'axis',backgroundColor:'#FFFFFF',borderColor:'#D8E2F0',textStyle:{color:'#2A2E34',fontSize:12},formatter:p=>{const r=d.find(r=>r.c===Number(p[0].axisValue));return r?L.concurrency+' '+r.c+'<br>'+L.throughput+': '+r.tps.toFixed(1)+'<br>'+L.latency+': '+r.p95.toFixed(2)+'<br>'+L.samples+': '+r.n+' · '+L.blocks+': '+r.blocks:''}},
++ legend:[{data:[L.throughput],left:'8%',top:8,textStyle:{fontSize:11,color:'#454B54'}},{data:[L.median,L.latency],orient:'vertical',left:'54%',top:4,textStyle:{fontSize:11,color:'#454B54'}}],
++ grid:[{left:62,right:'55%',top:66,bottom:44},{left:'57%',right:24,top:66,bottom:44}],
++ xAxis:[{...axis,type:'value',min:1,max:8,interval:1,axisLabel:{color:'#454B54',fontSize:11,formatter:v=>xs.includes(v)?v:''},name:L.concurrency,gridIndex:0,nameLocation:'middle',nameGap:26},{...axis,type:'value',min:1,max:8,interval:1,axisLabel:{color:'#454B54',fontSize:11,formatter:v=>xs.includes(v)?v:''},name:L.concurrency,gridIndex:1,nameLocation:'middle',nameGap:26}],
++ yAxis:[{...axis,type:'value',name:'token/s',gridIndex:0},{...axis,type:'value',name:'s',gridIndex:1}],
++ series:[{type:'line',name:L.throughput,data:xs.map(x=>[x,d.find(r=>r.c===x)?.tps??null]),symbol:'circle',symbolSize:7,connectNulls:false,xAxisIndex:0,yAxisIndex:0},{type:'line',name:L.median,data:xs.map(x=>[x,d.find(r=>r.c===x)?.p50??null]),itemStyle:{color:'#004AB9'},symbol:'circle',symbolSize:7,connectNulls:false,xAxisIndex:1,yAxisIndex:1},{type:'line',name:L.latency,itemStyle:{color:'#4D86FF'},data:xs.map(x=>[x,d.find(r=>r.c===x)?.p95??null]),symbol:'rect',symbolSize:7,connectNulls:false,xAxisIndex:1,yAxisIndex:1}]});
++ document.getElementById('figure-capacity').classList.add('enhanced');window.addEventListener('resize',()=>c.resize());
++}
++""".replace('\n+','\n')
+
+        js+=widgets[lang][1]
+        (OUT/f'interaction.{lang}.js').write_text(js)
+        snapshot=datetime.fromisoformat(gap['generated_utc'] if gap else a['generated_utc']).strftime('%Y-%m-%d %H:%M:%S UTC')
+        page=f'<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{page_title}</title><link rel="icon" type="image/png" href="{favicon}"><style>{tokens}\n{fonts}\n{css}</style></head><body><header class="topbar"><img class="logo" src="{logo}" alt="Infron"><div class="toplinks"><a class="pill" href="report.{other}.html">'+('English' if zh else '中文')+f'</a><a class="pill" href="report.{lang}.pdf">PDF</a><a class="pill" href="requests.csv">CSV</a></div></header><div class="hero"><div class="status">{state}</div><div class="eyebrow">INFRON RESEARCH / INFERENCE PERFORMANCE</div><h1>{title}</h1><p class="lead">{deployment}</p><p class="caption">{T("数据截止（协调世界时）","Data snapshot (Coordinated Universal Time)")} {snapshot}</p></div><div class="layout"><nav class="sidebar">{nav}</nav><main class="document">{body}</main></div><script>{echarts}</script><script>{js}</script></body></html>'
+        path=OUT/f'report.{lang}.html';tmp=path.with_suffix('.html.tmp');tmp.write_text(page);tmp.replace(path)
+        pdf=OUT/f'report.{lang}.pdf';temp=pdf.with_suffix('.pdf.tmp');HTML(string=page,base_url=str(OUT)).write_pdf(temp,font_config=FontConfiguration());temp.replace(pdf)
+        reader=PdfReader(pdf);text=''.join(x.extract_text() or '' for x in reader.pages);qa[lang]={'sections':len(toc),'pdf_pages':len(reader.pages),'pdf_bytes':pdf.stat().st_size,'text_chars':len(text),'generated_utc':a['generated_utc'],'numeric_emphasis':emphasis_counts,'visual_system':visual_counts}
+        assert len(toc)==15 and len(text)>3000
+    dump(OUT/'report_qa.json',qa);print(json.dumps(qa))
+
+if __name__=='__main__':main()

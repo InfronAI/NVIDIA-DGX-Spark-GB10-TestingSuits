@@ -1,0 +1,61 @@
+import json,tempfile,unittest
+from pathlib import Path
+from thermal_backoff import DEFAULT,wait_if_hot,policy
+class Fake:
+ def __init__(self,temps,fail_at=None):self.now=0.;self.temps=temps;self.calls=0;self.fail_at=fail_at
+ def clock(self):return self.now
+ def sleep(self,n):self.now+=n
+ def check(self):
+  if self.fail_at is not None and self.now>=self.fail_at:raise RuntimeError('hardware stop requested')
+  t=self.temps[min(int(self.now),len(self.temps)-1)];self.calls+=1;return {'gpu':{'temperature_c':t}}
+class ThermalBackoff(unittest.TestCase):
+ def run_case(self,temps,settings=None,fail_at=None):
+  f=Fake(temps,fail_at);p={**DEFAULT,'stable_seconds':3.,'max_backoff_seconds':12.,**(settings or {})}
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td);result=wait_if_hot(root,f.check,p,'test',f.clock,f.sleep)
+   events=[json.loads(x) for x in (root/'thermal_backoff_events.jsonl').read_text().splitlines()] if (root/'thermal_backoff_events.jsonl').exists() else []
+   return result,f,events
+ def test_below_threshold_no_wait(self):
+  result,f,events=self.run_case([84]);self.assertEqual(result[1],0);self.assertEqual(events,[])
+ def test_threshold_starts_cooling_and_stable_recovery(self):
+  result,f,events=self.run_case([85,74]);self.assertEqual(result[1],4);self.assertEqual([x['state'] for x in events],['cooling','resumed'])
+ def test_hysteresis_resets_stability_at_75(self):
+  result,_,_=self.run_case([85,74,74,75,74]);self.assertEqual(result[1],7)
+ def test_hot_timeout(self):
+  with self.assertRaisesRegex(RuntimeError,'maximum duration'):self.run_case([90])
+ def test_manual_stop_interrupts_cooling(self):
+  with self.assertRaisesRegex(RuntimeError,'stop requested'):self.run_case([90],fail_at=2)
+ def test_missing_temperature_waits_for_valid_cool_samples(self):
+  result,_,_=self.run_case([None,None,74]);self.assertEqual(result[1],5)
+ def test_disabled_does_not_wait(self):
+  result,_,_=self.run_case([95],{'enabled':False});self.assertEqual(result[1],0)
+ def test_scope_and_deadline_cannot_be_silently_changed(self):
+  with tempfile.TemporaryDirectory() as td:
+   root=Path(td);self.assertFalse(policy(root)['enabled'])
+   for change in [{'scope':'collectives'},{'deadline_extension':True}]:
+    (root/'thermal_backoff_policy.json').write_text(json.dumps({**DEFAULT,**change}))
+    with self.assertRaises(AssertionError):policy(root)
+if __name__=='__main__':unittest.main()
+
+class SubmissionBoundary(unittest.TestCase):
+ def test_cooling_is_excluded_from_cuda_interval_and_included_in_wall_time(self):
+  from unittest.mock import patch
+  import types
+  import gpu_system_bench as b
+  now=[0.];guards=[0]
+  class Event:
+   def __init__(self,**kw):pass
+   def record(self):pass
+   def synchronize(self):pass
+   def elapsed_time(self,other):return 1000.
+  cuda=types.SimpleNamespace(Event=Event,synchronize=lambda:None)
+  def guard(root):
+   guards[0]+=1
+   if guards[0]==1:now[0]+=5.;b.THERMAL_WAIT_SECONDS+=5.
+  def fn():now[0]+=.01
+  with patch.object(b,'work_guard',side_effect=guard),patch.object(b.time,'perf_counter',side_effect=lambda:now[0]),patch.object(b,'THERMAL_WAIT_SECONDS',0.):
+   result=b.timed(types.SimpleNamespace(cuda=cuda),None,fn,1.)
+  self.assertEqual(result['thermal_backoff_s'],5.)
+  self.assertEqual(result['cuda_interval_s'],1.)
+  self.assertGreater(result['wall_s'],5.)
+  self.assertGreaterEqual(guards[0],2)
