@@ -1,0 +1,34 @@
+{
+  "public": {
+    "state": "complete",
+    "pid": 64698,
+    "started_utc": "2026-10-19T04:37:26.653460+00:00",
+    "blocks_complete": 29,
+    "blocks_planned": 29,
+    "block": "gc19_pair4_mixed",
+    "updated_utc": "2026-10-19T06:05:38.209433+00:00",
+    "reconciliation_records": 690,
+    "ended_utc": "2026-10-19T06:05:48.280088+00:00"
+  },
+  "cache": {
+    "state": "complete",
+    "pid": 68994,
+    "started_utc": "2026-10-19T06:05:53.524968+00:00",
+    "blocks_complete": 6,
+    "blocks_planned": 6,
+    "block": "gc19_cache_length_cache_i65536_p0_r2_probe",
+    "updated_utc": "2026-10-19T06:13:55.290352+00:00",
+    "reconciliation_records": 6,
+    "ended_utc": "2026-10-19T06:13:56.380390+00:00"
+  },
+  "restoration": {
+    "epoch": 1792390449.0483718,
+    "delete": {
+      "code": 0,
+      "stderr": ""
+    },
+    "rule_absent": true,
+    "cause": "explicit_restore_or_deadline_or_health_exit",
+    "public_models_status": 200
+  }
+}

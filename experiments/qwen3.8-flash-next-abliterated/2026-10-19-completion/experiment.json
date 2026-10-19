@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "id": "2026-10-19-completion",
+  "model_id": "qwen3.8-flash-next-abliterated",
+  "dates": [
+    "2026-10-19"
+  ],
+  "status": "execution_ended",
+  "evidence_complete": true,
+  "purpose": "Dated public output-cap, matched interference and 64K cache-counter completion",
+  "hardware_profile": "hardware/dgx-spark-gb10-pair.json",
+  "engine": {
+    "name": "sglang",
+    "version": "0.5.21",
+    "tensor_parallel": 2,
+    "nodes": 2,
+    "context_tokens": 262144,
+    "mtp": {
+      "configured": true,
+      "requested_algorithm": "NEXTN",
+      "resolved_algorithm": "EAGLE",
+      "steps": 3,
+      "topk": 1,
+      "draft_tokens": 4
+    },
+    "chunked_prefill_size": 8192,
+    "max_running_requests": 48,
+    "mem_fraction_static": 0.75,
+    "page_size": 64,
+    "radix_cache": true
+  },
+  "components": [
+    {
+      "id": "public_lengths",
+      "planned": 8
+    },
+    {
+      "id": "interference",
+      "planned_pairs": 5
+    },
+    {
+      "id": "cache",
+      "planned_pairs": 3
+    }
+  ],
+  "coverage_gaps": [],
+  "historical_results_pooled": false,
+  "serving_concurrency_tested": [
+    1,
+    2,
+    4,
+    8
+  ],
+  "engine_request_limit_is_not_measured_slo": true,
+  "prior_experiment": "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark",
+  "weights_revision": "be794b990578ef3031eccf9f28e675a289a09ee9",
+  "scoped_evidence_complete": true,
+  "all_original_research_questions_resolved": false,
+  "interference_effect_eligible_pairs": 4,
+  "local_rejections": 3,
+  "logical_outcomes_observed": 695,
+  "external_resource_limits": [
+    "No H200 same-workload run",
+    "No wall-meter energy",
+    "No complete physical DRAM-byte count",
+    "No exact per-token SSE clock"
+  ],
+  "public_fixed_output_qualified": 0,
+  "public_path": "Infron -> Cloudflare -> frozen-request forwarding proxy -> unchanged SGLang"
+}

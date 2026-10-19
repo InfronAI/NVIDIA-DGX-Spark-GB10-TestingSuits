@@ -1,0 +1,23 @@
+{
+  "historical_outcomes_rewritten": false,
+  "original_public_length": {
+    "planned": 299,
+    "complete": 290,
+    "not_sent": 8,
+    "incomplete": 1
+  },
+  "previous_independent_measurement": {
+    "date": "2026-10-17",
+    "original_incomplete_case": "length_business_analysis_i32768_o8192_r3",
+    "independent_block": "gc17_length_business_analysis_i32768_o8192",
+    "planned": 4,
+    "complete": 4,
+    "original_usage_records": 4,
+    "same_inputs_and_output_caps": true,
+    "source": "../../2026-10-14_17-dual-spark/data/completion/summary.json"
+  },
+  "this_date": "2026-10-19",
+  "length_conditions": 8,
+  "interference_pairs": 5,
+  "cache_pairs": 3
+}

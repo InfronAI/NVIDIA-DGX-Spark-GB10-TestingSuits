@@ -1,0 +1,451 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="748.8pt" height="374.4pt" viewBox="0 0 748.8 374.4" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Infron SparkBench / Matplotlib</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 374.4
+L 748.8 374.4
+L 748.8 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="line2d_1">
+    <path d="M 100.8 59.76
+L 100.8 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 158.4 59.76
+L 158.4 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_3">
+    <path d="M 216 59.76
+L 216 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_4">
+    <path d="M 273.6 59.76
+L 273.6 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_5">
+    <path d="M 331.2 59.76
+L 331.2 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_6">
+    <path d="M 446.4 59.76
+L 446.4 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_7">
+    <path d="M 504 59.76
+L 504 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_8">
+    <path d="M 561.6 59.76
+L 561.6 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_9">
+    <path d="M 619.2 59.76
+L 619.2 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_10">
+    <path d="M 676.8 59.76
+L 676.8 316.8
+" clip-path="url(#p80c4c20eaf)" style="fill: none; stroke: #e5edf9; stroke-width: 0.72; stroke-linecap: square"/>
+   </g>
+   <g id="patch_2">
+    <path d="M 102.96 72
+L 109.93162 72
+Q 112.09162 72 112.09162 74.16
+L 112.09162 82.08
+Q 112.09162 84.24 109.93162 84.24
+L 102.96 84.24
+Q 100.8 84.24 100.8 82.08
+L 100.8 74.16
+Q 100.8 72 102.96 72
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 102.96 88.56
+L 113.279934 88.56
+Q 115.439934 88.56 115.439934 90.72
+L 115.439934 98.64
+Q 115.439934 100.8 113.279934 100.8
+L 102.96 100.8
+Q 100.8 100.8 100.8 98.64
+L 100.8 90.72
+Q 100.8 88.56 102.96 88.56
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 102.96 120.24
+L 110.275942 120.24
+Q 112.435942 120.24 112.435942 122.4
+L 112.435942 130.32
+Q 112.435942 132.48 110.275942 132.48
+L 102.96 132.48
+Q 100.8 132.48 100.8 130.32
+L 100.8 122.4
+Q 100.8 120.24 102.96 120.24
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 102.96 136.8
+L 112.341972 136.8
+Q 114.501972 136.8 114.501972 138.96
+L 114.501972 146.88
+Q 114.501972 149.04 112.341972 149.04
+L 102.96 149.04
+Q 100.8 149.04 100.8 146.88
+L 100.8 138.96
+Q 100.8 136.8 102.96 136.8
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 102.96 168.48
+L 108.964605 168.48
+Q 111.124605 168.48 111.124605 170.64
+L 111.124605 178.56
+Q 111.124605 180.72 108.964605 180.72
+L 102.96 180.72
+Q 100.8 180.72 100.8 178.56
+L 100.8 170.64
+Q 100.8 168.48 102.96 168.48
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 102.96 185.04
+L 133.467846 185.04
+Q 135.627846 185.04 135.627846 187.2
+L 135.627846 195.12
+Q 135.627846 197.28 133.467846 197.28
+L 102.96 197.28
+Q 100.8 197.28 100.8 195.12
+L 100.8 187.2
+Q 100.8 185.04 102.96 185.04
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 102.96 216.72
+L 110.111784 216.72
+Q 112.271784 216.72 112.271784 218.88
+L 112.271784 226.8
+Q 112.271784 228.96 110.111784 228.96
+L 102.96 228.96
+Q 100.8 228.96 100.8 226.8
+L 100.8 218.88
+Q 100.8 216.72 102.96 216.72
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 102.96 233.28
+L 117.493984 233.28
+Q 119.653984 233.28 119.653984 235.44
+L 119.653984 243.36
+Q 119.653984 245.52 117.493984 245.52
+L 102.96 245.52
+Q 100.8 245.52 100.8 243.36
+L 100.8 235.44
+Q 100.8 233.28 102.96 233.28
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 448.56 72
+L 459.965281 72
+Q 462.125281 72 462.125281 74.16
+L 462.125281 82.08
+Q 462.125281 84.24 459.965281 84.24
+L 448.56 84.24
+Q 446.4 84.24 446.4 82.08
+L 446.4 74.16
+Q 446.4 72 448.56 72
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 448.56 88.56
+L 591.746555 88.56
+Q 593.906555 88.56 593.906555 90.72
+L 593.906555 98.64
+Q 593.906555 100.8 591.746555 100.8
+L 448.56 100.8
+Q 446.4 100.8 446.4 98.64
+L 446.4 90.72
+Q 446.4 88.56 448.56 88.56
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 448.56 120.24
+L 468.578853 120.24
+Q 470.738853 120.24 470.738853 122.4
+L 470.738853 130.32
+Q 470.738853 132.48 468.578853 132.48
+L 448.56 132.48
+Q 446.4 132.48 446.4 130.32
+L 446.4 122.4
+Q 446.4 120.24 448.56 120.24
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 448.56 136.8
+L 554.765409 136.8
+Q 556.925409 136.8 556.925409 138.96
+L 556.925409 146.88
+Q 556.925409 149.04 554.765409 149.04
+L 448.56 149.04
+Q 446.4 149.04 446.4 146.88
+L 446.4 138.96
+Q 446.4 136.8 448.56 136.8
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 448.56 168.48
+L 457.883569 168.48
+Q 460.043569 168.48 460.043569 170.64
+L 460.043569 178.56
+Q 460.043569 180.72 457.883569 180.72
+L 448.56 180.72
+Q 446.4 180.72 446.4 178.56
+L 446.4 170.64
+Q 446.4 168.48 448.56 168.48
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 448.56 185.04
+L 644.587826 185.04
+Q 646.747826 185.04 646.747826 187.2
+L 646.747826 195.12
+Q 646.747826 197.28 644.587826 197.28
+L 448.56 197.28
+Q 446.4 197.28 446.4 195.12
+L 446.4 187.2
+Q 446.4 185.04 448.56 185.04
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 448.56 216.72
+L 460.986504 216.72
+Q 463.146504 216.72 463.146504 218.88
+L 463.146504 226.8
+Q 463.146504 228.96 460.986504 228.96
+L 448.56 228.96
+Q 446.4 228.96 446.4 226.8
+L 446.4 218.88
+Q 446.4 216.72 448.56 216.72
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 448.56 233.28
+L 578.980645 233.28
+Q 581.140645 233.28 581.140645 235.44
+L 581.140645 243.36
+Q 581.140645 245.52 578.980645 245.52
+L 448.56 245.52
+Q 446.4 245.52 446.4 243.36
+L 446.4 235.44
+Q 446.4 233.28 448.56 233.28
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="patch_18">
+    <path d="M 153.36 352.8
+L 162 352.8
+Q 164.16 352.8 164.16 354.96
+L 164.16 359.28
+Q 164.16 361.44 162 361.44
+L 153.36 361.44
+Q 151.2 361.44 151.2 359.28
+L 151.2 354.96
+Q 151.2 352.8 153.36 352.8
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #b9d4ff"/>
+   </g>
+   <g id="patch_19">
+    <path d="M 383.76 352.8
+L 392.4 352.8
+Q 394.56 352.8 394.56 354.96
+L 394.56 359.28
+Q 394.56 361.44 392.4 361.44
+L 383.76 361.44
+Q 381.6 361.44 381.6 359.28
+L 381.6 354.96
+Q 381.6 352.8 383.76 352.8
+z
+" clip-path="url(#p80c4c20eaf)" style="fill: #0040ff"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 15.84px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="17.28" y="23.04" transform="rotate(-0 17.28 23.04)">Short-request waiting with additional long inputs</text>
+   </g>
+   <g id="text_2">
+    <text style="font-weight: 700; font-size: 12.96px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="100.8" y="50.4" transform="rotate(-0 100.8 50.4)">Median (seconds)</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="100.8" y="332.64" transform="rotate(-0 100.8 332.64)">0.0</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="158.4" y="332.64" transform="rotate(-0 158.4 332.64)">4.9</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="216" y="332.64" transform="rotate(-0 216 332.64)">9.7</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="273.6" y="332.64" transform="rotate(-0 273.6 332.64)">14.6</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="331.2" y="332.64" transform="rotate(-0 331.2 332.64)">19.4</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="90" y="87.84" transform="rotate(-0 90 87.84)">1</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="116.41162" y="82.08" transform="rotate(-0 116.41162 82.08)">0.95</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="119.759934" y="98.64" transform="rotate(-0 119.759934 98.64)">1.23</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="90" y="136.08" transform="rotate(-0 90 136.08)">2</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="116.755942" y="130.32" transform="rotate(-0 116.755942 130.32)">0.98</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="118.821972" y="146.88" transform="rotate(-0 118.821972 146.88)">1.16</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="90" y="184.32" transform="rotate(-0 90 184.32)">3</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="115.444605" y="178.56" transform="rotate(-0 115.444605 178.56)">0.87</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="139.947846" y="195.12" transform="rotate(-0 139.947846 195.12)">2.94</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="90" y="232.56" transform="rotate(-0 90 232.56)">4</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="116.591784" y="226.8" transform="rotate(-0 116.591784 226.8)">0.97</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="123.973984" y="243.36" transform="rotate(-0 123.973984 243.36)">1.59</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="90" y="280.8" transform="rotate(-0 90 280.8)">5</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 10.08px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #506079" x="100.8" y="282.96" transform="rotate(-0 100.8 282.96)">Rejected arrivals; no effect estimate</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 12.96px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="446.4" y="50.4" transform="rotate(-0 446.4 50.4)">95th percentile (seconds)</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="446.4" y="332.64" transform="rotate(-0 446.4 332.64)">0.0</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="504" y="332.64" transform="rotate(-0 504 332.64)">4.9</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="561.6" y="332.64" transform="rotate(-0 561.6 332.64)">9.7</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="619.2" y="332.64" transform="rotate(-0 619.2 332.64)">14.6</text>
+   </g>
+   <g id="text_27">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: middle; fill: #506079" x="676.8" y="332.64" transform="rotate(-0 676.8 332.64)">19.4</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="435.6" y="87.84" transform="rotate(-0 435.6 87.84)">1</text>
+   </g>
+   <g id="text_29">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="466.445281" y="82.08" transform="rotate(-0 466.445281 82.08)">1.33</text>
+   </g>
+   <g id="text_30">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="598.226555" y="98.64" transform="rotate(-0 598.226555 98.64)">12.44</text>
+   </g>
+   <g id="text_31">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="435.6" y="136.08" transform="rotate(-0 435.6 136.08)">2</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="475.058853" y="130.32" transform="rotate(-0 475.058853 130.32)">2.05</text>
+   </g>
+   <g id="text_33">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="561.245409" y="146.88" transform="rotate(-0 561.245409 146.88)">9.32</text>
+   </g>
+   <g id="text_34">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="435.6" y="184.32" transform="rotate(-0 435.6 184.32)">3</text>
+   </g>
+   <g id="text_35">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="464.363569" y="178.56" transform="rotate(-0 464.363569 178.56)">1.15</text>
+   </g>
+   <g id="text_36">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="651.067826" y="195.12" transform="rotate(-0 651.067826 195.12)">16.89</text>
+   </g>
+   <g id="text_37">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="435.6" y="232.56" transform="rotate(-0 435.6 232.56)">4</text>
+   </g>
+   <g id="text_38">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="467.466504" y="226.8" transform="rotate(-0 467.466504 226.8)">1.41</text>
+   </g>
+   <g id="text_39">
+    <text style="font-size: 9.36px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="585.460645" y="243.36" transform="rotate(-0 585.460645 243.36)">11.36</text>
+   </g>
+   <g id="text_40">
+    <text style="font-size: 11.52px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: end; fill: #10213d" x="435.6" y="280.8" transform="rotate(-0 435.6 280.8)">5</text>
+   </g>
+   <g id="text_41">
+    <text style="font-size: 10.08px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #506079" x="446.4" y="282.96" transform="rotate(-0 446.4 282.96)">Rejected arrivals; no effect estimate</text>
+   </g>
+   <g id="text_42">
+    <text style="font-size: 10.08px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="169.92" y="361.44" transform="rotate(-0 169.92 361.44)">Short only</text>
+   </g>
+   <g id="text_43">
+    <text style="font-size: 10.08px; font-family: 'General Sans', 'PingFang SC', 'Noto Sans CJK SC', 'Noto Sans SC', 'Arial', 'DejaVu Sans'; text-anchor: start; fill: #10213d" x="400.32" y="361.44" transform="rotate(-0 400.32 361.44)">Additional long requests</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p80c4c20eaf">
+   <rect x="0" y="0" width="748.8" height="374.4"/>
+  </clipPath>
+ </defs>
+</svg>

@@ -1,0 +1,22 @@
+{
+  "model": "qwen/qwen3.8-flash-next-abliterated",
+  "base_url": "https://api.example.invalid/v1",
+  "protocol": "openai",
+  "concurrency": 1,
+  "max_requests": 1,
+  "max_tokens": 16384,
+  "request_timeout_s": 1800,
+  "duration_limit_s": 2400,
+  "cf_retries": 3,
+  "api_key_env": "SPARKBENCH_API_KEY",
+  "extra_body": {
+    "provider": {
+      "only": [
+        "infron/cn"
+      ],
+      "allow_fallbacks": false
+    },
+    "reasoning_effort": "none",
+    "ignore_eos": true
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "created_epoch": 1792383681.930899,
+  "deadline_epoch": 1792426510.792725,
+  "blocks": [
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r0_seed",
+      "file": "gc19_cache_length_cache_i65536_p0_r0_seed.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 0,
+      "role": "seed",
+      "sha256": "9a2e05b045c940351d5f99b1cac9c94d525e26e05772cd2b36730a0e17e5eeee"
+    },
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r0_probe",
+      "file": "gc19_cache_length_cache_i65536_p0_r0_probe.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 0,
+      "role": "probe",
+      "sha256": "c3b46ed49665e076a20cc8d9403766a66ed66ad2036ee2a92de70605b47ee2e4"
+    },
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r1_seed",
+      "file": "gc19_cache_length_cache_i65536_p0_r1_seed.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 1,
+      "role": "seed",
+      "sha256": "ea32de4dd45921b91d9fc49f156bc43f6314b801d2c9d7da713ad17f8e5da8a7"
+    },
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r1_probe",
+      "file": "gc19_cache_length_cache_i65536_p0_r1_probe.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 1,
+      "role": "probe",
+      "sha256": "ddadbaf7408a964ab76038b1b83bcd85ecc1cf00dc3ef42ad15ceb653c71cfc7"
+    },
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r2_seed",
+      "file": "gc19_cache_length_cache_i65536_p0_r2_seed.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 2,
+      "role": "seed",
+      "sha256": "506e2631c84ac0d3bb4b950500713b1b88a3dd635188384917dd0b3febf1d6fc"
+    },
+    {
+      "id": "gc19_cache_length_cache_i65536_p0_r2_probe",
+      "file": "gc19_cache_length_cache_i65536_p0_r2_probe.jsonl",
+      "kind": "length",
+      "cases": 1,
+      "concurrency": 1,
+      "pair": 2,
+      "role": "probe",
+      "sha256": "f1a0a0e22c749f40668cb00761b4218759f64274f2e86c2850e66e2d93aca4fb"
+    }
+  ],
+  "purpose": "Three independent public 64K zero-designed-overlap pairs; original invalid window remains invalid; source count windows determine actual cache fraction.",
+  "source_manifest_sha256": "41a65cd58a546528996f281dd0198a624800ec151f27d6e09f7a7f836e7c9905"
+}

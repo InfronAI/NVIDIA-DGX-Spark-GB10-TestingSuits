@@ -16,7 +16,7 @@ This project studies those layers separately: establish compute and memory basel
 | Served model | `qwen/qwen3.8-flash-next-abliterated`, accessed through Infron |
 | Weights | [dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4](https://huggingface.co/dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4/tree/be794b990578ef3031eccf9f28e675a289a09ee9), pinned revision `be794b990578ef3031eccf9f28e675a289a09ee9` |
 | Engine | SGLang 0.5.21; NVFP4 / `modelopt_fp4`; TP=2; MTP enabled; total context limit 262,144 tokens |
-| Published batch | October 14–17, 2026; [experiment](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) / [configuration manifest](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/experiment.json) |
+| Published batch | October 14–17, 2026; [experiment](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) / [configuration manifest](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/experiment.json) ; [October 19 supplement](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md) |
 | Objective | Serving performance and resource behavior. Task datasets supply inputs; answers are not scored and model capabilities are not ranked. |
 
 This is a custom engineering study, not an MLPerf-certified submission. H200 is an architectural/specification reference, without a matched measured workload. Economic results are scenarios under explicit assumptions.
@@ -52,19 +52,22 @@ Each dated batch records the model, weight revision, engine settings, seeds, pla
 
 ## 3. How to read this project
 
+Latest publication: **2026-10-19 independent supplement**, with **8/8** public length conditions, **5/5** observed interference pairs and **3/3** cache pairs. **4/5** interference pairs support complete-pair effect estimates; **3 local rejections** remain observed outcomes. [Experiment](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md). Reading links below point to the updated full report; the October 14–17 archive remains unchanged.
+
+
 | Your goal | Suggested reading order |
 | --- | --- |
-| Assess the deployment quickly | [Findings and applicability](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/conclusions.en.md) → full-report abstract, service results and conclusions |
+| Assess the deployment quickly | [Findings and applicability](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/conclusions.en.md) → full-report abstract, service results and conclusions |
 | Assess experimental validity | [Model index](models/README.en.md) → [protocols](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/protocols/) → [methods](docs/methodology.en.md) → [metrics](docs/metrics.en.md) → associated data tables |
-| Explore figures and interactive cost calculations | Download [English HTML](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.en.html) or [中文 HTML](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.zh.html) |
-| Share or print | [English PDF](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.en.pdf) / [中文 PDF](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.zh.pdf); [release downloads](https://github.com/InfronAI/NVIDIA-DGX-Spark-GB10-TestingSuits/releases) |
-| Read directly on GitHub | [English Markdown](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.en.md) / [中文 Markdown](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/report.zh.md) |
+| Explore figures and interactive cost calculations | Download [English HTML](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.html) or [中文 HTML](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.zh.html) |
+| Share or print | [English PDF](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.pdf) / [中文 PDF](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.zh.pdf); [release downloads](https://github.com/InfronAI/NVIDIA-DGX-Spark-GB10-TestingSuits/releases) |
+| Read directly on GitHub | [English Markdown](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.md) / [中文 Markdown](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.zh.md) |
 | Recompute published results | Offline steps below → [quickstart](docs/quickstart.en.md) |
 | Rerun or add a model | Execution examples below → [reproduction](docs/reproduction.en.md) → [contributing](docs/contributing.en.md) |
 
 Each HTML report is a standalone file with embedded figures and calculation scripts. Download and open it in a browser; GitHub's file page displays source rather than executing HTML. Reading reports needs no Python installation, GPU, SSH or API credentials.
 
-**Published evidence and limits:** in the matched short-prompt cohort, concurrency 1→8 gives **45.1→158.9 output tokens/s**, with visible-content latency p95 **1.65→2.39 s**. The October 14–17 public-length archive has 299 planned cases: 290 complete, 8 unsent and 1 incomplete. None of five interference candidates is a fully observed pair. Sixteen native forced-output probes do not fill public-path gaps. Supplements use new dated records rather than rewriting the original denominator.
+**Published evidence and limits:** in the matched short-prompt cohort, concurrency 1→8 gives **45.1→158.9 output tokens/s**, with visible-content latency p95 **1.65→2.39 s**. The October 14–17 public-length archive has 299 planned cases: 290 complete, 8 unsent and 1 incomplete. None of five interference candidates is a fully observed pair. Sixteen native forced-output probes do not fill public-path gaps. The October 19 supplement uses new dated records without rewriting that original denominator.
 
 ![Matched capacity and latency](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/capacity.en.svg)
 
@@ -85,6 +88,8 @@ Python **3.10+** is required. The base package installs HTTPX and NumPy, not CUD
 
 Optional report dependencies: `python -m pip install -e '.[reports]'`. Existing HTML/PDF files need none of them. WeasyPrint's native system libraries must be installed for your platform. The portable `summarize` command generates derived tables; it does not automatically rebuild the full historical report.
 
+Rebuilding Chinese figures also requires a Chinese font on the operating system; the renderer includes PingFang SC and Noto Sans CJK SC fallbacks.
+
 ## 5. Offline use and numerical reproduction
 
 Run from the repository root:
@@ -94,6 +99,7 @@ sparkbench list
 sparkbench validate
 sparkbench summarize experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark --output outputs/summary
 sparkbench matrix --context 262144 > outputs/length-matrix.json
+sparkbench analyze-completion experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion --output outputs/completion
 python -m unittest discover -s tests -v
 ```
 
@@ -102,6 +108,7 @@ python -m unittest discover -s tests -v
 | `list` | Lists models and registered experiments so you can select a batch |
 | `validate` | Checks model/experiment links, bilingual documents and artifact SHA-256 without API calls |
 | `summarize` | Reconstructs capacity from published continuous-block tables into `summary.json` and `capacity.csv`; no new model responses |
+| `analyze-completion` | Recomputes October 19 usage, lengths, complete interference pairs and cache-counter windows into JSON/CSV without model calls |
 | `matrix` | Emits the context-constrained length design and exclusions; a design is not completed coverage |
 | Unit tests | Validate configuration, streaming, statistics and mock-service behavior; not GPU performance acceptance |
 

@@ -1,0 +1,99 @@
+{
+  "0": {
+    "captured_utc": "2026-10-19T04:12:33.460840+00:00",
+    "versions": {
+      "sglang": "0.5.21",
+      "torch": "2.13.0",
+      "transformers": "5.12.1"
+    },
+    "model_identity_files": {
+      "config.json": {
+        "sha256": "e765305daba0951974308f4d32c075b52a6a45974730d273f2216718a994d624",
+        "bytes": 4983
+      },
+      "tokenizer.json": {
+        "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+        "bytes": 12809320
+      },
+      "tokenizer_config.json": {
+        "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+        "bytes": 17928
+      },
+      "generation_config.json": {
+        "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+        "bytes": 202
+      }
+    },
+    "explicit_parameters": {
+      "--quantization": "modelopt_fp4",
+      "--fp4-gemm-backend": "flashinfer_cutlass",
+      "--tp": "2",
+      "--nnodes": "2",
+      "--node-rank": "0",
+      "--page-size": "64",
+      "--context-length": "262144",
+      "--mem-fraction-static": "0.75",
+      "--reasoning-parser": "qwen3",
+      "--speculative-algorithm": "NEXTN",
+      "--speculative-num-steps": "3",
+      "--speculative-eagle-topk": "1",
+      "--speculative-num-draft-tokens": "4",
+      "--tool-call-parser": "qwen3_coder"
+    },
+    "effective_parameters": {
+      "context_length": 262144,
+      "chunked_prefill_size": 8192,
+      "max_running_requests": 48,
+      "mem_fraction_static": 0.75,
+      "page_size": 64,
+      "speculative_algorithm": "EAGLE",
+      "speculative_num_steps": 3,
+      "speculative_eagle_topk": 1,
+      "speculative_num_draft_tokens": 4,
+      "enable_cache_report": false
+    }
+  },
+  "1": {
+    "captured_utc": "2026-10-19T04:12:34.053509+00:00",
+    "versions": {
+      "sglang": "0.5.21",
+      "torch": "2.13.0",
+      "transformers": "5.12.1"
+    },
+    "model_identity_files": {
+      "config.json": {
+        "sha256": "e765305daba0951974308f4d32c075b52a6a45974730d273f2216718a994d624",
+        "bytes": 4983
+      },
+      "tokenizer.json": {
+        "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+        "bytes": 12809320
+      },
+      "tokenizer_config.json": {
+        "sha256": "b11349aafa7cdc6a320767cf7ceb29ed82f7eda5d65e8e0819e76f0ce947bf27",
+        "bytes": 17928
+      },
+      "generation_config.json": {
+        "sha256": "e70c136c1b78ddc1fb0905bac8e733a4dc448d4f852a5dd75143fffc70be550e",
+        "bytes": 202
+      }
+    },
+    "explicit_parameters": {
+      "--quantization": "modelopt_fp4",
+      "--fp4-gemm-backend": "flashinfer_cutlass",
+      "--tp": "2",
+      "--nnodes": "2",
+      "--node-rank": "1",
+      "--page-size": "64",
+      "--context-length": "262144",
+      "--mem-fraction-static": "0.75",
+      "--reasoning-parser": "qwen3",
+      "--speculative-algorithm": "NEXTN",
+      "--speculative-num-steps": "3",
+      "--speculative-eagle-topk": "1",
+      "--speculative-num-draft-tokens": "4",
+      "--tool-call-parser": "qwen3_coder"
+    },
+    "effective_parameters": {}
+  }
+}

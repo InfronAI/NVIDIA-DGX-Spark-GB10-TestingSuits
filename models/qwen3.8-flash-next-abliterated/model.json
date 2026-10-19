@@ -8,6 +8,7 @@
   "quantization": "modelopt_fp4 / NVFP4",
   "context_tokens": 262144,
   "experiments": [
+    "experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion",
     "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark"
   ],
   "architecture": {

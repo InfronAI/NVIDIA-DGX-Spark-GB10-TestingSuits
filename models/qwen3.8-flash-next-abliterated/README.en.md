@@ -13,3 +13,5 @@
 | Experiment | [2026-10-14_17-dual-spark](../../experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) |
 
 This project measures system performance. Task questions are workloads, not an ability leaderboard. Model naming and ablation positioning do not establish capability or safety findings.
+
+Latest independent supplement: [2026-10-19](../../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md). The full report includes historical experiments and the new dated evidence.

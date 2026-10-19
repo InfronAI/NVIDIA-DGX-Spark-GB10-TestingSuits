@@ -1,0 +1,13 @@
+{
+  "epoch": 1792384609.586441,
+  "reason": "Active unrelated generation observed after the third length request; dedicated ingress now only accepts frozen workload signatures. Original four probes retained and repeated as independent attempt2 to keep the same path.",
+  "changed_model_configuration": false,
+  "gate_observation": "External non-allowlisted control returned503; preexisting origin requests drained; both nodes idle53C",
+  "gateway_path": "Infron -> Cloudflare -> frozen-request forwarding proxy -> unchanged SGLang",
+  "retry_attempts": {
+    "gc19_route_preflight": 2,
+    "gc19_length_output_axis_i1024_o16384": 2,
+    "gc19_length_output_axis_i1024_o32768": 2,
+    "gc19_length_output_axis_i1024_o65536": 2
+  }
+}
