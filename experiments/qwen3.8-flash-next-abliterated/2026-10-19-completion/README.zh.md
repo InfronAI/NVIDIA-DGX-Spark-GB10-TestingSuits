@@ -1,12 +1,23 @@
 [English](README.en.md) · [中文](README.zh.md)
 
-# 2026-10-19：公网长度、混合干扰与64K缓存补测
+# 双DGX Spark系统与推理性能研究
 
-本批使用相同的双DGX Spark和SGLang配置，补充早期缺失的公网条件、完整到达记录、长短请求配对及低复用缓存计数窗口。原始2026-10-14至17日实验保持不变，新的逐尝试记录、计数器窗口和结论单独归档。
+本研究测量Qwen3.8 Flash Next Abliterated NVFP4在双NVIDIA DGX Spark／GB10上的系统与推理服务表现，测量时间为2026-10-14至2026-10-19。完整报告按硬件计算、内存、通信、引擎预填充／解码、公网响应、长度、缓存、混合调度、持续性能及成本组织。
 
-当前有效证据：长度 **8/8** 条；干扰结果 **5/5** 对（其中**4/5**可估计完整配对效应）；缓存 **3/3** 对。计划共 **695** 条逻辑请求，包含预检和预热。
+先读[主要结论](conclusions.zh.md)，再读[完整中文报告](reports/report.zh.md)。[中文HTML](reports/report.zh.html)／[英文HTML](reports/report.en.html)可独立离线分享；[中文PDF](reports/report.zh.pdf)／[英文PDF](reports/report.en.pdf)适合打印。
 
-先读[结论](conclusions.zh.md)，再读[完整中文报告](reports/report.zh.md)。可下载[独立HTML](reports/report.zh.html)或[PDF](reports/report.zh.pdf)离线分享；报告同时保留历史硬件、引擎、H200技术对照及经济性章节。
+## 阅读与数据定位
+
+| 内容 | 位置 |
+| --- | --- |
+| 硬件型号、驱动、SDK、模型与启动命令 | 报告第01–02节；`protocols/environment.json` |
+| 基准来源、业务样例与实验方法 | 第03–04节 |
+| 样本分母、拒绝与排除规则 | 第05节 |
+| 硬件、通信、引擎、服务、缓存与持续性 | 第06–09节 |
+| H200技术参照、成本与总体结论 | 第10–12节 |
+| 指标细节、完整图表、代码与证据索引 | 第13–15节 |
+
+本目录的`data/`与`protocols/`保存10月19日受控公网实验：695个逻辑终态，其中692条完整源站响应、3条本地拒绝；含8个长度条件、5组混合请求及3组低复用缓存配对。其他服务、硬件和原生引擎数据位于[10月14–17日测量目录](../2026-10-14_17-dual-spark/README.zh.md)。报告统一呈现各主题；不同测量单位和工作负载保持各自分母。
 
 ## 离线复算与报告重建
 
@@ -18,7 +29,7 @@ python -m pip install -e '.[reports]'
 python experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/analysis/build_report.py experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion --pdf
 ```
 
-复算仅读取已发布标量证据，不调用模型或数据库。报告重建从只读的2026-10-14_17-dual-spark报告继承历史章节，再加入本日期结果。更改产物后需按新实验归档；原SHA256清单用于验证发布快照。
+复算仅读取已发布标量证据，不调用模型或数据库。报告重建读取两个测量目录，并按统一主题组织结果；`analysis/build_report.py`为入口，`analysis/integrate_report.py`定义章节结构与结论。更改产物后需按新实验归档；原SHA256清单用于验证发布快照。
 
 ## 如何复现测量条件
 

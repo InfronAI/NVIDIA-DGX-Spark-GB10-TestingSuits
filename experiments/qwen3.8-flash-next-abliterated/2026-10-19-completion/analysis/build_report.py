@@ -24,6 +24,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import FancyBboxPatch, PathPatch
 from matplotlib.path import Path as PlotPath
 from sparkbench.completion import write_summary, quantile
+from integrate_report import integrate, conclusion_text
 
 
 BLUE, PALE, DARK, MUTED, GRID = '#0040FF', '#b9d4ff', '#10213d', '#506079', '#e5edf9'
@@ -113,19 +114,23 @@ class SVG:
 def charts(summary, telemetry, out, lang):
     zh = lang == 'zh'
     coverage = summary['coverage']
-    s = SVG(410)
+    s = SVG(685)
     rows = [('硬件与算子 / Hardware', 3740, 3740), ('双机集合通信 / Collectives', 840, 840),
-            ('原生固定输出 / Native fixed output', 16, 16),
-            ('10-19 公网长度 / Public lengths', coverage['length_conditions_complete'], 8),
-            ('10-19 干扰结果 / Observed interference pairs', coverage['interference_pairs_observed'], 5),
-            ('10-19 缓存配对 / Cache pairs', coverage['cache_pairs_qualified'], 3)]
-    s.text(24, 32, '固定清单的有效证据覆盖' if zh else 'Qualified evidence for each fixed list', 22, weight='bold')
+            ('计算与通信配对 / Compute/communication pairs', 120, 120),
+            ('FP64矩阵 / FP64 matrix rounds',30,30),('代表性计数器 / Counter profiles',12,12),
+            ('原生固定输出 / Native fixed output', 16, 16),('GPU剖析配对 / GPU profiling pairs',9,9),
+            ('64K即时前缀复用 / 64K immediate reuse pairs',3,3),
+            ('公网大输出预算 / Public large-output budgets', coverage['length_conditions_complete'], 8),
+            ('混合请求完整配对效应 / Complete mixed-request effects', coverage['interference_pairs_qualified'], 5),
+            ('64K低复用前缀 / 64K low-reuse pairs', coverage['cache_pairs_qualified'], 3),
+            ('连续一小时窗口 / Continuous one-hour window',1,1)]
+    s.text(24, 32, '各实验的有效分析样本' if zh else 'Valid analysis units by experiment', 22, weight='bold')
     for i, (label, n, total) in enumerate(rows):
-        y = 72 + 49 * i
+        y = 72 + 46 * i
         s.text(24, y + 17, label.split(' / ')[0 if zh else 1], 16)
         s.rect(420, y, 440, 24, GRID); s.rect(420, y, 440 * n / total, 24)
         s.text(1000, y + 18, f'{n:,} / {total:,}', 18, BLUE, 'bold', 'end')
-    s.text(24, 389, '各行分母独立；早期失败记录保留，日期之间不合并成功率。' if zh else 'Each row has its own denominator; earlier failures and dates remain separate.', 14, MUTED)
+    s.text(24, 657, '各行分母独立；混合请求5组均有终态，其中4组满足完整配对效应条件。' if zh else 'Separate denominators; all 5 mixed pairs have outcomes, and 4 support complete-pair effects.', 14, MUTED)
     s.write(out / f'completion_coverage.{lang}.svg')
 
     s = SVG(570)
@@ -191,7 +196,7 @@ def charts(summary, telemetry, out, lang):
     s.write(out / f'completion_cache.{lang}.svg')
 
     s = SVG(460)
-    s.text(24, 32, '补测期间的双节点资源观测' if zh else 'Two-node resources during the dated measurements', 22, weight='bold')
+    s.text(24, 32, '受控公网负载期间的双节点资源' if zh else 'Two-node resources under controlled public workloads', 22, weight='bold')
     epochs = [r['epoch'] for r in telemetry]
     if epochs:
         begin, end = min(epochs), max(epochs)
@@ -588,7 +593,11 @@ def render(experiment, pdf=False):
         md=re.sub(r'(?<!!)\[([^\]]*)\]\(([^)]+)\)',link_path,md)
         style=soup.new_tag('style');style.string='.metric-value{color:#004AB9;font-weight:700}.table-wrap{max-width:100%;overflow-x:auto}.figure img{max-width:100%;height:auto} @media print{.table-wrap{overflow:visible}.figure{break-inside:avoid}table{font-size:9px}}';soup.head.append(style)
         for strong in soup.select('main strong'):strong['class']=list(set(strong.get('class',[])+['metric-value']))
+        md,soup=integrate(md,soup,summary,lang,out,base)
         (out/f'report.{lang}.html').write_text(str(soup));(out/f'report.{lang}.md').write_text(md.rstrip()+'\n')
+        title='# 主要结论与适用条件' if zh else '# Findings and applicability'
+        links=f'[English](conclusions.en.md) · [中文](conclusions.zh.md) · [Full report / 完整报告](reports/report.{lang}.md)'
+        (experiment/f'conclusions.{lang}.md').write_text((links+'\n\n'+title+'\n\n'+conclusion_text(summary,lang)).rstrip()+'\n')
         if pdf:
             from weasyprint import HTML
             HTML(filename=str(out/f'report.{lang}.html')).write_pdf(str(out/f'report.{lang}.pdf'))

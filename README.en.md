@@ -16,7 +16,7 @@ This project studies those layers separately: establish compute and memory basel
 | Served model | `qwen/qwen3.8-flash-next-abliterated`, accessed through Infron |
 | Weights | [dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4](https://huggingface.co/dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4/tree/be794b990578ef3031eccf9f28e675a289a09ee9), pinned revision `be794b990578ef3031eccf9f28e675a289a09ee9` |
 | Engine | SGLang 0.5.21; NVFP4 / `modelopt_fp4`; TP=2; MTP enabled; total context limit 262,144 tokens |
-| Published batch | October 14–17, 2026; [experiment](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) / [configuration manifest](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/experiment.json) ; [October 19 supplement](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md) |
+| Study period and records | October 14–19, 2026; [complete study](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.md); [measurement records](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md) |
 | Objective | Serving performance and resource behavior. Task datasets supply inputs; answers are not scored and model capabilities are not ranked. |
 
 This is a custom engineering study, not an MLPerf-certified submission. H200 is an architectural/specification reference, without a matched measured workload. Economic results are scenarios under explicit assumptions.
@@ -52,7 +52,7 @@ Each dated batch records the model, weight revision, engine settings, seeds, pla
 
 ## 3. How to read this project
 
-Latest publication: **2026-10-19 independent supplement**, with **8/8** public length conditions, **5/5** observed interference pairs and **3/3** cache pairs. **4/5** interference pairs support complete-pair effect estimates; **3 local rejections** remain observed outcomes. [Experiment](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md). Reading links below point to the updated full report; the October 14–17 archive remains unchanged.
+The **complete performance study** is organized by GPU compute, memory, communication, engine stages, public serving, caching, sustained performance and economics. Start with the [abstract and findings](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.md#section-01), then follow each topic through definitions, workloads, figures and applicability.
 
 
 | Your goal | Suggested reading order |
@@ -67,7 +67,7 @@ Latest publication: **2026-10-19 independent supplement**, with **8/8** public l
 
 Each HTML report is a standalone file with embedded figures and calculation scripts. Download and open it in a browser; GitHub's file page displays source rather than executing HTML. Reading reports needs no Python installation, GPU, SSH or API credentials.
 
-**Published evidence and limits:** in the matched short-prompt cohort, concurrency 1→8 gives **45.1→158.9 output tokens/s**, with visible-content latency p95 **1.65→2.39 s**. The October 14–17 public-length archive has 299 planned cases: 290 complete, 8 unsent and 1 incomplete. None of five interference candidates is a fully observed pair. Sixteen native forced-output probes do not fill public-path gaps. The October 19 supplement uses new dated records without rewriting that original denominator.
+**Principal observations:** matched short prompts at concurrency 1→8 yield **45.1→158.9 tokens/s**, with first-content p95 **1.65→2.39 s**. Native fixed output reaches **260,096 tokens**. All arrivals and outcomes are recorded for five mixed-request pairs; four support complete-pair effects, and pair five retains three local rejections. Denominators, exclusions and interpretation limits appear in Section 05.
 
 ![Matched capacity and latency](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/capacity.en.svg)
 

@@ -1,12 +1,23 @@
 [English](README.en.md) · [中文](README.zh.md)
 
-# 2026-10-19: public lengths, mixed interference and 64K cache supplement
+# Dual-DGX-Spark system and inference performance study
 
-The same dual-DGX-Spark and SGLang configuration fills missing public conditions, complete arrival histories, short/long pairs and low-reuse cache counter windows. The October 14–17 experiment stays unchanged; new attempts, counter windows and conclusions are archived separately.
+This study measures Qwen3.8 Flash Next Abliterated NVFP4 on two NVIDIA DGX Spark / GB10 nodes over October 14–19, 2026. The complete report covers GPU compute, memory, communication, engine prefill/decode, public serving, lengths, caching, mixed scheduling, sustained performance and economics.
 
-Qualified evidence: **8/8** lengths, **5/5** observed interference pairs (**4/5** effect-eligible) and **3/3** cache pairs. The plan fixes **695** logical requests including preflight and warmup.
+Start with [findings](conclusions.en.md), then the [complete English report](reports/report.en.md). [English HTML](reports/report.en.html) / [中文HTML](reports/report.zh.html) are standalone offline documents; [English PDF](reports/report.en.pdf) / [中文PDF](reports/report.zh.pdf) are printable.
 
-Start with [conclusions](conclusions.en.md), then the [full English report](reports/report.en.md). Download [standalone HTML](reports/report.en.html) or [PDF](reports/report.en.pdf) for offline sharing. Historical hardware, engine, H200 architecture and economic chapters remain in the complete report.
+## Reading and data map
+
+| Content | Location |
+| --- | --- |
+| Hardware model, driver, SDKs, model and launch command | Sections 01–02; `protocols/environment.json` |
+| Benchmark sources, business examples and methods | Sections 03–04 |
+| Denominators, rejections and exclusions | Section 05 |
+| Hardware, communication, engine, serving, cache and sustained results | Sections 06–09 |
+| H200 reference, economics and conclusions | Sections 10–12 |
+| Metric details, complete figures, code and evidence index | Sections 13–15 |
+
+The local `data/` and `protocols/` directories hold controlled public measurements from October 19: 695 logical outcomes, comprising 692 complete source responses and three local rejections, with eight length conditions, five mixed-request pairs and three low-reuse cache pairs. Other serving, hardware and native-engine records reside in the [October 14–17 data directory](../2026-10-14_17-dual-spark/README.en.md). The report organizes findings by topic while preserving workload-specific measurement units and denominators.
 
 ## Offline recomputation and report rebuilding
 
@@ -18,7 +29,7 @@ python -m pip install -e '.[reports]'
 python experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/analysis/build_report.py experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion --pdf
 ```
 
-Recomputation reads published scalar evidence without model or database calls. Rebuilding inherits historical chapters from the immutable 2026-10-14_17-dual-spark report and inserts this dated experiment. Changed artifacts require a new archive; the original SHA256 list validates the published snapshot.
+Recomputation reads published scalar evidence without model or database calls. Rebuilding reads both measurement directories and presents results by topic; `analysis/build_report.py` is the entry point and `analysis/integrate_report.py` defines the structure and synthesis. Changed artifacts require a new archive; the original SHA256 list validates the published snapshot.
 
 ## Reproducing measurement conditions
 

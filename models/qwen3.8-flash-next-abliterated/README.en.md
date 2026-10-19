@@ -10,8 +10,8 @@
 | Context | 262,144 tokens, input plus output |
 | Text architecture | 48layers, hidden2560,512 routed experts,10 selected/token;36 linear-attention and12 full-attention layers |
 | Parameter count | Total and active parameter counts were not independently verified |
-| Experiment | [2026-10-14_17-dual-spark](../../experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) |
+| Complete study | [Dual-DGX-Spark system and inference performance](../../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.md); October 14–19, 2026 |
 
 This project measures system performance. Task questions are workloads, not an ability leaderboard. Model naming and ablation positioning do not establish capability or safety findings.
 
-Latest independent supplement: [2026-10-19](../../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md). The full report includes historical experiments and the new dated evidence.
+Measurement records: [hardware, engine and service matrix](../../experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) · [controlled lengths, mixed scheduling and prefix cache](../../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md).

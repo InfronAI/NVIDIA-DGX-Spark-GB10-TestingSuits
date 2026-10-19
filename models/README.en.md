@@ -1,11 +1,9 @@
-[中文](README.zh.md)
+[English](README.en.md) · [中文](README.zh.md)
 
 # Model index
 
-| Model | Precision | Experiment |
+| Model | Precision | Complete study |
 | --- | --- | --- |
-| [Qwen3.8 Flash Next Abliterated (NVFP4)](qwen3.8-flash-next-abliterated/README.en.md) | NVFP4 | [2026-10-14–17 dual Spark](../experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.en.md) |
+| [Qwen3.8 Flash Next Abliterated](qwen3.8-flash-next-abliterated/README.en.md) | NVFP4 | [2026-10-14–19 · Dual DGX Spark](../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.en.md) |
 
-Each model may have multiple experiments. Changes to engine, weights, precision, MTP or topology create new runs without replacing old findings. Each model has a machine-readable `model.json`.
-
-Latest supplement: [2026-10-19](../experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.en.md)
+A model can have multiple configurations and measurement windows. `model.json` is the machine-readable index; complete reports are organized by topic, and evidence is archived by model, configuration and date.

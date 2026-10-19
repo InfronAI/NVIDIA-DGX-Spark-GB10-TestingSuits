@@ -16,7 +16,7 @@ DGX Spark 将 Blackwell GPU、Arm CPU 与统一内存集成在 GB10 平台中。
 | 服务模型 | `qwen/qwen3.8-flash-next-abliterated`，通过 Infron 访问 |
 | 权重来源 | [dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4](https://huggingface.co/dealignai/Qwen3.8-Flash-Next-ABLITERATED-NVFP4/tree/be794b990578ef3031eccf9f28e675a289a09ee9)，固定 revision `be794b990578ef3031eccf9f28e675a289a09ee9` |
 | 推理配置 | SGLang 0.5.21；NVFP4／`modelopt_fp4`；TP=2；MTP 开启；上下文总上限 262,144 token |
-| 已发布数据批次 | 2026-10-14 至 2026-10-17；[实验记录](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/README.zh.md)／[配置清单](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/experiment.json) ；[2026-10-19补测](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.zh.md) |
+| 研究时间与记录 | 2026-10-14 至 2026-10-19；[完整研究报告](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.zh.md)；[测量记录](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.zh.md) |
 | 测量目标 | 服务性能及资源表现；题集作为输入材料，不评分答案正确性，不做模型能力排名 |
 
 这是自定义工程研究，不是 MLPerf 认证提交。H200 在报告中是架构与规格参照，没有同负载实测；经济性部分为显式假设下的估算。
@@ -52,7 +52,7 @@ DGX Spark 将 Blackwell GPU、Arm CPU 与统一内存集成在 GB10 平台中。
 
 ## 3. 按目的阅读
 
-最新发布：**2026-10-19独立补测**，已记录**8/8**公网长度条件、**5/5**干扰实验结果及**3/3**缓存配对；其中**4/5**干扰对可估计完整配对效应，**3条**本地拒绝作为观测结果保留。[实验入口](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/README.zh.md)；下方阅读链接指向更新后的完整报告，10月14–17日归档仍保留。
+**完整测试报告**按GPU计算、内存、通信、引擎阶段、公网服务、缓存、持续性能与经济性组织。先读[摘要与主要结论](experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion/reports/report.zh.md#section-01)，再沿对应章节查看定义、工作负载、图表和适用条件。
 
 
 | 你希望了解什么 | 建议阅读顺序 |
@@ -67,7 +67,7 @@ DGX Spark 将 Blackwell GPU、Arm CPU 与统一内存集成在 GB10 平台中。
 
 HTML 是可独立分享的单文件，图表与计算脚本内嵌；下载后用浏览器打开。GitHub 文件页展示源码，不运行 HTML。只阅读报告不需要安装 Python、GPU、SSH 或 API 凭证。
 
-**已有结果与覆盖边界：** 在同一短提示比较组中，并发 1→8，输出吞吐 **45.1→158.9 token/s**，正文首字 p95 **1.65→2.39 s**。10月14–17日归档的公网长度计划 299 条：290 条完整响应、8 条未发送、1 条不完整；干扰候选 5 对中没有完整观测对。16 条原生固定输出探针不补填公网缺口。10月19日补测按新日期登记，原批次分母保持不变。
+**主要观测：** 同一短提示比较组中，并发1→8，输出吞吐**45.1→158.9词元/s**、正文首字95分位**1.65→2.39秒**；原生固定输出最高**260,096词元**。混合请求实验完整记录5组到达与终态，其中4组支持完整配对效应，第5组保留3条本地拒绝。全部样本分母、排除规则和结论边界见报告第05节。
 
 ![同组容量与等待时间](experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark/reports/capacity.zh.svg)
 

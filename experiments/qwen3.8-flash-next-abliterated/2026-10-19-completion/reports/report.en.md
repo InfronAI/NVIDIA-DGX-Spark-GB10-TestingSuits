@@ -2,7 +2,7 @@
 
 **Serving, hardware, collective and independent engine experiments reflect actual completed coverage.**
 
-Data snapshot (UTC): 2026-10-19 06:13:52 UTC
+Measurement period: October 14–19, 2026; experiments retain their sampling dates and statistical denominators.
 
 <a id="section-01"></a>
 
@@ -82,8 +82,9 @@ The table summarizes completed measurements and supporting analyses. Domain link
 | [Two-node communication](#section-07) | RDMA; AllReduce/AllGather/ReduceScatter; serial versus overlapped compute and communication. | **1 GiB** AllReduce bus bandwidth: **21.81 GB/s**; **840** collective and **120** overlap trials. NCCL GPU-direct networking was disabled. |
 | [Engine stages](#section-08) | Prefill (input processing), decode (generation), queues and two-node GPU timelines. | At concurrency one, prefill is **2,427–3,354 tokens/s** and decode with **256** outputs is **49.8–60.2 tokens/s**. Synthetic inputs; timings include engine scheduling. |
 | [Public serving and arrivals](#section-08) | **60** prompts from six datasets; concurrency **1/2/4/8**, reasoning settings, open arrivals and goodput. | Short prompts, concurrency **1→8**: **45.1→158.9 tokens/s**, first-content p95 **1.65→2.39 s**. Higher arrival rates cause queue rejections. |
-| [Lengths and business shapes](#section-08) | **1K**–**256K** length design space; eight business shapes, input/output ratios and realized lengths. |Native fixed output reaches **260,096 tokens**; the October 19 supplement adds **8/8** public conditions, with natural-stop lengths reported separately.|
-| [Prefix cache and retention](#section-08) | Six prefix-sharing ratios; first/repeat, idle retention, pressure/recovery and periodic reuse. | **32K** inputs with a nominal **300 s** wait: **91.7%** cached-token fraction; six **8K** periodic rounds were about **100%**. These windows do not establish long-term hit rates. |
+| [Mixed-request scheduling](#section-08) | Matched short prompts and complete arrival traces; 32K inputs added to mixed arms. | Four complete pairs: median short-request wait **1.18–3.37×** the isolated arm, p95 **4.54–14.68×**; pair 5 retains **three local rejections**. |
+| [Lengths and business shapes](#section-08) | **1K**–**256K** length design space; eight business shapes, input/output ratios and realized lengths. | Native fixed output reaches **260,096 tokens**; the public 64K-input observation naturally generates **27,018 tokens**. Budgets and realized lengths are separate. |
+| [Prefix cache and retention](#section-08) | Six prefix-sharing ratios; first/repeat, idle retention, pressure/recovery and periodic reuse. | All six 64K low-reuse windows have **0%** cached tokens; the 32K nominal 300-second idle cohort reaches **91.7%**; six 8K periodic reuse rounds are about **100%**. Conditions differ. |
 | [Sustained work and thermals](#section-09) | Separate compute, bandwidth and mixed phases; clocks, temperature, power, cooling and retention. | Both nodes completed **60/60/120 minutes**. Mixed-phase cooling occupied **16.4% / 6.0%** (nodes **0/1**). Cooling affects wall-clock throughput; phases do not establish four-hour continuous serving. |
 | [Observability and attribution](#section-06) | Client/engine/node telemetry, GPU profiling, hardware-cache and memory-counter diagnostics. | Timing boundaries are separated. Counters are partly readable; representative physical-memory traffic is missing, so a unique model bottleneck is not established. |
 | [H200 reference](#section-10) | Compute, memory supply/capacity, device links, network and power compared by function. | H200 has higher specified memory bandwidth and different link/power boundaries. This is an official-specification reference without matched H200 inference measurements. |
@@ -92,21 +93,7 @@ The table summarizes completed measurements and supporting analyses. Domain link
 
 
 
-Additional native-engine result: fixed output has been validated through **260,096 tokens**. Public natural-stop data remain a separate cohort; native results do not replace end-to-end measurements.
 
-
-
-### Independent measurements on 2026-10-19
-
-
-| Scope | Qualified evidence | Interpretation |
-| --- | --- | --- |
-| Public output caps | **8/8** | One natural-stop observation for each of eight formerly unsent conditions. |
-| Long/short interference | **5/5** | All arrivals and outcomes recorded; 4 pairs support a complete-pair effect estimate, with 3 local rejections retained. |
-| 64K zero designed overlap | **3/3** | Two requests per pair; actual reuse comes from attributable counter windows. |
-
-
-The native engine demonstrated fixed output up to **260,096 tokens**. Public requests stop naturally, so the eight output-cap conditions do not establish fixed long-output attainment. Across qualified pairs, mixed/isolated short-request waiting is **1.18–3.37×** at the median and **4.54–14.68×** at p95. Dates remain separate and earlier failures are retained.
 
 
 <a id="section-02"></a>
@@ -188,7 +175,8 @@ System performance reflects computation, data supply, cross-device coordination 
 
 ![study_layers](../../2026-10-14_17-dual-spark/reports/study_layers.en.svg)
 
-Figure 03-01 | Study layers and evidence links | Schematic. Arrows indicate interpretive dependencies, not completed tests or directly subtractable timings.
+Figure 03-01｜Study layers and evidence links
+
 
 | Layer | Measurement boundary | Supported scope |
 | --- | --- | --- |
@@ -248,7 +236,8 @@ Version cells show the first 12 characters of a commit or data-file SHA-256. Lin
 
 ![dataset_profile](../../2026-10-14_17-dual-spark/reports/dataset_profile.en.svg)
 
-Figure 03-02 | Prompt-bank lengths | Each point is one fixed prompt, ten per suite; vertical marks show medians. The 60 prompts span 24–386 content tokens and primarily characterize short inputs. Separate length workloads measure long-input behavior.
+Figure 03-02｜Prompt-bank lengths
+
 
 ### Sampling method and comparison scope
 
@@ -260,7 +249,7 @@ The same 60 prompts run for three rounds at each concurrency level 1/2/4/8, givi
 
 [Fixed 60 prompts](../../2026-10-14_17-dual-spark/protocols/protocol/workloads.jsonl) · [Selection rules](../../2026-10-14_17-dual-spark/protocols/protocol/workload_manifest.json) · Source-size and sample audit
 
-### Complementary workloads: length, business and caching
+### Performance workloads: length, business and caching
 
 The short-prompt bank does not cover long contexts, long generation or cache retention by itself. The controlled workloads below add these conditions. Counts are planned calls, including the relevant warmups, calibration or controls; Section 05 and the results report actual completion. Here 1K = 1,024 tokens and output length is a generation cap.
 
@@ -284,7 +273,8 @@ Fixed-concurrency tests replenish completed requests to compare capacity. Indepe
 
 ![system_map](../../2026-10-14_17-dual-spark/reports/system_map.en.svg)
 
-Figure 03-03 | Measurement path | The client reaches the two-node service through Infron; telemetry is time-aligned. Client latency includes network and service waiting.
+Figure 03-03｜Measurement path
+
 
 ### Alignment with SGLang and vLLM benchmark methods
 
@@ -319,7 +309,8 @@ Of 81 design cells, 63 fit with a 1K margin; 128K+128K has no margin and is a bo
 
 ![length_domain](../../2026-10-14_17-dual-spark/reports/length_domain.en.svg)
 
-Figure 03-04 | Length feasibility | Dots mark selected conditions; colors express context arithmetic, not completed measurements. The 254K near-boundary probes are separate.
+Figure 03-04｜Length feasibility
+
 
 | Group | Input → output cap | Calls | Purpose |
 | --- | --- | --- | --- |
@@ -350,7 +341,7 @@ The extension fixes 299 calls across axes, diagonals and near-boundary combinati
 | Multi-turn assistant<br>16K → 2K | History plus follow-up retains a multi-message chat structure. | Input: ticket history + next-step question; output: actions. |
 
 
-Outputs above illustrate form. Synthetic long output uses varied identifiers, dates and records; classification is not required to generate a 256K answer. Existing short business workloads remain baselines; new anchors are separate cohorts, not one averaged score.
+Outputs above illustrate form. Synthetic long output uses varied identifiers, dates and records; classification is not required to generate a 256K answer. Existing short business workloads remain baselines; length anchors are separate cohorts, not one averaged score.
 
 #### Admission and interpretation
 
@@ -378,7 +369,8 @@ Input/output ratio is defined prospectively as target input tokens divided by th
 
 ![shapes](../../2026-10-14_17-dual-spark/reports/shapes.en.svg)
 
-Figure 03-05 | Business-shape design | Target input and output caps on logarithmic axes. These are prospective conditions; realized output is reported in the results after execution.
+Figure 03-05｜Business-shape design
+
 
 ### Typical input/output examples
 
@@ -415,7 +407,8 @@ The amendment crosses input lengths 8,192 and 32,768 with target shared-prefix f
 
 ![cache_design](../../2026-10-14_17-dual-spark/reports/cache_design.en.svg)
 
-Figure 03-06 | Prefix-control design | Dark blue is the target shared portion and light blue the varying portion; this describes input construction, not an achieved cache-hit rate.
+Figure 03-06｜Prefix-control design
+
 
 Prefix overlap describes input similarity; actual cache hits require service fields and are not imputed when missing.
 
@@ -425,15 +418,15 @@ An exclusive window covers compute, memory, caches, scheduling and standalone op
 
 
 
-### 2026-10-19: length, interference and cache protocol
+### Controlled lengths, mixed requests and low-reuse prefixes
 
-Both nodes are measured in a dedicated window. The public path is Infron → Cloudflare → frozen-request forwarding proxy → SGLang. Only registered payloads are admitted, and both arms use the same path. Model, quantization and engine launch configuration match the archived deployment; the new date remains a separate experiment.
+Controlled lengths, complete mixed traces and low-reuse prefixes use a dedicated two-node window on October 19, 2026. Requests traverse Infron → Cloudflare → registered-payload forwarding proxy → SGLang; both arms use the same path. Launch arguments appear in Section 1. Native-engine requests, other public workloads and hardware tests retain their own configuration snapshots and timing boundaries.
 
 
 | Component | Fixed count | Controls |
 | --- | --- | --- |
 | Route preflight | 1 | 32-token cap; verify actual route and source parameters. |
-| Public lengths | 8 | One observation for each formerly unsent input/output condition. |
+| Public lengths | 8 | Eight input/output-budget combinations; one observation per condition. |
 | Interference warmup | 320 | 5 pairs × 2 arms × 32 short inputs; all inputs prewarmed with matching output parameters. |
 | Measured short requests | 320 | 5 × 2 × 32; identical prompts and full Poisson schedules within each pair, nominal rate 0.12/s. |
 | Mixed-arm long requests | 40 | Eight per pair; 32K inputs, 128-token caps, uniformly distributed over the short-request horizon. |
@@ -462,7 +455,8 @@ The plan fixes **695 logical requests**. Warmup, retries and measurements are se
 
 ![measurement](../../2026-10-14_17-dual-spark/reports/measurement.en.svg)
 
-Figure 04-01 | Timing boundaries | First generated and first visible content can differ; distances are not measured durations.
+Figure 04-01｜Timing boundaries
+
 
 The median describes a typical response; roughly 95% of samples fall at or below p95. Throughput and latency comparisons use the same uninterrupted complete blocks, with warmups separate; failures remain in reliability statistics. Request and block counts are both reported. Repeated prompts do not increase the unique-prompt count. Business cells with 12 calls and cache cells with six pairs are diagnostic, not robust p99 estimates.
 
@@ -492,7 +486,7 @@ Use independent rounds or paired blocks as statistical units; report all samples
 
 
 
-### Additional metric definitions and inclusion rules
+### Admission, pairing and counter-attribution rules
 
 
 | Metric | Definition and boundary |
@@ -511,75 +505,60 @@ Responses require normal termination, a stream-end marker, source usage and a re
 
 ## 05 · Realized coverage and analysis samples
 
-### Independent denominators for the 2026-10-19 supplement
+Coverage is reported by measurement unit: hardware rounds, collective trials, requests, pairs and continuous windows have different denominators. Response completion, output-length attainment and service-level attainment are distinct outcomes. Each cohort retains its sampling date, configuration and exclusions.
 
+### Fixed conditions and valid observations
 
-| Scope | Qualified/planned | Definition |
+| Test | Valid / planned | Interpretation |
 | --- | --- | --- |
-| Public output caps | **8/8** | One natural-stop observation for each of eight formerly unsent conditions. |
-| Long/short interference | **5/5** | All arrivals and outcomes recorded; 4 pairs support a complete-pair effect estimate, with 3 local rejections retained. |
-| 64K zero designed overlap | **3/3** | Two requests per pair; actual reuse comes from attributable counter windows. |
+| Single-node hardware rounds | **3,740/3,740** | Fixed conditions and repetitions |
+| Two-node collective trials | **840/840** | Fixed conditions and repetitions |
+| Compute/communication pairs | **120/120** | Fixed conditions and repetitions |
+| Native fixed-output requests | **16/16** | Fixed conditions and repetitions |
+| GPU profiling pairs | **9/9** | Fixed conditions and repetitions |
+| 64K cache pairs | **3/3** | Fixed conditions and repetitions |
+| FP64 matrix rounds | **30/30** | Fixed conditions and repetitions |
+| Counter profiles | **12/12** | Fixed conditions and repetitions |
+| Continuous public hour | **1/1** | Fixed conditions and repetitions |
+| Public large-output budgets | **8/8** | One natural-stop response per condition; cap and realized length reported separately. |
+| Mixed workload with complete arrival traces | **5/5** | **4/5** support complete-pair effects; **3/32** short arrivals in mixed arm 5 are locally rejected. |
+| 64K low-reuse prefixes | **3/3** | Two requests per pair; all six source-counter windows attributable. |
 
-The selected attempts include **692** submitted requests, **692** complete source-usage records and **3 local queue rejections**: **695/695** observed logical outcomes. Four pre-isolation probes and any further bounded attempts remain separate. The historical 299-request completion rate is not backfilled. Its one incomplete response belonged to the 32K-input/8K-output-cap condition, independently repeated on October 17 with identical inputs and caps (**4/4** complete). October 19 covers the other eight formerly unsent conditions. The mapping is in `protocols/gap-resolution.json`.
+
+![Layered coverage and effect-estimation eligibility](completion_coverage.en.svg)
+
+Figure 05-01｜Layered coverage and effect-estimation eligibility
 
 
+### Public request cohorts and outcomes
 
+Fixed sample lists differ from conditional call ceilings; a ceiling is a stopping bound, not a mandatory sample count.
 
-Fixed lists are qualified by date; historical missing observations are not backfilled. Valid completion of fixed experiments, unexecuted conditions and incomplete observations are counted separately; no single overall completion percentage is calculated. A complete response does not establish answer correctness, target-length attainment or a production service objective.
-
-<!--WORKFLOW-->
-
-![workflow](completion_coverage.en.svg)
-
-Figure05-01 | Qualified evidence by fixed list, with separate denominators.
-
-### Initial public batches: outcomes and count definitions
-
-| Initial public batch | Design count and meaning | Logical requests sent | Complete / expected boundary outcome | Incomplete outcomes |
+| Cohort | Design count | Logical requests sent | Complete | Incomplete |
 | --- | --- | --- | --- | --- |
-| Interface and measurement calibration | **12** (Fixed plan) | **12** | **12** | **0** |
-| Natural workloads and concurrency scaling | **720** (Fixed plan) | **720** | **718** | **2** |
-| Input/output length matrix | **1,440** (Fixed plan) | **1440** | **1435** | **5** |
-| Paired reasoning budgets | **360** (Fixed plan) | **360** | **360** | **0** |
-| Long context and boundaries | **37** (Fixed plan) | **37** | **36** | **1** |
-| Prefix caching | **90** (Fixed plan) | **90** | **90** | **0** |
-| Business shapes and cache-ratio amendment | **512** (Fixed plan) | **512** | **507** | **5** |
-| Open arrivals and mixed workloads | **2,000** (Conditional cap) | **783** | **783** | **0** |
-| Length expansion and sustained operation | **3,000** (Conditional cap) | **929** | **925** | **4** |
+| API calibration | 12 fixed | 12 | 12 | 0 |
+| Short-bank concurrency | 720 fixed | 720 | 718 | 2 |
+| Input/output matrix | 1,440 fixed | 1,440 | 1,435 | 5 |
+| Reasoning-budget pairs | 360 fixed | 360 | 360 | 0 |
+| Context and boundaries | 37 fixed | 37 | 36 | 1 |
+| Prefix reuse | 90 fixed | 90 | 90 | 0 |
+| Business and cache | 512 fixed | 512 | 507 | 5 |
+| Open arrivals and mixtures | 2,000 ceiling | 783 | 783 | 0 |
+| Lengths and sustained windows | 3,000 ceiling | 929 | 925 | 4 |
 
+The table describes the October 14–17 service matrix. A further **1,028 complete public responses** belong to separately defined concurrency references, business lengths, mixed scheduling and the one-hour window. The **231 formal native-engine requests** are measured separately from public requests.
 
-Logical requests are deduplicated by planned sample; retry attempts are retained separately. Original batch outcomes are preserved rather than backfilled with later successes. The 2,000-call open-arrival and 3,000-call length/soak counts are conditional ceilings, not mandatory sample totals. The separate public-length list fixes **299 calls**, with unsent/incomplete records below. The independent additional one-hour run has ended.
+Controlled lengths, complete mixed traces and low-reuse prefixes on October 19 comprise **695 logical outcomes**: **692 complete source responses** and **3 local rejections**. They include one calibration, eight length observations, 320 warmups, 320 formal short arrivals, 40 long arrivals and six cache requests. Four probes before ingress isolation are separately archived; billing is attributable for all **696 submitted physical attempts**.
 
-Hardware work is excluded from API-request denominators. Section 06 lists the batch scope, phase status and constrained conditions; execution manifests and status records remain separate.
+### Exclusions and limits of inference
 
-Independent engine experiment: 78 archived analyzable blocks and 231 formal requests, plus two pilot/profile requests and four GPU traces across both ranks. These direct-origin observations do not enter public-API request or cost denominators; definitions and results are in section 08.
-
-### Coverage of the independent completion experiments
-
-The additional experiments started on 17 October 2026. Status: Execution ended; delivered with actual coverage. Each batch retains its own requests, dates and denominators. New measurements do not rewrite earlier failures or success rates. Financial expenditure has no preset ceiling; actual charges are still reconciled per request.
-
-| Additional scope | Evidence acquired | Definition |
+| Scope | Observed records | Analysis rule |
 | --- | --- | --- |
-| Fixed long output | **16 / 16** | Native engine; includes one calibration, then output-axis and balanced-length requests |
-| Profiling pairs | **9 / 9** | Three input/concurrency conditions, three profiled/unprofiled pairs each |
-| 64K cache | **6 / 6** | First and immediate reuse for three independent prefixes |
-| Complete public responses | **1028** | Independent reference blocks, affected conditions, mixed-length interference and a one-hour run |
-| FP64 GEMM | **30 / 30** | Two nodes, three sizes, five rounds per cell |
-| Representative counters | **12** | Compute/memory profiles returning valid counters |
-
-
-
-### Current evidence and interpretation limits
-
-
-| Scope | Current evidence | Boundary |
-| --- | --- | --- |
-| Public lengths | 2026-10-19: 8/8 | Original 299-row outcomes retained; new date analyzed separately. |
-| Interference | 5/5 observed; 4/5 effect-eligible | Effect ratios only for complete pairs. |
-| 64K low-reuse windows | 2026-10-19: 3/3 | Actual reuse requires counters, not the design ratio alone. |
-| Continuous public service | 3,600.1s; 599/600 | Separate October 17 hour; not all-day availability. |
-| H200, wall energy and physical counters | Not measured | Equipment/instrument limits; retain specifications and measurement boundaries. |
-
+| Length list | Of 299 entries, 290 completed, one was incomplete and eight were unsent; 32K/8K has four complete matched observations, and the large-budget cohort covers eight conditions. | Response evidence is indexed by condition; request outcomes are unchanged and caps are not realized lengths. |
+| Truncated arrival traces | Three of five candidate pairs executed; two were not admitted. No complete-pair effect estimate. | Excluded from effect estimates for the five complete-arrival-trace pairs. |
+| Missing counters | Seventeen of 18 length-cache windows are valid; the 64K low-reuse cohort has six attributable windows. | Missing values are not zero hits; attribution remains request/window specific. |
+| Public fixed long output | Public generation stops naturally; native fixed output reaches 260,096 tokens. | Native observations do not establish public fixed-length capacity. |
+| Instrumentation and hardware scope | No matched H200 run, wall-meter energy, complete physical DRAM bytes or exact per-token clocks. | Specifications and estimates remain distinct from measurements. |
 
 ## 06 · GPU compute, memory and operators
 
@@ -595,7 +574,7 @@ The additional experiments started on 17 October 2026. Status: Execution ended; 
 
 Service restoration: verified; both nodes retain their original arguments, environment, working directory and core engine configuration.
 
-This segment adds independent time-round evidence: 107 base conditions per node with ten rounds each, plus scalar FP32 FMA, random pointer chasing, shared and managed memory, CPU contention, multiple streams and supported low-precision/2:4 sparse GEMM. Results are checked before and after timing; guard skips and unsupported conditions are excluded from performance denominators. The original 49 valid records remain historical observations outside these repeats.
+The base matrix has 107 conditions per node and ten repetitions per condition. The extended matrix covers scalar FP32 FMA, pointer chasing, shared/managed memory, CPU contention, multiple streams and supported low-precision/2:4 sparse GEMM. Validation precedes and follows timing; guard skips and unsupported cases are excluded. Forty-nine calibration observations remain separate from these repetitions.
 
 | Node | Suite | Planned rounds | Archived valid | Guard skips | Unsupported | Failed | Pending |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -613,7 +592,8 @@ This segment adds independent time-round evidence: 107 base conditions per node 
 
 ![hardware_unloaded_compute](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_compute.en.svg)
 
-Figure 06-01 | Precision and size | Cells show measured median TFLOP/s; blanks indicate no valid archived data. FP8, NVFP4 and sparse rows have explicit operand distributions and library paths; cross-row differences are not precision-only causal effects.
+Figure 06-01｜Precision and size
+
 
 Precision-by-node statistics for key shapes are in Appendix B; the figure retains the size trend.
 
@@ -626,7 +606,8 @@ Reduction, Softmax and RMSNorm use the installed PyTorch library; RMSNorm includ
 
 ![hardware_unloaded_operators](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_operators.en.svg)
 
-Figure 06-02 | Operator scale and launch mode | Condition-median CUDA intervals; add-operation error bars show observed ranges. Attention uses a logarithmic latency axis.
+Figure 06-02｜Operator scale and launch mode
+
 
 ### Scalar compute, data supply and resource contention
 
@@ -636,7 +617,8 @@ Scalar FP32 uses explicit FMA instructions to compare one dependent chain with e
 
 ![hardware_unloaded_memory](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_memory.en.svg)
 
-Figure 06-03 | Data-supply curves | Logical read/write bandwidth on the left and dependent random-access time on the right. Address span is not physical DRAM traffic; a curve transition alone does not establish cache capacity or hit rate.
+Figure 06-03｜Data-supply curves
+
 
 | Experiment | Node-condition groups | Valid rounds | Interpretation |
 | --- | --- | --- | --- |
@@ -652,25 +634,29 @@ Figure 06-03 | Data-supply curves | Logical read/write bandwidth on the left and
 
 ![hardware_unloaded_fma](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_fma.en.svg)
 
-Figure 06-04 | Scalar FP32 parallelism | Fixed per-thread work with varied block size, block count and dependency chains; median rates are not Tensor Core peaks.
+Figure 06-04｜Scalar FP32 parallelism
+
 
 <!--HARDWARE_UNLOADED_CONTENTION-->
 
 ![hardware_unloaded_contention](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_contention.en.svg)
 
-Figure 06-05 | Contention and streams | Left: same-node, same-round ratios to the zero-contention baseline. Right: matched-work serial/parallel time. Points are paired-ratio medians; bars are observed ranges.
+Figure 06-05｜Contention and streams
+
 
 <!--HARDWARE_UNLOADED_LAUNCH_SHARED-->
 
 ![hardware_unloaded_launch_shared](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_launch_shared.en.svg)
 
-Figure 06-06 | Shared memory and launch | Strides change address mapping; bank-conflict counts require hardware counters. Launch intervals include repeated host-submission gaps, not isolated instruction latency.
+Figure 06-06｜Shared memory and launch
+
 
 <!--HARDWARE_UNLOADED_MANAGED-->
 
 ![hardware_unloaded_managed](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_managed.en.svg)
 
-Figure 06-07 | Managed-memory access order | CPU initialization, two GPU writes, then two full CPU sums within the same allocation per round. CPU sums include reduction work and are not pure migration latency.
+Figure 06-07｜Managed-memory access order
+
 
 | Node | Observation | Result | Conditions |
 | --- | --- | --- | --- |
@@ -690,9 +676,10 @@ NVFP4 uses exactly representable E2M1 operands with explicit block maxima and un
 
 ![review_node_parity](../../2026-10-14_17-dual-spark/reports/review_node_parity.en.svg)
 
-Figure 06-08 | Node consistency | Node 1 median / node 0 median for fixed 8192³ matrices and 8 GiB access. Ratios describe these two tested devices, not population variability.
+Figure 06-08｜Node consistency
 
-### Additional FP64 matrix measurements
+
+### FP64 matrix measurements
 
 After unloading the model, CUDA double-precision GEMM counts a multiply-add as two operations. Inputs are exactly representable signed binary fractions. Nine entries spanning rows/columns are checked against a CPU double-precision reference every round; only validated rounds enter the table.
 
@@ -710,6 +697,9 @@ After unloading the model, CUDA double-precision GEMM counts a multiply-add as t
 <!--GAP_FP64-->
 
 ![gap_fp64](../../2026-10-14_17-dual-spark/reports/gap_fp64.en.svg)
+
+Figure 06-09｜FP64 size effects
+
 
 FP64 size effects | Points are five-round medians, with observed ranges; these do not predict low-precision model throughput.
 
@@ -755,11 +745,14 @@ One GPU communication process (rank) runs per node over ConnectX-7/RoCE. The act
 | reduce_scatter | **1 GiB** | **10** | **20.946 GB/s** | 2026-10-16; two GPU ranks, bus metric |
 
 
-RDMA Write uses ib_write_bw, one QP and one-way **8 MiB** messages, with three repeats per logical path. Its --report_gbits output is divided by eight for GB/s. This separate historical host-buffer test neither substitutes for nor adds to GPU collectives. Current NCCL logs confirm RoCE through NET/IB and explicitly report GPU Direct RDMA Disabled; a GPU-direct RDMA path is not claimed.
+RDMA Write uses ib_write_bw, one QP and one-way **8 MiB** messages, with three repeats per logical path. Its --report_gbits output is divided by eight for GB/s. This separate host-buffer test neither substitutes for nor adds to GPU collectives. Current NCCL logs confirm RoCE through NET/IB and explicitly report GPU Direct RDMA Disabled; a GPU-direct RDMA path is not claimed.
 
 <!--HARDWARE_H200_NETWORK-->
 
 ![hardware_h200_network](../../2026-10-14_17-dual-spark/reports/hardware_h200_network.en.svg)
+
+Figure 07-01｜1 GiB collectives
+
 
 1 GiB collectives | Algorithm bandwidth counts the defined full input/output tensor. NCCL bus factors for two ranks are 1 for AllReduce and 1/2 for AllGather/ReduceScatter. Algorithm GB/s may exceed 25 without exceeding a 200 Gb/s physical link. Bus bandwidth is not a NIC hardware-counter reading; the dashed line is only a nominal line-rate reference.
 
@@ -769,7 +762,8 @@ First RDMA path · Second RDMA path · [Fixed conditions and provenance](../../2
 
 ![hardware_unloaded_collective](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_collective.en.svg)
 
-Figure 07-01 | Collective size curves | Algorithm bandwidth and latency are shown separately for three operations; both nodes must pass memory admission.
+Figure 07-02｜Collective size curves
+
 
 | Operation | Message bytes | Paired rounds | Median latency μs | Algorithm GB/s | Bus GB/s |
 | --- | --- | --- | --- | --- | --- |
@@ -808,7 +802,8 @@ Hold one BF16 GEMM and one AllReduce fixed, measuring compute-only, communicatio
 
 ![hardware_unloaded_overlap](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_overlap.en.svg)
 
-Figure 07-02 | Overlap benefit | Median within-round four-arm ratios with observed ranges; above one indicates shorter time for this workload.
+Figure 07-03｜Overlap benefit
+
 
 [Current statistics and sources](../../2026-10-14_17-dual-spark/data/hardware/summary.json) · [NCCL bandwidth definitions](https://github.com/NVIDIA/nccl-tests/blob/master/doc/PERFORMANCE.md). Transport is verified from this segment’s NCCL logs; interface names alone do not establish a GPU Direct path.
 
@@ -816,7 +811,7 @@ Figure 07-02 | Overlap benefit | Median within-round four-arm ratios with observ
 
 ## 08 · From engine stages to serving performance
 
-Service, hardware and engine observations from October 14–17 retain their own dates and denominators. Results labeled 2026-10-19 are independent measurements; they do not rewrite historical success rates or pool with earlier capacity estimates.
+This section proceeds from engine stages and fixed output to public concurrency, lengths, mixed requests and prefix caching. Workloads are analyzed separately, with comparisons tied to their inputs, outputs, cache state and sampling windows.
 
 
 
@@ -858,7 +853,8 @@ The archive contains 78 analyzable blocks and 231 formal requests; 0 failed timi
 
 ![engine_internal_rates](../../2026-10-14_17-dual-spark/reports/engine_internal_rates.en.svg)
 
-Figure 08-01 | Engine-stage rates | Left: scheduler prefill-window rate. Right: per-request decode rate. Shading is the observed block range, not a confidence interval.
+Figure 08-01｜Engine-stage rates
+
 
 | Input tokens | Concurrency | Blocks / requests | Median prefill s | Window rate tokens/s | Cached tokens |
 | --- | --- | --- | --- | --- | --- |
@@ -899,7 +895,8 @@ Across measured C=1 input lengths, median per-request decode rates range from 49
 
 ![review_decode_grid](../../2026-10-14_17-dual-spark/reports/review_decode_grid.en.svg)
 
-Figure 08-02 | Decode length × concurrency | Each cell summarizes three blocks; gray cells are unmeasured and panels use independent scales. Output is fixed at 256 tokens; more concurrency need not increase aggregate throughput at longer inputs.
+Figure 08-02｜Decode length × concurrency
+
 
 #### Immediate prefix-reuse prefill control
 
@@ -919,7 +916,8 @@ Reported cached-token fractions were **0%** for immediate **8K** repeats and **7
 
 ![engine_gpu_timeline](../../2026-10-14_17-dual-spark/reports/engine_gpu_timeline.en.svg)
 
-Figure 08-03 | Per-rank GPU activity | Each bar covers its own captured GPU activity span. Profiling adds overhead and explains paths only; other activity may include communication without NCCL kernel names.
+Figure 08-03｜Per-rank GPU activity
+
 
 | Rank / stage | Activity span ms | Busy union ms | NCCL-only ms | Overlap ms |
 | --- | --- | --- | --- | --- |
@@ -947,7 +945,8 @@ Figure 08-03 | Per-rank GPU activity | Each bar covers its own captured GPU acti
 
 ![engine_mtp_stages](../../2026-10-14_17-dual-spark/reports/engine_mtp_stages.en.svg)
 
-Figure 08-04 | MTP phase decomposition | Four captured decode steps per rank; bars show mean GPU-correlated spans, which cannot be added as end-to-end latency.
+Figure 08-04｜MTP phase decomposition
+
 
 Phase ranges match CPU and GPU annotations by External id. CUDA Graphs annotate one verify execution on multiple virtual streams, so intervals are merged per execution before calculating its span. Spans include device waits and communication and differ from busy-kernel time; draft, verify and extension spans cannot be added without overlap checks. Accepted-token counts for each captured step are unavailable, so device decode tokens/s is not fabricated by multiplying step count by a fixed MTP length.
 
@@ -956,6 +955,57 @@ Both ranks captured prefill/decode GPU kernels and MTP draft, verify and draft-e
 [Per-request metrics](../../2026-10-14_17-dual-spark/data/engine/requests.csv) · [Per-block metrics](../../2026-10-14_17-dual-spark/data/engine/blocks.csv) · Source and raw timelines
 
 Implementation references: [SGLang profiling](https://github.com/sgl-project/sglang/blob/main/docs/docs/developer_guide/benchmark_and_profiling.mdx) · [SGLang observability](https://docs.sglang.ai/advanced_features/observability.html) · Installed timing source; online documentation informs methodology, while saved installed source determines field semantics.
+
+### Fixed long output: demonstrated native-engine range
+
+This arm uses authenticated native generation with exact token-ID inputs, temperature zero, ignored end tokens and a fixed generation count; the stream interval is 128 tokens. Decode rates use same-process engine counts and times, not public first-content latency. Input plus output stays within 262,144. The 1,024-input / 260,096-output case reserves **1,024 tokens** of headroom, so its longest output target is 254K.
+
+| Input → output tokens | Complete / planned | Decode token/s, median [range] | Median engine time s | Draft acceptance fraction |
+| --- | --- | --- | --- | --- |
+| 1,024 → 1,024 | **1/1** | **62.24** [62.24–62.24] | **16.91** | **0.940** |
+| 1,024 → 8,192 | **3/3** | **55.64** [54.17–59.24] | **147.62** | **0.832** |
+| 1,024 → 16,384 | **3/3** | **61.35** [54.15–61.51] | **267.46** | **0.931** |
+| 1,024 → 32,768 | **3/3** | **60.50** [56.93–61.17] | **541.80** | **0.918** |
+| 1,024 → 65,536 | **1/1** | **60.32** [60.32–60.32] | **1,086.82** | **0.924** |
+| 1,024 → 131,072 | **1/1** | **61.96** [61.96–61.96] | **2,115.69** | **0.959** |
+| 1,024 → 260,096 | **1/1** | **61.61** [61.61–61.61] | **4,222.17** | **0.961** |
+| 16,384 → 16,384 | **1/1** | **62.10** [62.10–62.10] | **270.54** | **0.963** |
+| 32,768 → 32,768 | **1/1** | **60.88** [60.88–60.88] | **548.28** | **0.938** |
+| 65,536 → 65,536 | **1/1** | **60.27** [60.27–60.27] | **1,109.63** | **0.926** |
+
+
+
+<!--GAP_LONG_OUTPUT-->
+
+![gap_long_output](../../2026-10-14_17-dual-spark/reports/gap_long_output.en.svg)
+
+Figure 08-05｜Long-output generation rate and work
+
+
+Forced length may produce repeated text, whitespace or special tokens. Count attainment establishes execution at that length, not useful content. MTP acceptance depends on the generated sequence, so these rates do not directly predict every business workload or annual production. Three-request cells report observed ranges; longer single probes provide no tail percentile or population confidence interval.
+
+Visible-text checks flag 8 complete requests with runs of at least 256 identical characters. Flags accompany the raw outputs and are not answer-quality scores.
+
+[Additional requests and timings CSV](../../2026-10-14_17-dual-spark/data/completion/native_requests.csv)
+
+### GPU profiling across conditions and measurement overhead
+
+Each pair uses identical inputs and 256 output tokens, with alternating arm order. Prefix cache is flushed on an idle service before each arm. Profiling captures prefill and four decode steps; the full-request time ratio measures the impact of this diagnostic on that request, not a correction factor for all workloads.
+
+| Input / concurrency | Pairs | Profiled / unprofiled time ratio | Cached tokens across both arms |
+| --- | --- | --- | --- |
+| 1,024 / 1 | **3** | **1.162** [1.124–1.220] | **0** |
+| 8,192 / 4 | **3** | **1.236** [1.182–1.263] | **0** |
+| 32,768 / 1 | **3** | **1.084** [0.931–1.186] | **0** |
+
+
+
+<!--GAP_PROFILE_COST-->
+
+![gap_profile_cost](../../2026-10-14_17-dual-spark/reports/gap_profile_cost.en.svg)
+
+Figure 08-06｜Paired profiling overhead
+
 
 ### Public concurrency: throughput and waiting
 
@@ -972,7 +1022,8 @@ Implementation references: [SGLang profiling](https://github.com/sgl-project/sgl
 
 ![capacity](../../2026-10-14_17-dual-spark/reports/capacity.en.svg)
 
-Figure 08-05 | Concurrency comparison | Same-cohort throughput and visible-content latency; consider the waiting cost of additional concurrency.
+Figure 08-07｜Concurrency comparison
+
 
 For this short-prompt bank, concurrency eight gives **158.9 tokens/s** with mean output 400.8 tokens. Use workload-matched results for long-document capacity planning.
 
@@ -984,13 +1035,15 @@ The heatmaps separate input length, output budget and concurrency. Each cell inc
 
 ![length_wait](../../2026-10-14_17-dual-spark/reports/length_wait.en.svg)
 
-Figure 08-06 | Input/output lengths and visible waiting | Each cell shows median visible-TTFT and response count n. All four concurrency panels share one scale. This latency is not pure GPU prefill time.
+Figure 08-08｜Input/output lengths and visible waiting
+
 
 <!--LENGTH_THROUGHPUT-->
 
 ![length_throughput](../../2026-10-14_17-dual-spark/reports/length_throughput.en.svg)
 
-Figure 08-07 | Input/output lengths and throughput | Actual generated tokens divided by total complete-block duration. Early stopping changes realized work. A higher output budget is not necessarily more useful business output.
+Figure 08-09｜Input/output lengths and throughput
+
 
 ### Comparable slice at a fixed output budget
 
@@ -1042,6 +1095,104 @@ The table fixes the output budget at **512 tokens** while varying input length a
 | Prefix caching · History text 8,192 tokens · Appended text | **10 / 0** | **1.17** |
 
 
+### Long contexts and input/output ratios: response distributions
+
+Length expansion: 290/299 complete, 205 outputs reached **98–100%** of cap. Maximum completed target-attaining output is **4,096 tokens**, limited to its input and probe conditions.
+
+Public length expansion uses natural stopping as defined in section 03; requested caps and realized generation are reported together.
+
+| Load | Complete / planned | Upstream counts | Actual output range | Median attainment | Output length attained |
+| --- | --- | --- | --- | --- | --- |
+| Output calibration | **2/2** | **2** | **2–2** | **0.2%** | **0** |
+| Input axis | **24/24** | **24** | **1,024–1,024** | **100.0%** | **24** |
+| Output axis | **9/13** | **9** | **1,826–4,955** | **100.0%** | **5** |
+| Balanced lengths | **9/12** | **9** | **2,048–5,943** | **100.0%** | **6** |
+| Near boundary | **1/2** | **1** | **1,024–1,024** | **100.0%** | **1** |
+| Long prefixes | **36/36** | **36** | **1,024–1,024** | **100.0%** | **36** |
+| Business anchors | **31/32** | **31** | **25–4,096** | **16.9%** | Natural EOS |
+| Representative warmups | **10/10** | **10** | **1,024–4,096** | **100.0%** | **7** |
+| Repeated blocks | **168/168** | **168** | **1,024–4,096** | **100.0%** | **124** |
+
+
+<!--LENGTH_ATTAINMENT-->
+
+![length_attainment](../../2026-10-14_17-dual-spark/reports/length_attainment.en.svg)
+
+Figure 08-10｜Output attainment
+
+
+The following includes only complete requests with input error ≤**1%** and realized output at **98–100%** of cap. Values are medians; a one-sample cell is that observation, with no tail percentiles.
+
+| Input → output cap | Eligible / complete | Actual output | Visible TTFT s | E2E s | Estimated TPOT ms |
+| --- | --- | --- | --- | --- | --- |
+| 1K → 1K | **3/3** | **1,024** | **1.20** | **25.14** | **23.2** |
+| 2K → 1K | **3/3** | **1,024** | **1.45** | **23.38** | **21.5** |
+| 4K → 1K | **3/3** | **1,024** | **2.12** | **25.90** | **23.2** |
+| 8K → 1K | **3/3** | **1,024** | **3.60** | **25.49** | **21.6** |
+| 16K → 1K | **3/3** | **1,024** | **5.91** | **26.80** | **20.0** |
+| 32K → 1K | **3/3** | **1,024** | **12.00** | **33.21** | **20.8** |
+| 64K → 1K | **3/3** | **1,024** | **23.33** | **45.91** | **21.8** |
+| 128K → 1K | **3/3** | **1,024** | **46.47** | **68.05** | **21.1** |
+| 1K → 2K | **3/3** | **2,048** | **1.30** | **47.45** | **22.6** |
+| 1K → 4K | **2/3** | **4,096** | **1.20** | **88.58** | **21.3** |
+| 2K → 2K | **3/3** | **2,048** | **1.46** | **45.56** | **21.4** |
+| 4K → 4K | **3/3** | **4,096** | **2.08** | **88.44** | **21.1** |
+| 254K → 1K | **1/1** | **1,024** | **99.27** | **121.45** | **21.7** |
+
+
+6 repeat blocks currently qualify for capacity comparison; boundary probes are excluded from steady-capacity claims.
+
+| Input → output / concurrency | Eligible blocks | Aggregate tokens/s | Block-rate range |
+| --- | --- | --- | --- |
+| 32K → 1K / 1 | **3** | **33.0** | **31.0–34.8** |
+| 32K → 1K / 4 | **3** | **55.5** | **54.9–55.9** |
+
+
+The **64K**/**128K** prefix diagnostic contains 17/18 valid probe windows; observed cache fractions and intended overlap remain distinct.
+
+| Input / target overlap | Valid / planned pairs | Window cache fraction median / range |
+| --- | --- | --- |
+| 64K / 0% | **2/3** | **0.0%** / **0.0%**–**0.0%** |
+| 64K / 50% | **3/3** | **37.5%** / **37.5%**–**37.5%** |
+| 64K / 100% | **3/3** | **100.0%** / **100.0%**–**100.0%** |
+| 128K / 0% | **3/3** | **0.0%** / **0.0%**–**0.0%** |
+| 128K / 50% | **3/3** | **43.7%** / **43.7%**–**43.7%** |
+| 128K / 100% | **3/3** | **100.0%** / **100.0%**–**100.0%** |
+
+
+Early stopping, parameter rejection, insufficient time and unstarted cells retain their distinct states. Length findings are not extrapolated to untested concurrency or annual return. [CSV](../../2026-10-14_17-dual-spark/data/service/length-observations.csv) · [JSON](../../2026-10-14_17-dual-spark/data/service/length_analysis.json)
+
+
+<!--REVIEW_CONCURRENCY-->
+
+![review_concurrency](../../2026-10-14_17-dual-spark/reports/review_concurrency.en.svg)
+
+Figure 08-11｜Concurrency benefit and cost
+
+
+### Large-output budgets: caps and realized generation
+
+An output cap only limits the maximum permitted generation. Source records confirm max_tokens forwarding, while ignore_eos is not forwarded; the model can stop naturally. Each condition has one observation, so first-text and total times are individual measurements, not distribution quantiles. Measured cache state is shown explicitly.
+
+| Actual input | Output cap | Actual output | First text s | Total s | Cached-token fraction | Finish |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1,025 | 16,384 | **2,245** | 1.00 | 55.39 | 99.90% | stop |
+| 1,025 | 32,768 | **4,219** | 0.80 | 90.68 | 99.90% | stop |
+| 1,025 | 65,536 | **2,089** | 0.85 | 50.58 | 99.90% | stop |
+| 1,024 | 131,072 | **3,575** | 1.63 | 80.86 | 0.00% | stop |
+| 16,385 | 16,384 | **6,670** | 6.55 | 125.20 | 0.00% | stop |
+| 32,769 | 32,768 | **12,661** | 20.79 | 259.23 | 0.00% | stop |
+| 65,537 | 65,536 | **27,018** | 32.81 | 505.56 | 0.00% | stop |
+| 1,025 | 260,096 | **5,604** | 1.53 | 132.07 | 0.00% | stop |
+
+
+![Output caps and realized generation](completion_lengths.en.svg)
+
+Figure 08-12｜Output caps and realized generation
+
+
+All eight large-output-budget conditions have complete responses; this cohort's maximum natural output is **27,018 tokens**. It describes generation for these inputs, not a service output limit. The **260,096-token** fixed-output observation belongs to the native-engine path.
+
 ### Reasoning budget: visible waiting and output shape
 
 Compare low versus none for the same prompt, round and concurrency; differences are low minus none. Performance analysis retains missing visible content and output-limit events.
@@ -1050,13 +1201,56 @@ Compare low versus none for the same prompt, round and concurrency; differences 
 
 ![reasoning](../../2026-10-14_17-dual-spark/reports/reasoning.en.svg)
 
-Figure 08-08 | Paired reasoning delay | Points are mean differences; lines are 95% prompt-cluster intervals. Pair counts and round sensitivity are in Appendix B.
+Figure 08-13｜Paired reasoning delay
+
 
 <!--GENERATION_SHAPE-->
 
 ![generation_shape](../../2026-10-14_17-dual-spark/reports/generation_shape.en.svg)
 
-Figure 08-09 | Output shape | Read generated volume with output-limit and no-visible-content fractions; the latter two can overlap.
+Figure 08-14｜Output shape
+
+
+### Mixed-request scheduling: short-request waiting with long inputs
+
+The isolated arm has 32 short requests. The mixed arm preserves their prompts and scheduled arrivals and adds eight 32K inputs. Both arms prewarm every short input. Ratios require complete pairs, while all rejections remain reported. This measures the overall mixed-service effect, not pure prefill-kernel time.
+
+| Pair | Complete short: isolated→mixed | Median wait s: isolated→mixed | p95 wait s: isolated→mixed | Median ratio | Rejections: isolated/mixed | Interpretation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 32/32 → 32/32 | 0.95 → **1.23** | 1.33 → **12.44** | **1.30** | 0 / 0 | Complete pair |
+| 2 | 32/32 → 32/32 | 0.98 → **1.16** | 2.05 → **9.32** | **1.18** | 0 / 0 | Complete pair |
+| 3 | 32/32 → 32/32 | 0.87 → **2.94** | 1.15 → **16.89** | **3.37** | 0 / 0 | Complete pair |
+| 4 | 32/32 → 32/32 | 0.97 → **1.59** | 1.41 → **11.36** | **1.64** | 0 / 0 | Complete pair |
+| 5 | 32/32 → 29/32 | 1.00 → **4.63** | 1.22 → **14.61** | **—** | 0 / 3 | Rejections; latency describes completed responses only |
+
+
+![Paired short-request waiting](completion_interference.en.svg)
+
+Figure 08-15｜Paired short-request waiting
+
+
+All arrivals and outcomes are recorded for five pairs; **4/5** support complete-pair effects: median-wait ratios **1.18–3.37×** and p95 ratios **4.54–14.68×**. These are ranges across blocks, not confidence intervals. Truncated-arrival blocks are excluded under the rules in Section 05.
+
+| Pair | Arm | Local short-request rejections | Observed queue wait at rejection s | Execution |
+| --- | --- | --- | --- | --- |
+| 5 | mixed | 3/32 | 5.99–14.28 | Not forwarded to model |
+
+The local queue checks its 5-second threshold on dequeue, so actual waiting before rejection can be longer. Rejected requests have no first-text time. Latency summaries for an arm with rejections describe completed responses only and do not establish a complete-pair effect. These are observed admission outcomes, not missing test records.
+
+| Pair | Arm | Offered/sent/complete | Block wall time s | Block output tokens/s | Median short output tokens | Whole-arm cache fraction |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | isolated | 32 / 32 / 32 | 273.5 | **22.97** | 240 | 69.75% |
+| 1 | mixed | 40 / 40 / 40 | 273.4 | **26.50** | 250 | 0.63% |
+| 2 | isolated | 32 / 32 / 32 | 339.9 | **18.68** | 256 | 66.39% |
+| 2 | mixed | 40 / 40 / 40 | 339.4 | **21.78** | 256 | 0.17% |
+| 3 | isolated | 32 / 32 / 32 | 219.5 | **26.33** | 242 | 76.68% |
+| 3 | mixed | 40 / 40 / 40 | 220.7 | **32.24** | 248 | 1.01% |
+| 4 | isolated | 32 / 32 / 32 | 244.1 | **20.57** | 153 | 67.19% |
+| 4 | mixed | 40 / 40 / 40 | 243.9 | **25.37** | 167 | 0.36% |
+| 5 | isolated | 32 / 32 / 32 | 192.9 | **31.41** | 253 | 75.67% |
+| 5 | mixed | 40 / 37 / 37 | 193.2 | **34.30** | 256 | 0.38% |
+
+Block throughput divides actual source output by wall time from scheduler start through the last response, including inter-arrival gaps; it is not saturated capacity. Whole-arm cache fractions are input-token weighted and include long prompts in mixed arms, so they are not short-request hit rates.
 
 ### Business shapes and cache ratios: observed coverage
 
@@ -1148,11 +1342,12 @@ The three crossed shapes represent short input, conversation and long documents.
 
 ![cache_protocol](../../2026-10-14_17-dual-spark/reports/cache_protocol.en.svg)
 
-Figure 08-10 | Cache evaluation sequence | Reuse, idle retention, pressure/recovery and temporal behavior. Conditions are prospective.
+Figure 08-16｜Cache evaluation sequence
+
 
 #### Observed evidence and coverage
 
-The supplement has completed **160/160 calls** with 85 attributable counter windows. Interpret business, actual idle gaps, pressure and periodic reuse separately; incomplete or invalid cells remain unresolved. Across 30 observed first/repeat pairs, 26 repeats have lower TTFT. This supports a waiting-time observation, not isolated causal cache benefit. Across 358 valid active node-counter windows, the token-weighted cached fraction is 20.3%. This describes the input mix in those windows, not per-request hits or long-term stability.
+The cache study contains **160/160 calls** with 85 attributable counter windows. Interpret business, actual idle gaps, pressure and periodic reuse separately; incomplete or invalid cells remain unresolved. Across 30 observed first/repeat pairs, 26 repeats have lower TTFT. This supports a waiting-time observation, not isolated causal cache benefit. Across 358 valid active node-counter windows, the token-weighted cached fraction is 20.3%. This describes the input mix in those windows, not per-request hits or long-term stability.
 
 | Workload | Complete | Cache fields valid / missing |
 | --- | --- | --- |
@@ -1184,7 +1379,8 @@ The archived SGLang configuration has `enable_cache_report=false` while prefix c
 
 ![cache_evidence](../../2026-10-14_17-dual-spark/reports/cache_evidence.en.svg)
 
-Figure 08-11 | Evidence coverage | Left: per-request cache-field availability. Right: completed diagnostic calls. Neither is a cache-hit rate.
+Figure 08-17｜Evidence coverage
+
 
 | Condition | Conc. | n | TTFT median s | Paired reduction s | Valid windows / cache % |
 | --- | --- | --- | --- | --- | --- |
@@ -1239,154 +1435,12 @@ Figure 08-11 | Evidence coverage | Left: per-request cache-field availability. R
 
 ![cache_timeline](../../2026-10-14_17-dual-spark/reports/cache_timeline.en.svg)
 
-Figure 08-12 | Time observation | Counter-delta fractions in approximately 60-second windows with contemporaneous TTFT; workload changes prevent simple causal attribution.
+Figure 08-18｜Time observation
+
 
 #### Interpretation and further validation
 
 Only matched-parameter, complete, retry-free blocks with reconciled counters receive block token-cache fractions; concurrent blocks do not yield per-request hit fractions. Idle prefixes are probed once to avoid refreshing retention. Pressure tests insert about 131,072 distractor input tokens, without claiming cache-capacity exhaustion. Periodic reuse spans ten planned minutes; sustained load uses actual observed duration. Further work should vary business popularity, independent periods and competition strength. Capacity and cost models receive no unverified cache benefit.
-
-### October 14–17 length batches: coverage and realized generation
-
-Length expansion: 290/299 complete, 205 outputs reached **98–100%** of cap. Maximum completed target-attaining output is **4,096 tokens**, limited to its input and probe conditions.
-
-Public length expansion uses natural stopping as defined in section 03; requested caps and realized generation are reported together.
-
-| Load | Complete / planned | Upstream counts | Actual output range | Median attainment | Output length attained |
-| --- | --- | --- | --- | --- | --- |
-| Output calibration | **2/2** | **2** | **2–2** | **0.2%** | **0** |
-| Input axis | **24/24** | **24** | **1,024–1,024** | **100.0%** | **24** |
-| Output axis | **9/13** | **9** | **1,826–4,955** | **100.0%** | **5** |
-| Balanced lengths | **9/12** | **9** | **2,048–5,943** | **100.0%** | **6** |
-| Near boundary | **1/2** | **1** | **1,024–1,024** | **100.0%** | **1** |
-| Long prefixes | **36/36** | **36** | **1,024–1,024** | **100.0%** | **36** |
-| Business anchors | **31/32** | **31** | **25–4,096** | **16.9%** | Natural EOS |
-| Representative warmups | **10/10** | **10** | **1,024–4,096** | **100.0%** | **7** |
-| Repeated blocks | **168/168** | **168** | **1,024–4,096** | **100.0%** | **124** |
-
-
-<!--LENGTH_ATTAINMENT-->
-
-![length_attainment](../../2026-10-14_17-dual-spark/reports/length_attainment.en.svg)
-
-Figure 08-13 | Output attainment | Compare original upstream generation with requested caps; missing counts remain blank, not zero.
-
-The following includes only complete requests with input error ≤**1%** and realized output at **98–100%** of cap. Values are medians; a one-sample cell is that observation, with no tail percentiles.
-
-| Input → output cap | Eligible / complete | Actual output | Visible TTFT s | E2E s | Estimated TPOT ms |
-| --- | --- | --- | --- | --- | --- |
-| 1K → 1K | **3/3** | **1,024** | **1.20** | **25.14** | **23.2** |
-| 2K → 1K | **3/3** | **1,024** | **1.45** | **23.38** | **21.5** |
-| 4K → 1K | **3/3** | **1,024** | **2.12** | **25.90** | **23.2** |
-| 8K → 1K | **3/3** | **1,024** | **3.60** | **25.49** | **21.6** |
-| 16K → 1K | **3/3** | **1,024** | **5.91** | **26.80** | **20.0** |
-| 32K → 1K | **3/3** | **1,024** | **12.00** | **33.21** | **20.8** |
-| 64K → 1K | **3/3** | **1,024** | **23.33** | **45.91** | **21.8** |
-| 128K → 1K | **3/3** | **1,024** | **46.47** | **68.05** | **21.1** |
-| 1K → 2K | **3/3** | **2,048** | **1.30** | **47.45** | **22.6** |
-| 1K → 4K | **2/3** | **4,096** | **1.20** | **88.58** | **21.3** |
-| 2K → 2K | **3/3** | **2,048** | **1.46** | **45.56** | **21.4** |
-| 4K → 4K | **3/3** | **4,096** | **2.08** | **88.44** | **21.1** |
-| 254K → 1K | **1/1** | **1,024** | **99.27** | **121.45** | **21.7** |
-
-
-6 repeat blocks currently qualify for capacity comparison; boundary probes are excluded from steady-capacity claims.
-
-| Input → output / concurrency | Eligible blocks | Aggregate tokens/s | Block-rate range |
-| --- | --- | --- | --- |
-| 32K → 1K / 1 | **3** | **33.0** | **31.0–34.8** |
-| 32K → 1K / 4 | **3** | **55.5** | **54.9–55.9** |
-
-
-The **64K**/**128K** prefix diagnostic currently has 17/18 valid probe windows; observed cache fractions and intended overlap remain distinct.
-
-| Input / target overlap | Valid / planned pairs | Window cache fraction median / range |
-| --- | --- | --- |
-| 64K / 0% | **2/3** | **0.0%** / **0.0%**–**0.0%** |
-| 64K / 50% | **3/3** | **37.5%** / **37.5%**–**37.5%** |
-| 64K / 100% | **3/3** | **100.0%** / **100.0%**–**100.0%** |
-| 128K / 0% | **3/3** | **0.0%** / **0.0%**–**0.0%** |
-| 128K / 50% | **3/3** | **43.7%** / **43.7%**–**43.7%** |
-| 128K / 100% | **3/3** | **100.0%** / **100.0%**–**100.0%** |
-
-
-Early stopping, parameter rejection, insufficient time and unstarted cells retain their distinct states. New length findings are not extrapolated to untested concurrency or annual return. [CSV](../../2026-10-14_17-dual-spark/data/service/length-observations.csv) · [JSON](../../2026-10-14_17-dual-spark/data/service/length_analysis.json)
-
-
-<!--REVIEW_CONCURRENCY-->
-
-![review_concurrency](../../2026-10-14_17-dual-spark/reports/review_concurrency.en.svg)
-
-Figure 08-14 | Concurrency benefit and cost | Left: aggregate throughput relative to C=1 on the same prompt bank. Right: median estimated time per output token. Eligible block counts remain visible; this is descriptive, not a paired causal effect.
-
-### 2026-10-19 public lengths: caps and actual generation
-
-An output cap only limits the maximum permitted generation. Source records confirm max_tokens forwarding, while ignore_eos is not forwarded; the model can stop naturally. Each condition has one observation, so first-text and total times are individual measurements, not distribution quantiles. Measured cache state is shown explicitly.
-
-| Actual input | Output cap | Actual output | First text s | Total s | Cached-token fraction | Finish |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1,025 | 16,384 | **2,245** | 1.00 | 55.39 | 99.90% | stop |
-| 1,025 | 32,768 | **4,219** | 0.80 | 90.68 | 99.90% | stop |
-| 1,025 | 65,536 | **2,089** | 0.85 | 50.58 | 99.90% | stop |
-| 1,024 | 131,072 | **3,575** | 1.63 | 80.86 | 0.00% | stop |
-| 16,385 | 16,384 | **6,670** | 6.55 | 125.20 | 0.00% | stop |
-| 32,769 | 32,768 | **12,661** | 20.79 | 259.23 | 0.00% | stop |
-| 65,537 | 65,536 | **27,018** | 32.81 | 505.56 | 0.00% | stop |
-| 1,025 | 260,096 | **5,604** | 1.53 | 132.07 | 0.00% | stop |
-
-
-![Output caps and realized generation](completion_lengths.en.svg)
-
-This adds response evidence for **8/8** public conditions, with a maximum observed natural output of **27,018 tokens**; **0** qualify as fixed-output observations. The observed maximum is not a service limit. Native fixed generation up to 260,096 tokens remains a separate path.
-
-
-### Fixed long output: demonstrated native-engine range
-
-This arm uses authenticated native generation with exact token-ID inputs, temperature zero, ignored end tokens and a fixed generation count; the stream interval is 128 tokens. Decode rates use same-process engine counts and times, not public first-content latency. Input plus output stays within 262,144. The 1,024-input / 260,096-output case reserves **1,024 tokens** of headroom, so its longest output target is 254K.
-
-| Input → output tokens | Complete / planned | Decode token/s, median [range] | Median engine time s | Draft acceptance fraction |
-| --- | --- | --- | --- | --- |
-| 1,024 → 1,024 | **1/1** | **62.24** [62.24–62.24] | **16.91** | **0.940** |
-| 1,024 → 8,192 | **3/3** | **55.64** [54.17–59.24] | **147.62** | **0.832** |
-| 1,024 → 16,384 | **3/3** | **61.35** [54.15–61.51] | **267.46** | **0.931** |
-| 1,024 → 32,768 | **3/3** | **60.50** [56.93–61.17] | **541.80** | **0.918** |
-| 1,024 → 65,536 | **1/1** | **60.32** [60.32–60.32] | **1,086.82** | **0.924** |
-| 1,024 → 131,072 | **1/1** | **61.96** [61.96–61.96] | **2,115.69** | **0.959** |
-| 1,024 → 260,096 | **1/1** | **61.61** [61.61–61.61] | **4,222.17** | **0.961** |
-| 16,384 → 16,384 | **1/1** | **62.10** [62.10–62.10] | **270.54** | **0.963** |
-| 32,768 → 32,768 | **1/1** | **60.88** [60.88–60.88] | **548.28** | **0.938** |
-| 65,536 → 65,536 | **1/1** | **60.27** [60.27–60.27] | **1,109.63** | **0.926** |
-
-
-
-<!--GAP_LONG_OUTPUT-->
-
-![gap_long_output](../../2026-10-14_17-dual-spark/reports/gap_long_output.en.svg)
-
-Figure 08-15 | Long-output generation rate and work | Input is fixed at 1K. Error bars are observed ranges of completed independent requests; n=1 is one observation. Draft acceptance is the native field. Unfinished targets have no performance point.
-
-Forced length may produce repeated text, whitespace or special tokens. Count attainment establishes execution at that length, not useful content. MTP acceptance depends on the generated sequence, so these rates do not directly predict every business workload or annual production. Three-request cells report observed ranges; longer single probes provide no tail percentile or population confidence interval.
-
-Visible-text checks flag 8 complete requests with runs of at least 256 identical characters. Flags accompany the raw outputs and are not answer-quality scores.
-
-[Additional requests and timings CSV](../../2026-10-14_17-dual-spark/data/completion/native_requests.csv)
-
-### GPU profiling across conditions and measurement overhead
-
-Each pair uses identical inputs and 256 output tokens, with alternating arm order. Prefix cache is flushed on an idle service before each arm. Profiling captures prefill and four decode steps; the full-request time ratio measures the impact of this diagnostic on that request, not a correction factor for all historical data.
-
-| Input / concurrency | Pairs | Profiled / unprofiled time ratio | Cached tokens across both arms |
-| --- | --- | --- | --- |
-| 1,024 / 1 | **3** | **1.162** [1.124–1.220] | **0** |
-| 8,192 / 4 | **3** | **1.236** [1.182–1.263] | **0** |
-| 32,768 / 1 | **3** | **1.084** [0.931–1.186] | **0** |
-
-
-
-<!--GAP_PROFILE_COST-->
-
-![gap_profile_cost](../../2026-10-14_17-dual-spark/reports/gap_profile_cost.en.svg)
-
-Figure 08-16 | Paired profiling overhead | Bars show medians and points show independent pairs; 1 means equal request duration.
 
 ### Independent check of 64K prefix reuse
 
@@ -1405,7 +1459,7 @@ Each prefix is sent after a cache flush and reused immediately. This table tests
 
 
 
-### 2026-10-19: cache verification at 64K with zero designed overlap
+### 64K low-reuse prefixes: measured cache fractions
 
 A 0% design uses different markers early in the inputs; it does not assume zero measured reuse. This tests low-reuse inputs and complements the identical-prefix immediate-reuse experiment. It does not measure a TTL or long-term cache lifetime.
 
@@ -1421,7 +1475,10 @@ A 0% design uses different markers early in the inputs; it does not assume zero 
 
 ![Cache counter controls](completion_cache.en.svg)
 
-**3/3** independent pairs qualify, with measured cached-token fractions of **0.000–0.000%** in qualified windows. The earlier missing 64K low-reuse window remains missing; these are attributable observations from a new date and are not pooled across dates.
+Figure 08-19｜Cache counter controls
+
+
+All three independent pairs and six windows are attributable, with **0%** measured cached tokens throughout. This agrees with the low-reuse construction using distinct early markers. Immediate reuse, idle retention and pressure experiments address separate cache questions.
 
 
 <a id="section-09"></a>
@@ -1464,7 +1521,8 @@ Compare means aligned to the same concurrency blocks, then inspect changes over 
 
 ![resource_by_load](../../2026-10-14_17-dual-spark/reports/resource_by_load.en.svg)
 
-Figure 09-01 | Concurrency and node resources | Same natural-workload blocks as the throughput comparison; means are weighted by valid sample duration. Gaps over 20 seconds or missing fields are not interpolated. GPU sensor and estimated system power are separate views and are not added.
+Figure 09-01｜Concurrency and node resources
+
 
 | Concurrency / node | Mean GPU activity | GPU / estimated system W | Peak temperature °C | Activity / power coverage |
 | --- | --- | --- | --- | --- |
@@ -1484,7 +1542,8 @@ Coverage is the fraction of condition-block time supported by valid adjacent sam
 
 ![hardware](../../2026-10-14_17-dual-spark/reports/hardware.en.svg)
 
-Figure 09-02 | Node timelines | Includes warmups and idle time; load comparisons use the aligned table above.
+Figure 09-02｜Node timelines
+
 
 Raw engine and memory timelines are in Appendix B. The separate network microbenchmark is about **109 Gb/s** for that transfer test; current evidence does not isolate networking, memory or compute as the sole model bottleneck.
 
@@ -1494,7 +1553,7 @@ The opening telemetry belongs to serving windows; independent GPU sustained work
 
 The schedule is **60 minutes** of compute, **60 minutes** of bandwidth and **120 minutes** of mixed work. Each phase first records a five-minute matched-work baseline, outside its formal duration. Mixed work alternates compute and bandwidth, retaining separate rates. Retention divides each ten-minute window’s median by the same-work baseline median. Windows, phases and serving durations are distinct and cannot be combined into continuous business-service uptime.
 
-Mixed work uses an independent warmup and baseline. GPU submissions pause at **85°C** and resume below75°C after30stable seconds. Timing and cooling belong to this execution; earlier interrupted attempts remain separate. Compute and bandwidth retain their original85°C cutoff, so thermal control is not identical across phases.
+Mixed work uses independent warmup and baseline measurements: submissions pause at **85°C** and resume below **75°C** after **30 stable seconds**. Execution time, cooling and interrupted attempts are recorded separately. Compute and bandwidth phases stop at **85°C**, so durations and thermal-control boundaries are reported per phase.
 
 | Node | Workload | Observed / planned min | Validated samples | Median / max °C | Median SM MHz | Sensor kWh | Integration-time coverage |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1548,13 +1607,15 @@ Cooling in this run was triggered by the benchmark temperature threshold. Valid 
 
 ![hardware_unloaded_retention](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_retention.en.svg)
 
-Figure 09-03 | Windowed performance retention | Only complete ten-minute windows are plotted; partial-tail samples remain in the statistical files. Compare matching node, workload and phase; 100% denotes the five-minute phase baseline, not a theoretical peak.
+Figure 09-03｜Windowed performance retention
+
 
 <!--HARDWARE_UNLOADED_TELEMETRY-->
 
 ![hardware_unloaded_telemetry](../../2026-10-14_17-dual-spark/reports/hardware_unloaded_telemetry.en.svg)
 
-Figure 09-04 | Node resource timeline | Includes warmup, individual scans and sustained work; phase receipts define each window. Lines break across gaps exceeding five seconds. Sensor power is not whole-system wall power.
+Figure 09-04｜Node resource timeline
+
 
 Energy uses trapezoidal integration of adjacent valid power samples no more than five seconds apart, reporting time coverage without zero-filling or extrapolating gaps. No wall-meter evidence exists. Depreciation and 1/3/5-year returns retain the explicit whole-system electricity scenarios in section 11; sensor energy does not replace wall-electricity cost.
 
@@ -1562,69 +1623,10 @@ Energy uses trapezoidal integration of adjacent valid power samples no more than
 
 ![review_sustained](../../2026-10-14_17-dual-spark/reports/review_sustained.en.svg)
 
-Figure 09-05 | Sustained coverage | Solid bars show valid formal duration, pale bars show the planned remainder. Phases are independent and do not establish continuous stability.
+Figure 09-05｜Sustained coverage
+
 
 The original sustained arm has 638 arrivals in five segments. Its 34,580.3-second span includes interruptions and does not establish continuous stability or continuous goodput. Any completed independent window below is reported separately, without joining it to those segments.
-
-### Independent public blocks, interference and continuous window
-
-| Condition | Sent / complete | Window seconds | Origin output token/s | First-content median / p95 s |
-| --- | --- | --- | --- | --- |
-| Additional business/length block | **4/4** | **62.3** | **108.44** | **1.67 / 1.68** |
-| Interference pair 4 Isolated | **32/32** | **145.1** | **42.11** | **0.85 / 1.20** |
-| Interference pair 0 Isolated | **32/32** | **151.2** | **42.99** | **0.97 / 1.58** |
-| Interference pair 4 Mixed | **36/36** | **154.2** | **42.07** | **6.49 / 12.77** |
-| Additional business/length block | **8/8** | **398.5** | **35.26** | **3.28 / 4.03** |
-| Interference pair 2 Isolated | **32/32** | **171.3** | **35.39** | **0.90 / 1.15** |
-| Continuous run | **599/599** | **3,600.2** | **64.77** | **1.01 / 1.49** |
-| Short-prompt C4 reference | **60/60** | **196.4** | **117.65** | **0.90 / 1.15** |
-| Interference pair 2 Mixed | **39/39** | **173.2** | **39.46** | **1.92 / 12.57** |
-| Short-prompt C4 reference | **60/60** | **194.8** | **118.45** | **0.94 / 1.45** |
-| Additional business/length block | **4/4** | **255.7** | **38.53** | **11.95 / 13.75** |
-| Short-prompt C4 reference | **60/60** | **201.1** | **118.35** | **0.90 / 1.24** |
-| Interference pair 0 Mixed | **33/33** | **159.3** | **39.01** | **4.32 / 13.88** |
-
-
-
-Throughput requires original token counts for every complete response; open arrivals retain local rejection counts. Interference effects compare short requests within matched pairs; total mixed throughput is not a substitute for short-request latency differences.
-
-### 2026-10-19: effect of long requests on short-request waiting
-
-The isolated arm has 32 short requests. The mixed arm preserves their prompts and scheduled arrivals and adds eight 32K inputs. Both arms prewarm every short input. Ratios require complete pairs, while all rejections remain reported. This measures the overall mixed-service effect, not pure prefill-kernel time.
-
-| Pair | Complete short: isolated→mixed | Median wait s: isolated→mixed | p95 wait s: isolated→mixed | Median ratio | Rejections: isolated/mixed | Interpretation |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | 32/32 → 32/32 | 0.95 → **1.23** | 1.33 → **12.44** | **1.30** | 0 / 0 | Complete pair |
-| 2 | 32/32 → 32/32 | 0.98 → **1.16** | 2.05 → **9.32** | **1.18** | 0 / 0 | Complete pair |
-| 3 | 32/32 → 32/32 | 0.87 → **2.94** | 1.15 → **16.89** | **3.37** | 0 / 0 | Complete pair |
-| 4 | 32/32 → 32/32 | 0.97 → **1.59** | 1.41 → **11.36** | **1.64** | 0 / 0 | Complete pair |
-| 5 | 32/32 → 29/32 | 1.00 → **4.63** | 1.22 → **14.61** | **—** | 0 / 3 | Rejections; latency describes completed responses only |
-
-
-![Paired short-request waiting](completion_interference.en.svg)
-
-All arrivals and outcomes are observed in **5/5** pairs; **4/5** qualify for complete-pair effect estimates, with median-wait ratios of **1.18–3.37×** and p95 ratios of **4.54–14.68×**. These are ranges across blocks, not confidence intervals. The three incomplete pairs from October 17 remain historical rejection evidence and are excluded from this effect estimate.
-
-| Pair | Arm | Local short-request rejections | Observed queue wait at rejection s | Execution |
-| --- | --- | --- | --- | --- |
-| 5 | mixed | 3/32 | 5.99–14.28 | Not forwarded to model |
-
-The local queue checks its 5-second threshold on dequeue, so actual waiting before rejection can be longer. Rejected requests have no first-text time. Latency summaries for an arm with rejections describe completed responses only and do not establish a complete-pair effect. These are observed admission outcomes, not missing test records.
-
-| Pair | Arm | Offered/sent/complete | Block wall time s | Block output tokens/s | Median short output tokens | Whole-arm cache fraction |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | isolated | 32 / 32 / 32 | 273.5 | **22.97** | 240 | 69.75% |
-| 1 | mixed | 40 / 40 / 40 | 273.4 | **26.50** | 250 | 0.63% |
-| 2 | isolated | 32 / 32 / 32 | 339.9 | **18.68** | 256 | 66.39% |
-| 2 | mixed | 40 / 40 / 40 | 339.4 | **21.78** | 256 | 0.17% |
-| 3 | isolated | 32 / 32 / 32 | 219.5 | **26.33** | 242 | 76.68% |
-| 3 | mixed | 40 / 40 / 40 | 220.7 | **32.24** | 248 | 1.01% |
-| 4 | isolated | 32 / 32 / 32 | 244.1 | **20.57** | 153 | 67.19% |
-| 4 | mixed | 40 / 40 / 40 | 243.9 | **25.37** | 167 | 0.36% |
-| 5 | isolated | 32 / 32 / 32 | 192.9 | **31.41** | 253 | 75.67% |
-| 5 | mixed | 40 / 37 / 37 | 193.2 | **34.30** | 256 | 0.38% |
-
-Block throughput divides actual source output by wall time from scheduler start through the last response, including inter-arrival gaps; it is not saturated capacity. Whole-arm cache fractions are input-token weighted and include long prompts in mixed arms, so they are not short-request hit rates.
 
 ### Five-minute windows of continuous service
 
@@ -1649,11 +1651,12 @@ Block throughput divides actual source output by wall time from scheduler start 
 
 ![gap_soak_windows](../../2026-10-14_17-dual-spark/reports/gap_soak_windows.en.svg)
 
-Figure 09-07 | Waiting and completed output in continuous windows | Latency cohorts use planned arrival time. Tokens are credited when a response completes, not at their individual generation times. Original warmup flags remain; early windows include startup transients.
+Figure 09-06｜Waiting and completed output in continuous windows
 
 
 
-### 2026-10-19: two-node temperature and resources
+
+### Two-node resources under controlled public workloads
 
 
 | Node | Temperature median/max°C | GPU utilization median/p95% | Median GPU clock MHz | Median sensor power W | Minimum available memory GiB |
@@ -1663,6 +1666,9 @@ Figure 09-07 | Waiting and completed output in continuous windows | Latency coho
 
 
 ![Node resource time series](completion_resources.en.svg)
+
+Figure 09-07｜Node resource time series
+
 
 Samples are taken approximately every 5 seconds, including warmup, work, inter-block draining and environment verification. Median utilization therefore does not represent saturated throughput. Gaps longer than 20 seconds are not connected. 85°C is the experiment's backoff threshold, not evidence of a driver throttling signal. Sensor power is not whole-system wall energy.
 
@@ -1708,11 +1714,15 @@ All H200 values are official specifications; H200 was not benchmarked in this st
 
 ![review_fabric_map](../../2026-10-14_17-dual-spark/reports/review_fabric_map.en.svg)
 
-Figure 10-01 | Data-path comparison | Both systems supply local data and exchange model shards through different memory and interconnects. Lines denote functional paths and are not scaled by bandwidth.
+Figure 10-01｜Data-path comparison
+
 
 <!--HARDWARE_H200_MEMORY-->
 
 ![hardware_h200_memory](../../2026-10-14_17-dual-spark/reports/hardware_h200_memory.en.svg)
+
+Figure 10-02｜Capacity and data supply
+
 
 Capacity and data supply | Per-device official specifications. Similar capacity does not imply similar bandwidth; both panels begin at zero.
 
@@ -1756,6 +1766,9 @@ Scalar GB10 FMA uses 256 threads/block, eight independent chains and four blocks
 
 ![hardware_h200_compute](../../2026-10-14_17-dual-spark/reports/hardware_h200_compute.en.svg)
 
+Figure 10-03｜Fixed-size compute measurements
+
+
 Fixed-size compute measurements | Only GB10 measurements are plotted, with observed round ranges. H200 specifications remain in the table and are not presented as a matched benchmark.
 
 #### Implications for deployment
@@ -1782,9 +1795,22 @@ Charges are reconciled by the same cohort’s request IDs. Blended cost per mill
 
 ![cost_by_workload](../../2026-10-14_17-dual-spark/reports/cost_by_workload.en.svg)
 
-Figure 11-01 | Cost normalization | Charges per response and per generated token both include cohort input fees.
+Figure 11-01｜Cost normalization
+
 
 <div id="ownership-cost"></div>
+
+### Experimental cost ledger
+
+
+| Workload scope | Paid USD | Accounting boundary |
+| --- | --- | --- |
+| Service performance matrix | **8.561299** | October 14–17; reconciled with the request ledger. |
+| Concurrency references, business lengths and continuous service | **0.376474** | October 17; reconciled with the public-request ledger. |
+| Controlled lengths, mixed scheduling and low-reuse prefixes | **0.401753** | October 19; billing attributable for 696/696 submitted attempts, including warmups and probes. |
+| Total experimental API charges | **9.339526** | Sum of disjoint ledger cohorts; excludes equipment, electricity and labor. |
+
+The total describes API expenditure for this study. Production unit costs and investment returns use matched workload charges, output volume and throughput; heterogeneous input/output ratios are not collapsed into a production unit price.
 
 ### Two-node ownership: purchase and electricity
 
@@ -1806,7 +1832,8 @@ The table uses three-year depreciation; the final columns give cost per million 
 
 ![cost_sensitivity](../../2026-10-14_17-dual-spark/reports/cost_sensitivity.en.svg)
 
-Figure 11-02 | Cost sensitivity | Left: utilization with three-year depreciation. Right: depreciation life at 75% utilization.
+Figure 11-02｜Cost sensitivity
+
 
 <div id="investment-returns"></div>
 
@@ -1860,7 +1887,8 @@ Utilization sensitivity: with the same purchase and year-round energy assumption
 
 ![investment_self](../../2026-10-14_17-dual-spark/reports/investment_self.en.svg)
 
-Figure 11-03 | Self-use cumulative cash and payback | Curves start at the US$10,000 purchase outlay; crossing zero indicates full capital recovery. Endpoint percentages are year-five cumulative ROI. Only productive utilization varies. The curves extrapolate a fixed short-run measured rate; they are not multiyear observations.
+Figure 11-03｜Self-use cumulative cash and payback
+
 
 **Self-use finding.** At **75%** productive utilization, simple payback is **5.48 years** and five-year cumulative ROI **-8.7%**. At **100%**, payback is **4.04 years** and five-year ROI **+23.7%**. Payback beyond five years is mathematical extrapolation conditional on unchanged assumptions, not evidence of that device lifetime.
 
@@ -1881,7 +1909,8 @@ The table fixes sold utilization at **75%** and varies the quote to 0.5 / 1 / 2 
 
 ![investment_sales](../../2026-10-14_17-dual-spark/reports/investment_sales.en.svg)
 
-Figure 11-04 | Sales ROI sensitivity to price and sold utilization | Panels show cumulative simple ROI at years 1, 3 and 5; negative percentages mean capital is not fully recovered. All panels share one color scale. Prices include the fixed input mix; sales deductions and other operating expenses are excluded.
+Figure 11-04｜Sales ROI sensitivity to price and sold utilization
+
 
 Blended sale price required to recover capital within a chosen horizon:
 
@@ -1901,77 +1930,40 @@ Prices are blended USD per million actual generated tokens at an unchanged input
 
 [Reconciled billing by workload](../../2026-10-14_17-dual-spark/data/service/cohort-costs.csv) · [All ownership-cost scenarios](../../2026-10-14_17-dual-spark/data/service/cost-scenarios.csv)
 
-### Actual API charges for the additional experiments
-
-| Scope | USD |
-| --- | --- |
-| Historical reconciled charges | **8.561299** |
-| Independent additional batch | **0.376474** |
-| Cumulative reconciled charges | **8.937773** |
-
-
-
-Additional charges are not inserted into earlier workload unit costs or investment returns; those scenarios retain their original matched charges and throughput.
-
-
-
-### Actual API charges for the 2026-10-19 supplement
-
-
-| Item | Observed/reconciled value |
-| --- | --- |
-| Charges for archived attempts in this supplement | **US$0.401753** |
-| Submitted physical attempts | 696 |
-| Billing attribution coverage | 696/696 |
-| Accounting boundary | Includes preflight, warmup and retained attempts; reconciled with source-linked billing. |
-
-These experiment charges are not a production unit-price estimate. Earlier 1/3/5-year ownership and return scenarios retain their workload, capital and utilization assumptions; throughput from this different workload is not substituted.
-
-
 <a id="section-12"></a>
 
 ## 12 · Overall conclusions and next work
 
-This evaluation establishes a layered baseline for two DGX Spark nodes under the tested model, engine and workloads. Deployment decisions require capacity, waiting, throughput and cost to be considered together; each conclusion below maps to reproducible preceding evidence.
+This study measures dual-DGX-Spark compute, memory, communication, engine behavior and public serving within one measurement framework. Deployment decisions require throughput, user waiting, cache conditions, thermals and economic assumptions together.
 
-| Dimension | Finding | Applicability |
+| Dimension | Principal finding | Scope |
 | --- | --- | --- |
-| Data supply and communication | **8 GiB** contiguous copy223–**227 GB/s**;**1 GiB** AllReduce about **21.81 GB**/s. | A resource baseline under matching conditions, not a token-throughput prediction. |
-| Engine stages | At C=1 and 256fixed output tokens, median decode rates span **49.8–60.2 tokens/s** across tested input lengths. | Native synthetic loads; stage timing includes engine scheduling boundaries. |
-| Public concurrency | C=8 aggregates **158.9 tokens/s** with visible-content p95 of **2.39s**; throughput is about 3.52×C=1. | The 60-prompt short-input bank and eligible complete blocks; not a service guarantee. |
-| Long input and output |Native fixed output reaches **260,096 tokens**; the October 19 supplement adds **8/8** public conditions, with natural-stop lengths reported separately.|Native and public results remain separate.|
-| Prefix reuse | Token-weighted cache fraction is **20.3%** in eligible active node windows; native reuse is reported by input length. | Mixed-window statistics are not per-request hit rates or evidence of long retention. |
-| Sustained and thermal behavior | Both nodes completed **60 minutes** each of compute and bandwidth; the common mixed-load coverage is 120.0 minutes. | Segmented evidence, not four-hour continuous reliability validation. |
-| H200 technical reference | Per-device capacities are similar; H200 specifies higher local-memory bandwidth, with different cooperation paths and power boundaries. | No matched H200 run supports an inference value-for-money ranking. |
+| GPU compute | Dense 8,192³ GEMM: BF16 **94.08–94.34**, FP8 **191.88–192.64 TFLOP/s**. | Precision-, shape- and implementation-specific; not inference throughput. |
+| Memory supply and communication | 8 GiB streaming copy: **223–227 GB/s**; 1 GiB AllReduce bus bandwidth: **21.81 GB/s**. | Copy counts logical reads plus writes; NCCL and host-buffer RDMA remain separate. |
+| Engine stages | Concurrency-one prefill: **2,427–3,354 tokens/s**; decode with 256 outputs: **49.8–60.2 tokens/s**. | Native synthetic workloads; timings include engine scheduling. |
+| Public concurrency | Concurrency 1→8: **45.1→158.9 tokens/s**, first-content p95 **1.65→2.39 s**. | The 60-prompt bank and matched complete blocks; not a service guarantee. |
+| Long input and output | Native fixed output reaches **260,096 tokens**; the public 64K-input observation generates **27,018 tokens**. | Public generation stops naturally; realized output and max_tokens are separate. |
+| Mixed-request scheduling | Four of five complete-arrival-trace pairs support effects: short-request median wait **1.18–3.37×**, p95 **4.54–14.68×**. | Mixed arm 5 locally rejects 3/32 short arrivals; completed-subset latency is excluded from complete-pair effects. |
+| Prefix caching | All six 64K low-reuse windows have **0%** cached tokens; the 32K nominal 300-second idle cohort reaches **91.7%**, and six 8K periodic reuse rounds are about **100%**. | Content, idle gaps and pressure differ by experiment; no universal TTL or long-term business hit rate follows. |
+| Sustained service and thermal state | Public serving: **3,600.1 seconds**, 599 complete and one local rejection out of 600 arrivals; each node has **60/60/120-minute** compute/bandwidth/mixed phases. | Separate phases; mixed work includes thermal backoff and does not establish four-hour continuous serving reliability. |
+| H200 reference | H200 specifies greater local-memory bandwidth and different device links, precision support and power boundaries. | An official-specification reference without matched H200 inference measurements. |
 
+### Economics and deployment trade-offs
 
-| Economic use | Scenario result | Key conditions |
+| Use | Scenario result | Assumptions |
 | --- | --- | --- |
-| Self-use economics | At **75%** productive utilization, simple payback **5.48 years** and five-year ROI -8.7%. | Conditional on steady demand and price; operating expenses reduce return. |
-| Sales economics | At **75%** sold utilization and twice the blended API reference price: payback **2.65 years** and five-year ROI +88.5%. | A scenario with no channel deductions or other operating costs, not realized revenue. |
-
+| Self-use | **5.48-year** payback; five-year ROI **−8.7%**. | US$10,000 hardware; short prompts at concurrency 8; 75% productive utilization; estimated electricity, other operating costs excluded. |
+| External sales | **2.65-year** payback; five-year ROI **+88.5%**. | 75% sold utilization; twice the blended API reference price; not observed revenue. |
 
 ### Limitations and future work
 
-| Priority | Open uncertainty | Next experiment and assessment |
+| Direction | Next investigation | Evidence required |
 | --- | --- | --- |
-| 1 | Sustained behavior across periods | Repeat sustained work on independent dates and ambient conditions to assess reproducibility of retention and cooling frequency. |
-| 2 | Realized long-output range | Verify longer outputs under controlled generation; separate natural stopping from fixed length rather than treating caps as realized work. |
-| 3 | Retention and service objectives | Hold a representative traffic distribution fixed, add independent periods and competing requests, and link per-request reuse to waiting and goodput. |
-| 4 | Hardware mechanism and matched H200 benefit | Compare identical model, precision, lengths, concurrency and cache states; add counters, verified transport and same-trace analysis. |
-| 5 | Real ownership cost | Replace scenarios with wall-meter energy, actual utilization, purchase quotes and operating expenses before recomputing1/3/5-year returns. |
-
-### New evidence, applicability and next work
-
-
-| Dimension | Supported conclusion | Next work |
-| --- | --- | --- |
-| Public long output | 8/8 output-cap conditions have response evidence; actual lengths are separate. | Verify end-to-end fixed-generation parameter forwarding before a public fixed-length capacity study. |
-| Mixed serving | 4/5 complete pairs; median-wait ratios 1.18–3.37, p95 ratios 4.54–14.68. | Use the same traces to compare separate short/long queues or prefill budgets, testing tail-latency improvement before extending rates and dates. |
-| Prefix caching | 3/3 attributable 64K low-reuse controls. | Interpret alongside reuse/retention tests; add cross-period competition rather than inferring a TTL from low-reuse controls. |
-| Hardware comparison and economics | GB10/H200 resources are functionally aligned; measurements, specifications and cost scenarios remain distinct. | Same-workload H200 data, a wall meter and real utilization are needed for measured inference price/performance. |
-
-Completion is defined by the separate fixed denominators in section05. Physical DRAM-byte counts, exact token timestamps and a same-workload H200 comparison remain unmeasured; more ordinary requests do not resolve those instrument/resource limits.
+| Mixed-serving scheduling | Compare separate short/long queues and prefill budgets. | Identical complete arrival traces; report tails, throughput and local rejections together. |
+| Public fixed long output | Verify end-to-end forwarding of forced-generation controls. | Realized target lengths with matched inputs and concurrency; natural stopping remains separate. |
+| Caching and sustained behavior | Extend competing business traffic, independent dates and ambient temperatures. | Attributable counters, repeated blocks, cooling fraction and goodput. |
+| Hardware mechanisms and H200 | Obtain physical-memory traffic and matched H200 configurations. | Matched model, precision, lengths, cache state and communication paths. |
+| Observed ownership cost | Replace estimates with wall-meter energy, real utilization and operating expenses. | Recompute 1/3/5-year cash flows, payback and ROI. |
 
 ## 13 · Appendix A: complete metric and statistical definitions
 
@@ -2101,45 +2093,51 @@ API, original upstream and billing counts retain distinct provenance. Token rate
 
 <a id="section-14"></a>
 
-## 14 · Appendix B: supplementary figures and statistics
+## 14 · Appendix B: detailed figures and statistics
 
-These supplementary figures document distributions, block variation and sampling coverage; primary definitions and findings are in the main text.
+These detailed figures document distributions, block variation and sampling coverage; primary definitions and findings are in the main text.
 
 <!--SAMPLE_FLOW-->
 
 ![sample_flow](../../2026-10-14_17-dual-spark/reports/sample_flow.en.svg)
 
-Figure 14-01 | Sample inclusion | All attempts through eligible complete blocks; requests and blocks are separate units.
+Figure 14-01｜Sample inclusion
+
 
 <!--LATENCY-->
 
 ![latency](../../2026-10-14_17-dual-spark/reports/latency.en.svg)
 
-Figure 14-02 | Response distributions | All non-warmup complete responses, including partial blocks; the population differs from the main capacity curve.
+Figure 14-02｜Response distributions
+
 
 <!--EVOLUTION-->
 
 ![evolution](../../2026-10-14_17-dual-spark/reports/evolution.en.svg)
 
-Figure 14-03 | Block variation | Solid points are uninterrupted blocks; crosses retain interrupted wall-clock values.
+Figure 14-03｜Block variation
+
 
 <!--PARETO-->
 
 ![pareto](../../2026-10-14_17-dual-spark/reports/pareto.en.svg)
 
-Figure 14-04 | Throughput and waiting | One point per concurrency condition; lines only guide reading.
+Figure 14-04｜Throughput and waiting
+
 
 <!--ENGINE-->
 
 ![engine](../../2026-10-14_17-dual-spark/reports/engine.en.svg)
 
-Figure 14-05 | Raw engine and memory samples | Missing intervals remain blank; acceptance is a sampled-window field.
+Figure 14-05｜Raw engine and memory samples
+
 
 <!--ARRIVAL_DESIGN-->
 
 ![arrival_design](../../2026-10-14_17-dual-spark/reports/arrival_design.en.svg)
 
-Figure 14-06 | Arrival schematic | Independent arrivals can queue; this diagram does not establish test completion.
+Figure 14-06｜Arrival schematic
+
 
 ### Full paired reasoning statistics
 
@@ -2241,6 +2239,29 @@ Lengths and latency use complete streams. Other terminal states include expected
 | 1 | fp16_sparse_2of4 | **4096×4096×4096** | **10** | **33.868** | **32.344–34.901** |
 | 1 | fp8_e4m3 | **1×4096×4096** | **10** | **0.464** | **0.463–0.465** |
 | 1 | fp8_e4m3 | **128×4096×4096** | **10** | **116.633** | **115.258–117.238** |
+
+
+### Service observations by execution block
+
+| Condition | Sent / complete | Window seconds | Origin output token/s | First-content median / p95 s |
+| --- | --- | --- | --- | --- |
+| Additional business/length block | **4/4** | **62.3** | **108.44** | **1.67 / 1.68** |
+| Interference pair 4 Isolated | **32/32** | **145.1** | **42.11** | **0.85 / 1.20** |
+| Interference pair 0 Isolated | **32/32** | **151.2** | **42.99** | **0.97 / 1.58** |
+| Interference pair 4 Mixed | **36/36** | **154.2** | **42.07** | **6.49 / 12.77** |
+| Additional business/length block | **8/8** | **398.5** | **35.26** | **3.28 / 4.03** |
+| Interference pair 2 Isolated | **32/32** | **171.3** | **35.39** | **0.90 / 1.15** |
+| Continuous run | **599/599** | **3,600.2** | **64.77** | **1.01 / 1.49** |
+| Short-prompt C4 reference | **60/60** | **196.4** | **117.65** | **0.90 / 1.15** |
+| Interference pair 2 Mixed | **39/39** | **173.2** | **39.46** | **1.92 / 12.57** |
+| Short-prompt C4 reference | **60/60** | **194.8** | **118.45** | **0.94 / 1.45** |
+| Additional business/length block | **4/4** | **255.7** | **38.53** | **11.95 / 13.75** |
+| Short-prompt C4 reference | **60/60** | **201.1** | **118.35** | **0.90 / 1.24** |
+| Interference pair 0 Mixed | **33/33** | **159.3** | **39.01** | **4.32 / 13.88** |
+
+
+
+Throughput requires original token counts for every complete response; open arrivals retain local rejection counts. Interference effects compare short requests within matched pairs; total mixed throughput is not a substitute for short-request latency differences.
 
 <a id="section-15"></a>
 
@@ -2512,7 +2533,7 @@ The paths below show one saved request. Other requests use the same directory st
 
 The inventory reflects its scan time; live files may continue growing. Credentials, lock/temp files, bytecode and third-party installation directories are excluded. Historical material in the source root is not automatically included in this experiment’s performance statistics.
 
-### Hardware completion: code, data and reproduction paths
+### Hardware experiments: code, data and reproduction paths
 
 
 | Purpose | Original workspace path |
@@ -2618,12 +2639,12 @@ Prefix reuse and per-request reporting are separate settings: `disable_radix_cac
 | Control network for the hardware window | Effective values and scope |
 | --- | --- |
 | Inter-node control address | SGLANG_HOST_IP=192.0.2.10 / 192.0.2.11 |
-| Inference configuration verification | Restored model path, version, TP, MTP, context and core cache settings match the pre-stop configuration. Public-endpoint and independent-engine performance data were collected before this network binding. |
+| Inference configuration verification | October 14–17 performance records retain their launch snapshots; controlled public experiments on October 19 use the arguments in Section 1. Paths are matched within comparisons; absolute throughput is not pooled across windows. |
 
 
 Node 0 configuration and command · Node 1 command
 
-### Independent completion arm: code, raw evidence and analysis
+### Fixed output, profiling and continuous service: data index
 
 | Content | Original workspace path |
 | --- | --- |
@@ -2646,7 +2667,7 @@ Node 0 configuration and command · Node 1 command
 
 
 
-### 2026-10-19: additional experiment code and data
+### Controlled public workloads: code and data index
 
 
 | Path | Purpose |

@@ -7,7 +7,7 @@
   ],
   "status": "execution_ended",
   "evidence_complete": true,
-  "purpose": "Dated public output-cap, matched interference and 64K cache-counter completion",
+  "purpose": "Controlled public lengths, mixed-request scheduling and 64K prefix-cache counters",
   "hardware_profile": "hardware/dgx-spark-gb10-pair.json",
   "engine": {
     "name": "sglang",
@@ -66,5 +66,17 @@
     "No exact per-token SSE clock"
   ],
   "public_fixed_output_qualified": 0,
-  "public_path": "Infron -> Cloudflare -> frozen-request forwarding proxy -> unchanged SGLang"
+  "public_path": "Infron -> Cloudflare -> frozen-request forwarding proxy -> unchanged SGLang",
+  "report_scope": {
+    "measurement_period": [
+      "2026-10-14",
+      "2026-10-19"
+    ],
+    "source_experiments": [
+      "experiments/qwen3.8-flash-next-abliterated/2026-10-14_17-dual-spark",
+      "experiments/qwen3.8-flash-next-abliterated/2026-10-19-completion"
+    ],
+    "organization": "thematic",
+    "pooled_cross_workload_performance": false
+  }
 }
