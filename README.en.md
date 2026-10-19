@@ -1,4 +1,4 @@
-**English** · [中文](README.zh.md)
+**English** · [中文](README.md)
 
 # NVIDIA DGX Spark GB10 Testing Suite
 
